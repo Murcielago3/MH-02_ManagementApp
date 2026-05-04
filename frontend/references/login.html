@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary": "#ffffff",
+                        "on-secondary-fixed-variant": "#3f465c",
+                        "inverse-primary": "#c3c0ff",
+                        "tertiary-fixed-dim": "#c0c1ff",
+                        "surface-container-high": "#e6e8ea",
+                        "error-container": "#ffdad6",
+                        "surface-container-low": "#f2f4f6",
+                        "outline-variant": "#c7c4d8",
+                        "inverse-on-surface": "#eff1f3",
+                        "surface-container-highest": "#e0e3e5",
+                        "secondary-fixed": "#dae2fd",
+                        "on-surface": "#191c1e",
+                        "on-error-container": "#93000a",
+                        "on-primary-fixed": "#0f0069",
+                        "secondary-fixed-dim": "#bec6e0",
+                        "on-secondary-fixed": "#131b2e",
+                        "primary-fixed": "#e2dfff",
+                        "surface-container": "#eceef0",
+                        "on-error": "#ffffff",
+                        "outline": "#777587",
+                        "on-background": "#191c1e",
+                        "primary-fixed-dim": "#c3c0ff",
+                        "surface-bright": "#f7f9fb",
+                        "tertiary": "#3130c0",
+                        "on-tertiary-fixed-variant": "#2f2ebe",
+                        "surface-container-lowest": "#ffffff",
+                        "inverse-surface": "#2d3133",
+                        "on-primary-container": "#dad7ff",
+                        "secondary-container": "#dae2fd",
+                        "secondary": "#565e74",
+                        "on-tertiary-fixed": "#07006c",
+                        "on-tertiary-container": "#d9d8ff",
+                        "on-primary-fixed-variant": "#3323cc",
+                        "error": "#ba1a1a",
+                        "on-primary": "#ffffff",
+                        "primary-container": "#4f46e5",
+                        "surface": "#f7f9fb",
+                        "background": "#f7f9fb",
+                        "primary": "#3525cd",
+                        "on-secondary-container": "#5c647a",
+                        "surface-variant": "#e0e3e5",
+                        "tertiary-container": "#4b4dd8",
+                        "surface-tint": "#4d44e3",
+                        "tertiary-fixed": "#e1e0ff",
+                        "surface-dim": "#d8dadc",
+                        "on-surface-variant": "#464555",
+                        "on-secondary": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "xl": "32px",
+                        "xs": "8px",
+                        "lg": "24px",
+                        "base": "4px",
+                        "sidebar-width": "260px",
+                        "sm": "12px",
+                        "md": "16px",
+                        "container-max": "1440px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Integral CF", "Manrope", "sans-serif"],
+                        "label-sm": ["Integral CF", "Inter", "sans-serif"],
+                        "label-md": ["Integral CF", "Inter", "sans-serif"],
+                        "headline-sm": ["Integral CF", "Manrope", "sans-serif"],
+                        "body-md": ["Inter", "sans-serif"],
+                        "headline-lg": ["Integral CF", "Manrope", "sans-serif"],
+                        "body-lg": ["Inter", "sans-serif"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                        "label-md": ["13px", {"lineHeight": "18px", "fontWeight": "600"}],
+                        "headline-sm": ["18px", {"lineHeight": "26px", "fontWeight": "700"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-lg": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }</script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #f7f9fb;
+        }
+        .pattern-overlay {
+            background-image: 
+                radial-gradient(circle at 1px 1px, #3525cd 1px, transparent 0);
+            background-size: 32px 32px;
+        }
+        .soft-gradient {
+            background: linear-gradient(165deg, #e2dfff 0%, #f7f9fb 100%);
+        }
+        .architectural-shadow {
+            box-shadow: 0 1px 2px rgba(53, 37, 205, 0.05), 0 4px 12px rgba(53, 37, 205, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md antialiased selection:bg-primary-container selection:text-on-primary-container min-h-screen overflow-x-hidden">
+<div class="flex min-h-screen">
+<!-- Left Section: Visual Branding (Desktop only) -->
+<div class="hidden lg:flex lg:w-1/2 relative overflow-hidden soft-gradient items-center justify-center border-r border-outline-variant/30">
+<!-- Subtle architectural pattern -->
+<div class="absolute inset-0 pattern-overlay opacity-[0.08]"></div>
+<div class="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-transparent"></div>
+<!-- Large Architectural Graphic Reference -->
+<div class="relative z-10 w-full max-w-2xl px-xl">
+<div class="mb-xl">
+<div class="inline-flex p-4 bg-white/60 backdrop-blur-md rounded-xl border border-white/40 architectural-shadow mb-lg transform hover:translate-y-[-2px] transition-all duration-500">
+<div class="grid grid-cols-2 gap-2">
+<div class="w-10 h-10 bg-primary rounded-sm"></div>
+<div class="w-10 h-10 bg-primary opacity-30 rounded-sm"></div>
+<div class="w-10 h-10 bg-primary opacity-60 rounded-sm"></div>
+<div class="w-10 h-10 bg-primary rounded-sm"></div>
+</div>
+</div>
+<h2 class="font-headline-lg text-7xl text-primary mb-md tracking-tighter leading-[1.1] uppercase">Studio<br/>MH 02</h2>
+<div class="w-24 h-1.5 bg-primary/20 mb-lg"></div>
+<p class="font-body-lg text-xl text-on-surface-variant max-w-md leading-relaxed">
+                    Precision-engineered studio suite for high-performance architectural design and enterprise resource planning.
+                </p>
+</div>
+<!-- Stats Indicators -->
+<div class="grid grid-cols-2 gap-xl mt-12 pt-12 border-t border-outline-variant/40">
+<div>
+<div class="text-primary font-headline-md tracking-tight">1.2ms</div>
+<div class="text-on-surface-variant/60 text-label-sm uppercase tracking-widest font-semibold mt-1">Rendering Latency</div>
+</div>
+<div>
+<div class="text-primary font-headline-md tracking-tight">v4.8.0</div>
+<div class="text-on-surface-variant/60 text-label-sm uppercase tracking-widest font-semibold mt-1">Build Release</div>
+</div>
+</div>
+</div>
+<!-- Softened Watermark -->
+</div>
+<!-- Right Section: Login Content -->
+<main class="w-full lg:w-1/2 flex items-center justify-center p-md sm:p-xl bg-surface relative">
+<!-- Decorative elements for mobile -->
+<div class="lg:hidden absolute top-0 left-0 w-full h-40 soft-gradient -z-10 opacity-60"></div>
+<div class="w-full max-w-[440px] space-y-xl relative">
+<!-- Mobile Logo -->
+<div class="lg:hidden flex flex-col items-center mb-xl">
+<div class="p-3 bg-white/80 backdrop-blur border border-outline-variant rounded-lg flex items-center justify-center mb-md architectural-shadow">
+<div class="grid grid-cols-2 gap-1.5">
+<div class="w-4 h-4 bg-primary"></div>
+<div class="w-4 h-4 bg-primary opacity-30"></div>
+<div class="w-4 h-4 bg-primary opacity-60"></div>
+<div class="w-4 h-4 bg-primary"></div>
+</div>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface">Studio MH02</h1>
+</div>
+<header class="space-y-sm">
+<h2 class="font-headline-lg text-on-surface tracking-tight">Welcome back</h2>
+<p class="font-body-md text-on-surface-variant">Enter your workspace credentials to continue.</p>
+</header>
+<!-- Authentication Form -->
+<form action="#" class="space-y-lg" method="POST">
+<!-- User ID Field -->
+<div class="space-y-xs">
+<label class="font-label-md text-on-surface-variant block ml-1" for="user-id">User ID</label>
+<div class="relative group">
+<input class="w-full h-14 pl-md pr-12 font-body-md text-on-surface bg-white border border-outline-variant rounded-lg focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all placeholder:text-outline/60 architectural-shadow group-hover:border-outline" id="user-id" name="user-id" placeholder="e.g. creative_user_01" required="" type="text"/>
+<div class="absolute inset-y-0 right-0 flex items-center pr-md pointer-events-none text-outline group-focus-within:text-primary transition-colors">
+<span class="material-symbols-outlined text-[22px]">person</span>
+</div>
+</div>
+</div>
+<!-- Password Field -->
+<div class="space-y-xs">
+<div class="flex justify-between items-center px-1">
+<label class="font-label-md text-on-surface-variant block" for="password">Password</label>
+<a class="font-label-sm text-primary hover:text-tertiary transition-colors" href="#">Forgot password?</a>
+</div>
+<div class="relative group">
+<input class="w-full h-14 pl-md pr-12 font-body-md text-on-surface bg-white border border-outline-variant rounded-lg focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all placeholder:text-outline/60 architectural-shadow group-hover:border-outline" id="password" name="password" placeholder="••••••••••••" required="" type="password"/>
+<div class="absolute inset-y-0 right-0 flex items-center pr-md pointer-events-none text-outline group-focus-within:text-primary transition-colors">
+<span class="material-symbols-outlined text-[22px]">lock</span>
+</div>
+</div>
+</div>
+<!-- Secondary Actions -->
+<div class="flex items-center px-1">
+<label class="flex items-center gap-sm cursor-pointer group">
+<div class="relative flex items-center">
+<input class="peer w-5 h-5 rounded-md border-outline-variant text-primary focus:ring-primary/20 cursor-pointer transition-all" type="checkbox"/>
+</div>
+<span class="font-label-md text-on-surface-variant group-hover:text-on-surface transition-colors">Keep me signed in</span>
+</label>
+</div>
+<!-- Primary Action -->
+<div class="space-y-md">
+<button class="w-full h-14 bg-primary text-on-primary font-headline-sm text-[16px] rounded-lg flex items-center justify-center gap-xs hover:bg-tertiary hover:shadow-lg hover:shadow-primary/20 active:scale-[0.98] transition-all font-bold uppercase tracking-wider" type="submit">
+                        Sign In
+                        <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+</div>
+</form>
+<!-- Footer / Registration -->
+<footer class="pt-lg text-center">
+<p class="font-body-md text-on-surface-variant">
+                    Don't have an account yet? 
+                    <a class="font-label-md text-primary ml-xs hover:underline underline-offset-4 decoration-primary/30 font-semibold" href="#">Contact administration</a>
+</p>
+</footer>
+</div>
+</main>
+</div>
+</body></html>
