@@ -6,6 +6,7 @@ aiosqlite
 alembic
 redis
 celery
+python-multipart
 python-dotenv
 pydantic-settings
 passlib[bcrypt]

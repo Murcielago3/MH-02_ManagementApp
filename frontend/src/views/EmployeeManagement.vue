@@ -110,10 +110,15 @@
               <!-- Profile Photo Upload -->
               <div
                 class="bg-surface-container-lowest border border-on-surface/10 p-6 flex flex-col items-center justify-center aspect-square group cursor-pointer relative overflow-hidden rounded-lg hover:bg-surface-container-low transition-colors"
+                @click="triggerPhotoInput"
               >
-                <span class="material-symbols-outlined text-[48px] text-outline mb-4">account_circle</span>
-                <p class="text-xs text-on-surface-variant font-bold tracking-widest uppercase">Upload Photo</p>
-                <p class="text-[10px] text-outline-variant mt-2 uppercase">JPG, PNG • Max 5MB</p>
+                <img v-if="photoPreview" :src="photoPreview" class="w-full h-full object-cover absolute inset-0" alt="Profile photo" />
+                <template v-else>
+                  <span class="material-symbols-outlined text-[48px] text-outline mb-4">account_circle</span>
+                  <p class="text-xs text-on-surface-variant font-bold tracking-widest uppercase">Upload Photo</p>
+                  <p class="text-[10px] text-outline-variant mt-2 uppercase">JPG, PNG • Max 5MB</p>
+                </template>
+                <input ref="photoInputRef" type="file" accept="image/*" class="hidden" @change="onPhotoSelected" />
               </div>
 
               <!-- Documentation -->
@@ -122,28 +127,38 @@
                   Documentation
                 </h4>
                 <div class="space-y-3">
-                  <div class="flex items-center justify-between p-3 border-b border-outline-variant/30 hover:bg-surface-container transition-colors cursor-pointer">
+                  <div class="flex items-center justify-between p-3 border-b border-outline-variant/30 hover:bg-surface-container transition-colors cursor-pointer" @click="triggerDocInput('aadhar')">
                     <div class="flex items-center gap-3">
-                      <span class="material-symbols-outlined text-primary text-[20px]">cloud_upload</span>
-                      <span class="text-xs font-semibold">CV / Portfolio</span>
+                      <span class="material-symbols-outlined text-[20px]" :class="docFiles.aadhar ? 'text-green-600' : 'text-primary'">{{ docFiles.aadhar ? 'check_circle' : 'cloud_upload' }}</span>
+                      <div>
+                        <span class="text-xs font-semibold block">Aadhar Card</span>
+                        <span class="text-[10px] text-outline-variant">{{ docFiles.aadhar ? docFiles.aadhar.name : 'PDF / Image' }}</span>
+                      </div>
                     </div>
-                    <span class="material-symbols-outlined text-outline text-[18px]">add</span>
+                    <span class="material-symbols-outlined text-outline text-[18px]">{{ docFiles.aadhar ? 'done' : 'add' }}</span>
                   </div>
-                  <div class="flex items-center justify-between p-3 border-b border-outline-variant/30 hover:bg-surface-container transition-colors cursor-pointer">
+                  <div class="flex items-center justify-between p-3 border-b border-outline-variant/30 hover:bg-surface-container transition-colors cursor-pointer" @click="triggerDocInput('pan')">
                     <div class="flex items-center gap-3">
-                      <span class="material-symbols-outlined text-primary text-[20px]">cloud_upload</span>
-                      <span class="text-xs font-semibold">Experience Letter</span>
+                      <span class="material-symbols-outlined text-[20px]" :class="docFiles.pan ? 'text-green-600' : 'text-primary'">{{ docFiles.pan ? 'check_circle' : 'cloud_upload' }}</span>
+                      <div>
+                        <span class="text-xs font-semibold block">PAN Card</span>
+                        <span class="text-[10px] text-outline-variant">{{ docFiles.pan ? docFiles.pan.name : 'PDF / Image' }}</span>
+                      </div>
                     </div>
-                    <span class="material-symbols-outlined text-outline text-[18px]">add</span>
+                    <span class="material-symbols-outlined text-outline text-[18px]">{{ docFiles.pan ? 'done' : 'add' }}</span>
                   </div>
-                  <div class="flex items-center justify-between p-3 border-b border-outline-variant/30 hover:bg-surface-container transition-colors cursor-pointer">
+                  <div class="flex items-center justify-between p-3 border-b border-outline-variant/30 hover:bg-surface-container transition-colors cursor-pointer" @click="triggerDocInput('other')">
                     <div class="flex items-center gap-3">
-                      <span class="material-symbols-outlined text-primary text-[20px]">cloud_upload</span>
-                      <span class="text-xs font-semibold">Identity Proof</span>
+                      <span class="material-symbols-outlined text-[20px]" :class="docFiles.other ? 'text-green-600' : 'text-primary'">{{ docFiles.other ? 'check_circle' : 'cloud_upload' }}</span>
+                      <div>
+                        <span class="text-xs font-semibold block">Other Document</span>
+                        <span class="text-[10px] text-outline-variant">{{ docFiles.other ? docFiles.other.name : 'PDF / Image' }}</span>
+                      </div>
                     </div>
-                    <span class="material-symbols-outlined text-outline text-[18px]">add</span>
+                    <span class="material-symbols-outlined text-outline text-[18px]">{{ docFiles.other ? 'done' : 'add' }}</span>
                   </div>
                 </div>
+                <input ref="docInputRef" type="file" accept=".pdf,image/*" class="hidden" @change="onDocSelected" />
               </div>
             </div>
 
@@ -247,10 +262,8 @@
                       v-model="form.manager_id"
                       class="w-full bg-transparent border-b border-[#A2937E] focus:border-primary focus:ring-0 px-0 py-2 outline-none transition-colors"
                     >
-                      <option value="">Select manager</option>
-                      <option value="1">Ar. Sameer Kulkarni</option>
-                      <option value="2">Ar. Priya Sharma</option>
-                      <option value="3">Studio Principal</option>
+                      <option value="">— None —</option>
+                      <option v-for="m in managers" :key="m.id" :value="m.id">{{ m.name }}</option>
                     </select>
                   </div>
 
@@ -312,7 +325,7 @@
                       Personal Email
                     </label>
                     <input
-                      v-model="form.personal_email"
+                      v-model="form.personal_mail"
                       type="email"
                       placeholder="personal@email.com"
                       class="w-full bg-transparent border-b border-[#A2937E] focus:border-primary focus:ring-0 px-0 py-2 outline-none transition-colors"
@@ -345,6 +358,32 @@
                       <option value="project_manager">Project Manager</option>
                       <option value="admin">Admin</option>
                     </select>
+                  </div>
+
+                  <!-- Time Tracker Login -->
+                  <div class="col-span-2 md:col-span-1">
+                    <label class="text-xs font-bold text-on-surface-variant block mb-2 uppercase tracking-wide">
+                      User ID for Time Tracker Login
+                    </label>
+                    <input
+                      v-model="form.time_tracker_login"
+                      type="text"
+                      placeholder="user@studiomh02.com"
+                      class="w-full bg-transparent border-b border-[#A2937E] focus:border-primary focus:ring-0 px-0 py-2 outline-none transition-colors"
+                    />
+                  </div>
+
+                  <!-- Time Tracker Password -->
+                  <div class="col-span-2 md:col-span-1">
+                    <label class="text-xs font-bold text-on-surface-variant block mb-2 uppercase tracking-wide">
+                      Password for Time Tracker Login
+                    </label>
+                    <input
+                      v-model="form.time_tracker_password"
+                      type="password"
+                      placeholder="Enter time tracker password"
+                      class="w-full bg-transparent border-b border-[#A2937E] focus:border-primary focus:ring-0 px-0 py-2 outline-none transition-colors"
+                    />
                   </div>
                 </div>
 
@@ -411,7 +450,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { usersAPI } from '../api/users'
@@ -419,31 +458,72 @@ import { usersAPI } from '../api/users'
 const router = useRouter()
 const authStore = useAuthStore()
 
+const managers = ref([])
+
+// File upload state
+const photoInputRef = ref(null)
+const docInputRef = ref(null)
+const photoPreview = ref(null)
+const selectedPhoto = ref(null)
+const currentDocType = ref('aadhar')
+const docFiles = reactive({ aadhar: null, pan: null, other: null })
+
 const form = reactive({
   name: '',
   designation: '',
   joining_date: '',
   end_date: '',
   salary_month: 0,
+  salary_hour: 0,
   leaves_allowed: 18,
   pan_number: '',
   aadhar_number: '',
   manager_id: '',
   studio_email: '',
-  personal_email: '',
+  personal_mail: '',
   password: '',
   role: 'employee',
+  time_tracker_login: '',
+  time_tracker_password: '',
 })
 
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
 
+onMounted(async () => {
+  try {
+    const res = await usersAPI.getUsers()
+    managers.value = res.data.filter(u => u.role === 'project_manager' || u.role === 'admin')
+  } catch (e) {
+    console.error('Failed to load managers:', e)
+  }
+})
+
 const calculateSalaryPerHour = () => {
   if (!form.salary_month || form.salary_month === 0) return '0.00'
-  // Assuming 160 working hours per month (20 days * 8 hours)
-  const hourlyRate = (form.salary_month / 160).toFixed(2)
-  return hourlyRate
+  return (form.salary_month / 160).toFixed(2)
+}
+
+// Photo upload
+function triggerPhotoInput() { photoInputRef.value?.click() }
+function onPhotoSelected(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  selectedPhoto.value = file
+  photoPreview.value = URL.createObjectURL(file)
+}
+
+// Doc upload
+function triggerDocInput(type) {
+  currentDocType.value = type
+  if (docInputRef.value) docInputRef.value.value = ''
+  docInputRef.value?.click()
+}
+function onDocSelected(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  docFiles[currentDocType.value] = file
 }
 
 const resetForm = () => {
@@ -457,18 +537,24 @@ const resetForm = () => {
   form.aadhar_number = ''
   form.manager_id = ''
   form.studio_email = ''
-  form.personal_email = ''
+  form.personal_mail = ''
   form.password = ''
   form.role = 'employee'
+  form.time_tracker_login = ''
+  form.time_tracker_password = ''
   error.value = ''
   success.value = ''
+  photoPreview.value = null
+  selectedPhoto.value = null
+  docFiles.aadhar = null
+  docFiles.pan = null
+  docFiles.other = null
 }
 
 const handleAddEmployee = async () => {
   error.value = ''
   success.value = ''
 
-  // Validation
   if (!form.name || !form.designation || !form.joining_date || !form.studio_email || !form.password) {
     error.value = 'Please fill in all required fields'
     return
@@ -488,15 +574,27 @@ const handleAddEmployee = async () => {
       aadhar_number: form.aadhar_number,
       manager_id: form.manager_id ? parseInt(form.manager_id) : null,
       studio_email: form.studio_email,
-      personal_email: form.personal_email,
+      personal_mail: form.personal_mail,
       password: form.password,
       role: form.role,
+      time_tracker_login: form.time_tracker_login,
+      time_tracker_password: form.time_tracker_password,
     })
 
+    const userId = response.data.id
+
+    // Upload profile photo if selected
+    if (selectedPhoto.value) {
+      await usersAPI.uploadPhoto(userId, selectedPhoto.value)
+    }
+
+    // Upload documents if selected
+    for (const [docType, file] of Object.entries(docFiles)) {
+      if (file) await usersAPI.uploadDocument(userId, file, docType)
+    }
+
     success.value = `Employee ${form.name} added successfully!`
-    setTimeout(() => {
-      resetForm()
-    }, 2000)
+    setTimeout(() => { resetForm() }, 2000)
   } catch (err) {
     error.value = err.response?.data?.detail || err.message || 'Failed to add employee'
     console.error('Error adding employee:', err)

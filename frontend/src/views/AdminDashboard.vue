@@ -3,8 +3,8 @@
     <!-- Page header -->
     <div class="page-header">
       <div>
-        <h2 class="page-title">Overview</h2>
-        <p class="page-subtitle">Studio MH02 Performance Metrics</p>
+        <h2 class="page-title">Dashboard</h2>
+        <p class="page-subtitle">Studio MH02 Financial Overview</p>
       </div>
       <div class="header-actions">
         <button class="btn-outline">Export Report</button>
@@ -12,116 +12,116 @@
       </div>
     </div>
 
-    <!-- KPI Grid -->
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-top">
-          <span class="kpi-label">Total Employees</span>
-          <span class="material-symbols-outlined kpi-icon">group</span>
-        </div>
-        <div class="kpi-value">{{ stats.total_employees ?? '—' }}</div>
-        <div class="kpi-note">Active employees</div>
-      </div>
-
-      <div class="kpi-card">
-        <div class="kpi-top">
-          <span class="kpi-label">Active Projects</span>
-          <span class="material-symbols-outlined kpi-icon">architecture</span>
-        </div>
-        <div class="kpi-value">{{ stats.total_projects ?? '—' }}</div>
-        <div class="kpi-note">{{ stageNote }}</div>
-      </div>
-
-      <div class="kpi-card">
-        <div class="kpi-top">
-          <span class="kpi-label">Monthly Expenditure (₹)</span>
-          <span class="material-symbols-outlined kpi-icon">payments</span>
-        </div>
-        <div class="kpi-value">{{ formatCurrency(stats.monthly_salary_expenditure) }}</div>
-        <div class="kpi-note">Salary expenditure</div>
-      </div>
-
-      <div class="kpi-card">
-        <div class="kpi-top">
-          <span class="kpi-label">Billed Ratio</span>
-          <span class="material-symbols-outlined kpi-icon">pie_chart</span>
-        </div>
-        <div class="kpi-value">{{ billedRatio }}%</div>
-        <div class="kpi-note">Target: 90%</div>
-      </div>
-    </div>
-
-    <!-- Charts Row -->
-    <div class="charts-row">
-      <!-- Donut Chart: Salary vs Revenue -->
-      <div class="chart-card chart-card-wide">
-        <h3 class="card-title">Salary Expenditure vs Revenue</h3>
+    <!-- Dashboard Grid 2x2 -->
+    <div class="dashboard-grid">
+      <!-- Top Left: Monthly Sales Chart -->
+      <div class="dashboard-card">
+        <h3 class="card-title">Monthly Sales</h3>
         <div class="chart-content">
-          <!-- SVG Donut -->
-          <div class="donut-container">
-            <svg class="donut-svg" viewBox="0 0 100 100">
-              <!-- Background tracks -->
-              <circle cx="50" cy="50" r="40" fill="transparent" stroke="#f1edef" stroke-width="8" />
-              <circle cx="50" cy="50" r="30" fill="transparent" stroke="#f1edef" stroke-width="8" />
-              <!-- Outer ring: Salary (teal) -->
-              <circle
-                cx="50" cy="50" r="40" fill="transparent"
-                stroke="#0d9488" stroke-width="8"
-                :stroke-dasharray="salaryDash"
-                stroke-linecap="round"
-                class="ring-transition"
-              />
-              <!-- Inner ring: Revenue (navy) -->
-              <circle
-                cx="50" cy="50" r="30" fill="transparent"
-                stroke="#1a1a2e" stroke-width="8"
-                :stroke-dasharray="revenueDash"
-                stroke-linecap="round"
-                class="ring-transition"
-              />
-            </svg>
-            <div class="donut-center">
-              <span class="donut-total">{{ formatCurrency(totalFinancial) }}</span>
-              <span class="donut-label">TOTAL</span>
-            </div>
-          </div>
+          <svg viewBox="0 0 800 300" class="bar-chart">
+            <!-- Y-axis labels and gridlines -->
+            <line x1="60" y1="20" x2="60" y2="260" stroke="#ddd" stroke-width="2" />
+            <line x1="60" y1="260" x2="780" y2="260" stroke="#ddd" stroke-width="2" />
+            
+            <!-- Grid lines and labels -->
+            <text x="45" y="265" font-size="12" text-anchor="end" fill="#999">0</text>
+            <line x1="55" y1="260" x2="780" y2="260" stroke="#f0f0f0" stroke-width="1" stroke-dasharray="4" />
+            
+            <text x="45" y="195" font-size="12" text-anchor="end" fill="#999">{{ maxSalesValue }}</text>
+            <line x1="55" y1="190" x2="780" y2="190" stroke="#f0f0f0" stroke-width="1" stroke-dasharray="4" />
 
-          <!-- Legend -->
-          <div class="chart-legend">
-            <div class="legend-item">
-              <div class="legend-swatch" style="background-color: #1a1a2e;"></div>
-              <div class="legend-text">
-                <span class="legend-name">Revenue</span>
-                <span class="legend-val">{{ formatCurrency(stats.total_billed) }} ({{ revenuePercent }}%)</span>
-              </div>
-            </div>
-            <div class="legend-item">
-              <div class="legend-swatch" style="background-color: #0d9488;"></div>
-              <div class="legend-text">
-                <span class="legend-name">Salary Expenditure</span>
-                <span class="legend-val">{{ formatCurrency(stats.monthly_salary_expenditure) }} ({{ salaryPercent }}%)</span>
-              </div>
-            </div>
-            <div class="legend-divider"></div>
-            <p class="legend-note"><em>Margin: {{ revenuePercent }}% positive yield<br />vs previous quarter.</em></p>
+            <!-- Bars -->
+            <g v-for="(sale, idx) in monthlyChartData" :key="idx">
+              <rect 
+                :x="65 + idx * 58" 
+                :y="260 - (sale.value / maxSalesValue * 235)" 
+                width="45" 
+                height="sale.value / maxSalesValue * 235" 
+                fill="#4ade80" 
+                rx="4"
+              />
+              <text 
+                :x="65 + idx * 58 + 22.5" 
+                y="280" 
+                font-size="11" 
+                text-anchor="middle" 
+                fill="#666"
+              >
+                {{ sale.month }}
+              </text>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Top Right: Total Turnover -->
+      <div class="dashboard-card metric-card">
+        <h3 class="card-title">Total Turnover (Current FY)</h3>
+        <div class="metric-value">{{ formatCurrency(stats.total_fy_turnover) }}</div>
+        <div class="metric-note">Financial Year Total</div>
+      </div>
+
+      <!-- Bottom Left: Billed/Unbilled -->
+      <div class="dashboard-card">
+        <h3 class="card-title">Project Status</h3>
+        <div class="status-info">
+          <div class="status-item">
+            <div class="status-label">Unbilled Total</div>
+            <div class="status-value unbilled">{{ formatCurrency(stats.total_unbilled) }}</div>
+          </div>
+          <div class="status-item">
+            <div class="status-label">Billed Total</div>
+            <div class="status-value billed">{{ formatCurrency(stats.total_billed) }}</div>
           </div>
         </div>
       </div>
 
-      <!-- Project Status Ratio -->
-      <div class="chart-card">
-        <h3 class="card-title">Project Status Ratio</h3>
-        <div class="status-bars">
-          <div v-for="stage in projectStages" :key="stage.name" class="status-item">
-            <div class="status-row">
-              <span class="status-name">{{ stage.name }}</span>
-              <span class="status-pct">{{ stage.percent }}%</span>
+      <!-- Bottom Right: Expenses Pie Chart -->
+      <div class="dashboard-card">
+        <h3 class="card-title">Expenses (Current FY)</h3>
+        <div class="pie-chart-container">
+          <div class="pie-chart-wrapper">
+            <svg viewBox="0 0 200 200" class="pie-chart">
+              <!-- Pie slices -->
+              <g v-for="(slice, idx) in pieSlices" :key="idx">
+                <path 
+                  :d="slice.path" 
+                  :fill="slice.color"
+                  opacity="0.9"
+                />
+              </g>
+              <!-- Border circle -->
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#e5e1e3" stroke-width="1" />
+            </svg>
+          </div>
+          <div class="pie-legend">
+            <div class="legend-item">
+              <div class="legend-color" style="background-color: #0ea5e9;"></div>
+              <div class="legend-text">
+                <div class="legend-label">Salary</div>
+                <div class="legend-value">{{ formatCurrency(stats.fy_expenses?.salary || 0) }}</div>
+              </div>
             </div>
-            <div class="progress-track">
-              <div
-                class="progress-fill"
-                :style="{ width: stage.percent + '%', background: stage.color }"
-              ></div>
+            <div class="legend-item">
+              <div class="legend-color" style="background-color: #f97316;"></div>
+              <div class="legend-text">
+                <div class="legend-label">Office Rent</div>
+                <div class="legend-value">{{ formatCurrency(stats.fy_expenses?.office_rent || 0) }}</div>
+              </div>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color" style="background-color: #a855f7;"></div>
+              <div class="legend-text">
+                <div class="legend-label">Electricity</div>
+                <div class="legend-value">{{ formatCurrency(stats.fy_expenses?.electricity_bills || 0) }}</div>
+              </div>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color" style="background-color: #06b6d4;"></div>
+              <div class="legend-text">
+                <div class="legend-label">Software</div>
+                <div class="legend-value">{{ formatCurrency(stats.fy_expenses?.software_licenses || 0) }}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -131,7 +131,7 @@
     <!-- Recent Project Activity -->
     <div class="table-card">
       <div class="table-header">
-        <h3 class="card-title">Recent Project Activity</h3>
+        <h3 class="card-title">Recent Projects</h3>
         <button class="view-all-btn" @click="$router.push('/admin/projects')">View All</button>
       </div>
       <div class="table-scroll">
@@ -141,8 +141,8 @@
               <th>Project ID</th>
               <th>Client Name</th>
               <th>Stage</th>
-              <th>Budget</th>
-              <th>Last Update</th>
+              <th>Revenue</th>
+              <th>Status</th>
               <th class="text-right">Action</th>
             </tr>
           </thead>
@@ -158,7 +158,7 @@
               <td>{{ getClientName(p.client_id) }}</td>
               <td><span class="stage-badge">{{ p.current_stage || 'N/A' }}</span></td>
               <td class="mono">{{ formatCurrency(p.project_remuneration) }}</td>
-              <td class="mono muted">{{ p.year || '—' }}</td>
+              <td><span class="status-badge" :class="p.is_billed">{{ p.is_billed || '—' }}</span></td>
               <td class="text-right">
                 <button class="more-btn">
                   <span class="material-symbols-outlined">more_vert</span>
@@ -182,13 +182,17 @@ import { clientsAPI } from '../api/clients'
 const loading = ref(true)
 
 const stats = ref({
-  total_employees: 0,
-  total_projects: 0,
+  total_fy_turnover: 0,
   total_billed: 0,
   total_unbilled: 0,
-  monthly_salary_expenditure: 0,
-  total_partner_remuneration: 0,
-  total_expenditure: 0,
+  fy_expenses: {
+    salary: 0,
+    office_rent: 0,
+    electricity_bills: 0,
+    software_licenses: 0,
+    total: 0
+  },
+  monthly_sales: {},
 })
 
 const projects = ref([])
@@ -215,68 +219,74 @@ async function fetchAll() {
 
 onMounted(fetchAll)
 
-// ── Computed: KPI helpers ──
-const billedRatio = computed(() => {
-  const b = Number(stats.value.total_billed) || 0
-  const u = Number(stats.value.total_unbilled) || 0
-  const total = b + u
-  if (total === 0) return 0
-  return Math.round((b / total) * 100)
-})
-
-const stageNote = computed(() => {
-  const designCount = projects.value.filter(p => p.current_stage === 'Design').length
-  return designCount > 0 ? `${designCount} in design phase` : 'All stages'
-})
-
-// ── Computed: Donut chart ──
-const totalFinancial = computed(() => {
-  return (Number(stats.value.total_billed) || 0) + (Number(stats.value.monthly_salary_expenditure) || 0)
-})
-
-const revenuePercent = computed(() => {
-  if (!totalFinancial.value) return 0
-  return Math.round((Number(stats.value.total_billed) / totalFinancial.value) * 100)
-})
-
-const salaryPercent = computed(() => {
-  if (!totalFinancial.value) return 0
-  return Math.round((Number(stats.value.monthly_salary_expenditure) / totalFinancial.value) * 100)
-})
-
-// SVG stroke-dasharray: filled_length total_circumference
-const revenueDash = computed(() => {
-  const circ = 2 * Math.PI * 30 // inner ring r=30
-  const fill = (revenuePercent.value / 100) * circ
-  return `${fill.toFixed(2)} ${circ.toFixed(2)}`
-})
-
-const salaryDash = computed(() => {
-  const circ = 2 * Math.PI * 40 // outer ring r=40
-  const fill = (salaryPercent.value / 100) * circ
-  return `${fill.toFixed(2)} ${circ.toFixed(2)}`
-})
-
-// ── Computed: Project status bars ──
-const projectStages = computed(() => {
-  const total = projects.value.length || 1
-  const stages = {}
-  for (const p of projects.value) {
-    const s = p.current_stage || 'Other'
-    stages[s] = (stages[s] || 0) + 1
-  }
-
-  const colorMap = {
-    'Design': '#515f74',
-    'Construction': '#78767d',
-    'Review': '#c8c5cd',
-  }
-
-  return Object.entries(stages).map(([name, count]) => ({
-    name,
-    percent: Math.round((count / total) * 100),
-    color: colorMap[name] || '#e5e1e3',
+// ── Computed: Monthly Sales Chart ──
+const monthlyChartData = computed(() => {
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const sales = stats.value.monthly_sales || {}
+  return monthNames.map(month => ({
+    month,
+    value: Number(sales[month.replace('Jan', 'January').replace('Feb', 'February').replace('Mar', 'March').replace('Apr', 'April').replace('May', 'May').replace('Jun', 'June').replace('Jul', 'July').replace('Aug', 'August').replace('Sep', 'September').replace('Oct', 'October').replace('Nov', 'November').replace('Dec', 'December')] || 0)
   }))
+})
+
+const maxSalesValue = computed(() => {
+  const values = monthlyChartData.value.map(d => d.value)
+  const max = Math.max(...values)
+  if (max === 0) return 1
+  return Math.ceil(max / 100000) * 100000
+})
+
+// ── Computed: Pie Chart Slices ──
+const totalExpenses = computed(() => {
+  const fy = stats.value.fy_expenses || {}
+  return fy.total || 0
+})
+
+const expenseData = computed(() => [
+  { name: 'Salary', value: stats.value.fy_expenses?.salary || 0, color: '#0ea5e9' },
+  { name: 'Office Rent', value: stats.value.fy_expenses?.office_rent || 0, color: '#f97316' },
+  { name: 'Electricity', value: stats.value.fy_expenses?.electricity_bills || 0, color: '#a855f7' },
+  { name: 'Software', value: stats.value.fy_expenses?.software_licenses || 0, color: '#06b6d4' }
+])
+
+const pieSlices = computed(() => {
+  if (totalExpenses.value === 0) return []
+  
+  const slices = []
+  const centerX = 100
+  const centerY = 100
+  const radius = 80
+  let currentAngle = -Math.PI / 2 // Start at top
+
+  for (const item of expenseData.value) {
+    const sliceAngle = (item.value / totalExpenses.value) * 2 * Math.PI
+    const startAngle = currentAngle
+    const endAngle = currentAngle + sliceAngle
+    
+    // Calculate start and end points on the circle
+    const x1 = centerX + radius * Math.cos(startAngle)
+    const y1 = centerY + radius * Math.sin(startAngle)
+    const x2 = centerX + radius * Math.cos(endAngle)
+    const y2 = centerY + radius * Math.sin(endAngle)
+    
+    // Determine if we need the large arc flag (if angle > PI)
+    const largeArc = sliceAngle > Math.PI ? 1 : 0
+    
+    // Create the SVG path
+    const path = `M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`
+    
+    slices.push({
+      name: item.name,
+      path,
+      color: item.color,
+      value: item.value,
+      percent: ((item.value / totalExpenses.value) * 100).toFixed(1)
+    })
+    
+    currentAngle = endAngle
+  }
+  
+  return slices
 })
 
 // ── Computed: Recent projects (last 3) ──
@@ -724,6 +734,204 @@ function formatCurrency(val) {
 .empty-row td {
   padding: 24px;
   color: #78767d;
+}
+
+/* ───────── Dashboard Grid (2x2) ───────── */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.dashboard-card {
+  background: #ffffff;
+  border: 1px solid #c8c5cd;
+  border-radius: 4px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: 300px;
+}
+
+.dashboard-card .card-title {
+  margin: 0 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1c1b1d;
+}
+
+/* ── Metric Card (Top Right) ── */
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  min-height: 300px;
+}
+
+.metric-value {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 48px;
+  letter-spacing: -0.02em;
+  color: #1c1b1d;
+  text-align: center;
+}
+
+.metric-note {
+  font-size: 13px;
+  color: #78767d;
+  text-align: center;
+}
+
+/* ── Bar Chart ── */
+.chart-content {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bar-chart {
+  width: 100%;
+  height: 100%;
+  max-height: 250px;
+}
+
+/* ── Status Info (Billed/Unbilled) ── */
+.status-info {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex-grow: 1;
+  justify-content: center;
+}
+
+.status-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #78767d;
+}
+
+.status-value {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 36px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-value.unbilled {
+  color: #ea580c;
+}
+
+.status-value.billed {
+  color: #16a34a;
+}
+
+/* ── Pie Chart ── */
+.pie-chart-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex-grow: 1;
+  justify-content: center;
+  align-items: center;
+}
+
+.pie-chart-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0 8px;
+}
+
+.pie-chart {
+  width: 140px;
+  height: 140px;
+  max-width: 100%;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.08));
+}
+
+.pie-chart circle {
+  transform-origin: 100px 100px;
+}
+
+.pie-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  padding: 0 8px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.legend-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex-grow: 1;
+}
+
+.legend-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #78767d;
+  text-transform: capitalize;
+  letter-spacing: 0.03em;
+}
+
+.legend-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1c1b1d;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Status Badge ── */
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-badge.billed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge.unbilled {
+  background: #fed7aa;
+  color: #92400e;
 }
 
 /* ───────── Material Symbols ───────── */

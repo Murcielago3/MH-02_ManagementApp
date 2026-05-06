@@ -96,7 +96,7 @@
     <!-- Modal Backdrop -->
     <Teleport to="body">
       <div v-if="modalOpen" class="modal-backdrop" @click.self="closeModal">
-        <div class="modal">
+        <div class="modal modal-wide">
           <div class="modal-header">
             <h3 class="modal-title">{{ isEditing ? 'Edit Employee' : 'Add New Employee' }}</h3>
             <button class="modal-close" @click="closeModal">
@@ -105,6 +105,47 @@
           </div>
 
           <form @submit.prevent="handleSubmit" class="modal-body">
+
+            <!-- Photo + Docs side panel -->
+            <div class="upload-row">
+              <!-- Profile Photo -->
+              <div class="photo-upload-area" @click="triggerPhotoInput">
+                <img v-if="photoPreview" :src="photoPreview" class="photo-preview" alt="Profile" />
+                <div v-else class="photo-placeholder">
+                  <span class="material-symbols-outlined">account_circle</span>
+                  <span>Upload Photo</span>
+                </div>
+                <input ref="photoInputRef" type="file" accept="image/*" class="hidden-input" @change="onPhotoSelected" />
+              </div>
+
+              <!-- Document Uploads -->
+              <div class="doc-upload-area">
+                <div class="doc-slot" @click="triggerDocInput('aadhar')">
+                  <span class="material-symbols-outlined doc-icon">{{ docFiles.aadhar ? 'check_circle' : 'upload_file' }}</span>
+                  <div class="doc-slot-text">
+                    <strong>Aadhar Card</strong>
+                    <span>{{ docFiles.aadhar ? docFiles.aadhar.name : 'PDF / Image' }}</span>
+                  </div>
+                </div>
+                <div class="doc-slot" @click="triggerDocInput('pan')">
+                  <span class="material-symbols-outlined doc-icon">{{ docFiles.pan ? 'check_circle' : 'upload_file' }}</span>
+                  <div class="doc-slot-text">
+                    <strong>PAN Card</strong>
+                    <span>{{ docFiles.pan ? docFiles.pan.name : 'PDF / Image' }}</span>
+                  </div>
+                </div>
+                <div class="doc-slot" @click="triggerDocInput('other')">
+                  <span class="material-symbols-outlined doc-icon">{{ docFiles.other ? 'check_circle' : 'upload_file' }}</span>
+                  <div class="doc-slot-text">
+                    <strong>Other Document</strong>
+                    <span>{{ docFiles.other ? docFiles.other.name : 'PDF / Image' }}</span>
+                  </div>
+                </div>
+                <input ref="docInputRef" type="file" accept=".pdf,image/*" class="hidden-input" @change="onDocSelected" />
+              </div>
+            </div>
+
+            <!-- Form Fields -->
             <div class="form-grid">
               <div class="form-field">
                 <label>Full Name *</label>
@@ -112,15 +153,50 @@
               </div>
               <div class="form-field">
                 <label>Designation *</label>
-                <input v-model="form.designation" type="text" required placeholder="e.g. Principal Architect" />
+                <input v-model="form.designation" type="text" required placeholder="e.g. BIM Engineer" />
               </div>
               <div class="form-field">
-                <label>Studio Email *</label>
-                <input v-model="form.studio_email" type="email" required placeholder="user@studio.com" />
+                <label>Joining Date *</label>
+                <input v-model="form.joining_date" type="date" required />
+              </div>
+              <div class="form-field">
+                <label>End Date</label>
+                <input v-model="form.end_date" type="date" />
+              </div>
+              <div class="form-field">
+                <label>Monthly Salary (₹)</label>
+                <input v-model.number="form.salary_month" type="number" placeholder="e.g. 25000" />
+              </div>
+              <div class="form-field">
+                <label>Hourly Rate (₹) — auto</label>
+                <input :value="salaryPerHour" type="text" disabled class="readonly-input" />
+              </div>
+              <div class="form-field">
+                <label>Manager</label>
+                <select v-model="form.manager_id">
+                  <option :value="null">— None —</option>
+                  <option v-for="m in managers" :key="m.id" :value="m.id">{{ m.name }}</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label>Leaves Allowed</label>
+                <input v-model.number="form.leaves_allowed" type="number" placeholder="18" />
+              </div>
+              <div class="form-field">
+                <label>PAN Number</label>
+                <input v-model="form.pan_number" type="text" placeholder="ABCDE1234F" />
+              </div>
+              <div class="form-field">
+                <label>Aadhar Number</label>
+                <input v-model="form.aadhar_number" type="text" placeholder="1234 5678 9012" />
               </div>
               <div class="form-field">
                 <label>Personal Email *</label>
                 <input v-model="form.personal_mail" type="email" required placeholder="user@gmail.com" />
+              </div>
+              <div class="form-field">
+                <label>Studio Email *</label>
+                <input v-model="form.studio_email" type="email" required placeholder="user@studiomh02.com" />
               </div>
               <div class="form-field" v-if="!isEditing">
                 <label>Password *</label>
@@ -135,20 +211,12 @@
                 </select>
               </div>
               <div class="form-field">
-                <label>Joining Date *</label>
-                <input v-model="form.joining_date" type="date" required />
+                <label>Time Tracker Login (User ID)</label>
+                <input v-model="form.time_tracker_login" type="text" placeholder="user@studiomh02.com" />
               </div>
               <div class="form-field">
-                <label>Monthly Salary (₹)</label>
-                <input v-model.number="form.salary_month" type="number" placeholder="e.g. 245000" />
-              </div>
-              <div class="form-field">
-                <label>PAN Number *</label>
-                <input v-model="form.pan_number" type="text" required placeholder="ABCDE1234F" />
-              </div>
-              <div class="form-field">
-                <label>Aadhar Number *</label>
-                <input v-model="form.aadhar_number" type="text" required placeholder="1234 5678 9012" />
+                <label>Time Tracker Password</label>
+                <input v-model="form.time_tracker_password" type="password" placeholder="••••••••" />
               </div>
             </div>
 
@@ -199,7 +267,10 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import { usersAPI } from '../api/users'
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
 const employees = ref([])
+const managers = ref([])
 const loading = ref(true)
 const searchQuery = ref('')
 const currentPage = ref(1)
@@ -213,6 +284,14 @@ const submitting = ref(false)
 const formError = ref('')
 const deleteTarget = ref(null)
 
+// File upload state
+const photoInputRef = ref(null)
+const docInputRef = ref(null)
+const photoPreview = ref(null)
+const selectedPhoto = ref(null)
+const currentDocType = ref('aadhar')
+const docFiles = reactive({ aadhar: null, pan: null, other: null })
+
 const form = reactive({
   name: '',
   designation: '',
@@ -221,9 +300,19 @@ const form = reactive({
   password: '',
   role: 'employee',
   joining_date: '',
+  end_date: '',
   salary_month: null,
+  leaves_allowed: 18,
+  manager_id: null,
   pan_number: '',
   aadhar_number: '',
+  time_tracker_login: '',
+  time_tracker_password: '',
+})
+
+const salaryPerHour = computed(() => {
+  if (!form.salary_month) return ''
+  return (form.salary_month / 160).toFixed(2)
 })
 
 // ── Fetch employees ──
@@ -232,6 +321,7 @@ async function fetchEmployees() {
   try {
     const res = await usersAPI.getUsers()
     employees.value = res.data
+    managers.value = res.data.filter(u => u.role === 'project_manager' || u.role === 'admin')
   } catch (err) {
     console.error('Failed to load employees:', err)
   } finally {
@@ -257,6 +347,27 @@ const startIndex = computed(() => (currentPage.value - 1) * perPage)
 const endIndex = computed(() => Math.min(startIndex.value + perPage, filteredEmployees.value.length))
 const paginatedEmployees = computed(() => filteredEmployees.value.slice(startIndex.value, endIndex.value))
 
+// ── Photo upload ──
+function triggerPhotoInput() { photoInputRef.value?.click() }
+function onPhotoSelected(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  selectedPhoto.value = file
+  photoPreview.value = URL.createObjectURL(file)
+}
+
+// ── Doc upload ──
+function triggerDocInput(type) {
+  currentDocType.value = type
+  docInputRef.value.value = ''
+  docInputRef.value?.click()
+}
+function onDocSelected(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  docFiles[currentDocType.value] = file
+}
+
 // ── Modal helpers ──
 function resetForm() {
   form.name = ''
@@ -266,10 +377,20 @@ function resetForm() {
   form.password = ''
   form.role = 'employee'
   form.joining_date = ''
+  form.end_date = ''
   form.salary_month = null
+  form.leaves_allowed = 18
+  form.manager_id = null
   form.pan_number = ''
   form.aadhar_number = ''
+  form.time_tracker_login = ''
+  form.time_tracker_password = ''
   formError.value = ''
+  photoPreview.value = null
+  selectedPhoto.value = null
+  docFiles.aadhar = null
+  docFiles.pan = null
+  docFiles.other = null
 }
 
 function openAddModal() {
@@ -289,10 +410,20 @@ function openEditModal(emp) {
   form.password = ''
   form.role = emp.role
   form.joining_date = emp.joining_date || ''
+  form.end_date = emp.end_date || ''
   form.salary_month = emp.salary_month ? Number(emp.salary_month) : null
+  form.leaves_allowed = emp.leaves_allowed ?? 18
+  form.manager_id = emp.manager_id ?? null
   form.pan_number = emp.pan_number || ''
   form.aadhar_number = emp.aadhar_number || ''
+  form.time_tracker_login = emp.time_tracker_login || ''
+  form.time_tracker_password = emp.time_tracker_password || ''
   formError.value = ''
+  photoPreview.value = emp.photo_url ? `${API_BASE}${emp.photo_url}` : null
+  selectedPhoto.value = null
+  docFiles.aadhar = null
+  docFiles.pan = null
+  docFiles.other = null
   modalOpen.value = true
 }
 
@@ -305,22 +436,33 @@ async function handleSubmit() {
   submitting.value = true
 
   try {
+    let userId
     if (isEditing.value) {
-      // Build partial update payload (only changed fields)
       const payload = {}
-      const fields = ['name', 'designation', 'studio_email', 'personal_mail', 'role', 'joining_date', 'salary_month', 'pan_number', 'aadhar_number']
+      const fields = ['name', 'designation', 'studio_email', 'personal_mail', 'role',
+        'joining_date', 'end_date', 'salary_month', 'leaves_allowed', 'manager_id',
+        'pan_number', 'aadhar_number', 'time_tracker_login', 'time_tracker_password']
       for (const f of fields) {
-        if (form[f] !== '' && form[f] !== null) {
-          payload[f] = form[f]
-        }
+        if (form[f] !== '' && form[f] !== null && form[f] !== undefined) payload[f] = form[f]
       }
-      if (form.password) {
-        payload.password = form.password
-      }
-      await usersAPI.updateUser(editingId.value, payload)
+      if (form.password) payload.password = form.password
+      const res = await usersAPI.updateUser(editingId.value, payload)
+      userId = editingId.value
     } else {
-      await usersAPI.createUser({ ...form })
+      const res = await usersAPI.createUser({ ...form })
+      userId = res.data.id
     }
+
+    // Upload photo if selected
+    if (selectedPhoto.value) {
+      await usersAPI.uploadPhoto(userId, selectedPhoto.value)
+    }
+
+    // Upload documents if selected
+    for (const [docType, file] of Object.entries(docFiles)) {
+      if (file) await usersAPI.uploadDocument(userId, file, docType)
+    }
+
     closeModal()
     await fetchEmployees()
   } catch (err) {
@@ -332,9 +474,7 @@ async function handleSubmit() {
 }
 
 // ── Delete ──
-function confirmDelete(emp) {
-  deleteTarget.value = emp
-}
+function confirmDelete(emp) { deleteTarget.value = emp }
 
 async function handleDelete() {
   submitting.value = true
@@ -365,13 +505,11 @@ function avatarColor(name) {
 
 function formatDate(d) {
   if (!d) return '—'
-  const dt = new Date(d)
-  return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+  return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 function formatSalary(val) {
-  const n = Number(val) || 0
-  return n.toLocaleString('en-IN')
+  return (Number(val) || 0).toLocaleString('en-IN')
 }
 </script>
 
@@ -711,6 +849,10 @@ function formatSalary(val) {
   animation: slideUp 0.2s ease;
 }
 
+.modal-wide {
+  width: 820px;
+}
+
 .modal-sm {
   width: 400px;
 }
@@ -898,5 +1040,110 @@ form .modal-footer {
 /* ───────── Material Symbols ───────── */
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* ───────── Upload UI ───────── */
+.upload-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.hidden-input {
+  display: none;
+}
+
+.photo-upload-area {
+  width: 120px;
+  height: 120px;
+  border: 2px dashed #c8c5cd;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.photo-upload-area:hover {
+  border-color: #1a1a2e;
+}
+
+.photo-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: #78767d;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.photo-placeholder .material-symbols-outlined {
+  font-size: 32px;
+}
+
+.doc-upload-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+}
+
+.doc-slot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid #e5e1e3;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.doc-slot:hover {
+  background: #f6f2f4;
+  border-color: #c8c5cd;
+}
+
+.doc-icon {
+  font-size: 20px;
+  color: #1a1a2e;
+}
+
+.doc-slot-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.doc-slot-text strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1c1b1d;
+}
+
+.doc-slot-text span {
+  font-size: 11px;
+  color: #78767d;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.readonly-input {
+  background: #f6f2f4 !important;
+  color: #47464c;
+  cursor: not-allowed;
 }
 </style>

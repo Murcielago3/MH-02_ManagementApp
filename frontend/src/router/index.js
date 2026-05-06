@@ -30,7 +30,7 @@ const routes = [
   {
     path: '/admin/projects',
     name: 'AdminProjects',
-    component: () => import('../views/AdminDashboard.vue'), // placeholder
+    component: () => import('../views/AdminProjects.vue'),
     meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
@@ -75,6 +75,12 @@ const routes = [
     path: '/pm/employees',
     name: 'PMEmployees',
     component: () => import('../views/AdminEmployees.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+  },
+  {
+    path: '/pm/projects',
+    name: 'PMProjects',
+    component: () => import('../views/AdminProjects.vue'),
     meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
   },
 
