@@ -19,6 +19,9 @@ class ProjectCreate(BaseModel):
     current_stage: Optional[str] = None
     is_billed: str = "unbilled"
     client_id: Optional[int] = None
+    partner_remuneration: Optional[float] = None
+    employee_remuneration: Optional[float] = None
+    project_remuneration: Optional[float] = None
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
@@ -28,6 +31,9 @@ class ProjectUpdate(BaseModel):
     current_stage: Optional[str] = None
     is_billed: Optional[str] = None
     client_id: Optional[int] = None
+    partner_remuneration: Optional[float] = None
+    employee_remuneration: Optional[float] = None
+    project_remuneration: Optional[float] = None
 
 @router.get("/")
 async def list_projects(

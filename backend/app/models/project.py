@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, Numeric, ForeignKey
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -19,6 +19,10 @@ class Project(Base):
     client = relationship("Client", back_populates="projects")
     assignments = relationship("ProjectAssignment", back_populates="project")
 
+    partner_remuneration = Column(Numeric(10, 2), nullable=True, default=0)
+    employee_remuneration = Column(Numeric(10, 2), nullable=True, default=0)
+    project_remuneration = Column(Numeric(10, 2), nullable=True, default=0)
+
 
 class ProjectAssignment(Base):
     __tablename__ = "project_assignments"
@@ -29,3 +33,6 @@ class ProjectAssignment(Base):
 
     user = relationship("User", back_populates="assignments")
     project = relationship("Project", back_populates="assignments")
+
+
+
