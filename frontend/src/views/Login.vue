@@ -1,301 +1,168 @@
 <template>
-  <div class="flex min-h-screen bg-background">
+  <div class="login-page">
     <!-- Left Section: Visual Branding (Desktop only) -->
-    <div
-      class="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center border-r border-outline-variant/30"
-      style="background: linear-gradient(165deg, #e2dfff 0%, #f7f9fb 100%)"
-    >
-      <div class="absolute inset-0 opacity-[0.08]"></div>
-      <div class="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-transparent"></div>
+    <div class="branding-panel">
+      <!-- Subtle architectural pattern -->
+      <div class="pattern-overlay"></div>
+      <div class="gradient-overlay"></div>
 
-      <div class="relative z-10 w-full max-w-2xl px-8">
-        <div class="mb-8">
-          <div
-            class="inline-flex p-4 bg-white/60 backdrop-blur-md rounded-xl border border-white/40 shadow-lg mb-6 transform hover:translate-y-[-2px] transition-all duration-500"
-          >
-            <div class="grid grid-cols-2 gap-2">
-              <div class="w-10 h-10 bg-primary rounded-sm"></div>
-              <div class="w-10 h-10 bg-primary opacity-30 rounded-sm"></div>
-              <div class="w-10 h-10 bg-primary opacity-60 rounded-sm"></div>
-              <div class="w-10 h-10 bg-primary rounded-sm"></div>
+      <!-- Large Architectural Graphic Reference -->
+      <div class="branding-content">
+        <div class="branding-top">
+          <div class="logo-block">
+            <div class="logo-grid">
+              <div class="logo-cell logo-full"></div>
+              <div class="logo-cell logo-light"></div>
+              <div class="logo-cell logo-mid"></div>
+              <div class="logo-cell logo-full"></div>
             </div>
           </div>
-          <h2 class="text-7xl font-bold text-primary mb-4 tracking-tighter leading-[1.1] uppercase">
-            Studio<br />MH 02
-          </h2>
-          <div class="w-24 h-1.5 bg-primary/20 mb-6"></div>
-          <p class="text-xl text-on-surface-variant max-w-md leading-relaxed">
-            Precision-engineered studio suite for high-performance architectural design and enterprise resource
-            planning.
+          <h2 class="brand-title">Studio<br />MH 02</h2>
+          <div class="brand-divider"></div>
+          <p class="brand-tagline">
+            Precision-engineered studio suite for high-performance enterprise resource planning.
           </p>
         </div>
-
+            <div class="stat-value">v1.0.0</div>
+            <div class="stat-label">Build Release</div>
         <!-- Stats Indicators -->
-        <div class="grid grid-cols-2 gap-8 mt-12 pt-12 border-t border-outline-variant/40">
+        <div class="stats-row">
           <div>
-            <div class="text-primary text-2xl font-bold tracking-tight">1.2ms</div>
-            <div class="text-on-surface-variant/60 text-xs uppercase tracking-widest font-semibold mt-1">
-              Rendering Latency
-            </div>
+
           </div>
           <div>
-            <div class="text-primary text-2xl font-bold tracking-tight">v4.8.0</div>
-            <div class="text-on-surface-variant/60 text-xs uppercase tracking-widest font-semibold mt-1">
-              Build Release
-            </div>
+
           </div>
         </div>
       </div>
     </div>
 
     <!-- Right Section: Login Content -->
-    <main class="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 bg-surface relative">
-      <div class="lg:hidden absolute top-0 left-0 w-full h-40 opacity-60" style="background: linear-gradient(165deg, #e2dfff 0%, #f7f9fb 100%)"></div>
+    <main class="login-panel">
+      <!-- Decorative gradient for mobile -->
+      <div class="mobile-gradient"></div>
 
-      <div class="w-full max-w-sm space-y-8 relative">
+      <div class="login-container">
         <!-- Mobile Logo -->
-        <div class="lg:hidden flex flex-col items-center mb-8">
-          <div
-            class="p-3 bg-white/80 backdrop-blur border border-outline-variant rounded-lg flex items-center justify-center mb-4 shadow-lg"
-          >
-            <div class="grid grid-cols-2 gap-1.5">
-              <div class="w-4 h-4 bg-primary"></div>
-              <div class="w-4 h-4 bg-primary opacity-30"></div>
-              <div class="w-4 h-4 bg-primary opacity-60"></div>
-              <div class="w-4 h-4 bg-primary"></div>
+        <div class="mobile-logo">
+          <div class="mobile-logo-block">
+            <div class="mobile-logo-grid">
+              <div class="logo-cell-sm logo-full"></div>
+              <div class="logo-cell-sm logo-light"></div>
+              <div class="logo-cell-sm logo-mid"></div>
+              <div class="logo-cell-sm logo-full"></div>
             </div>
           </div>
-          <h1 class="text-2xl font-bold text-on-surface">Studio MH02</h1>
+          <h1 class="mobile-brand-title">Studio MH02</h1>
         </div>
 
         <!-- Header -->
-        <header class="space-y-2">
-          <h2 class="text-3xl font-bold text-on-surface tracking-tight">Welcome back</h2>
-          <p class="text-base text-on-surface-variant">Enter your workspace credentials to continue.</p>
+        <header class="login-header">
+          <h2 class="welcome-title">Welcome back</h2>
+          <p class="welcome-subtitle">
+            Enter your workspace credentials to continue.
+          </p>
         </header>
 
         <!-- Authentication Form -->
-        <form @submit.prevent="handleLogin" class="space-y-6">
+        <form @submit.prevent="handleLogin" class="login-form">
           <!-- Studio Email Field -->
-          <div class="space-y-2">
-            <label for="studio_email" class="text-sm font-semibold text-on-surface-variant block">Studio Email</label>
-            <div class="relative group">
+          <div class="field-group">
+            <label for="studio-email" class="field-label">Studio Email</label>
+            <div class="input-wrapper" :class="{ focused: emailFocused }">
               <input
-                id="studio_email"
+                id="studio-email"
                 v-model="form.studio_email"
                 type="email"
                 placeholder="e.g. user@studiomh02.com"
                 required
-                class="w-full h-14 pl-4 pr-12 text-on-surface bg-white border border-outline-variant rounded-lg focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-outline/60 shadow-sm group-hover:border-outline"
+                class="field-input"
+                @focus="emailFocused = true"
+                @blur="emailFocused = false"
               />
-              <div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-outline group-focus-within:text-primary transition-colors">
+              <div class="input-icon" :class="{ active: emailFocused }">
                 <span class="material-symbols-outlined">mail</span>
               </div>
             </div>
-            <p v-if="errors.email" class="text-error text-sm">{{ errors.email }}</p>
+            <p v-if="errors.email" class="field-error">{{ errors.email }}</p>
           </div>
 
           <!-- Password Field -->
-          <div class="space-y-2">
-            <div class="flex justify-between items-center">
-              <label for="password" class="text-sm font-semibold text-on-surface-variant block">Password</label>
-              <a href="#" class="text-sm text-primary hover:text-tertiary transition-colors">Forgot password?</a>
+          <div class="field-group">
+            <div class="field-label-row">
+              <label for="password" class="field-label">Password</label>
+              <a href="#" class="forgot-link">Forgot password?</a>
             </div>
-            <div class="relative group">
+            <div class="input-wrapper" :class="{ focused: passwordFocused }">
               <input
                 id="password"
                 v-model="form.password"
                 :type="showPassword ? 'text' : 'password'"
                 placeholder="••••••••••••"
                 required
-                class="w-full h-14 pl-4 pr-12 text-on-surface bg-white border border-outline-variant rounded-lg focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-outline/60 shadow-sm group-hover:border-outline"
+                class="field-input"
+                @focus="passwordFocused = true"
+                @blur="passwordFocused = false"
               />
               <button
                 type="button"
+                class="input-icon-btn"
+                :class="{ active: passwordFocused }"
                 @click="showPassword = !showPassword"
-                class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-auto text-outline group-focus-within:text-primary transition-colors hover:text-primary"
+                tabindex="-1"
               >
-                <span class="material-symbols-outlined">{{ showPassword ? 'visibility' : 'visibility_off' }}</span>
+                <span class="material-symbols-outlined">{{
+                  showPassword ? "visibility" : "visibility_off"
+                }}</span>
               </button>
             </div>
-            <p v-if="errors.password" class="text-error text-sm">{{ errors.password }}</p>
+            <p v-if="errors.password" class="field-error">
+              {{ errors.password }}
+            </p>
           </div>
 
           <!-- Keep signed in -->
-          <div class="flex items-center">
-            <input
-              id="keep-signed"
-              v-model="form.keepSigned"
-              type="checkbox"
-              class="w-4 h-4 border-outline-variant rounded"
-            />
-            <label for="keep-signed" class="ml-2 text-sm text-on-surface-variant">Keep me signed in</label>
-          </div>
-
-          <!-- Error Message -->
-          <p v-if="errors.general" class="text-error text-sm bg-error/10 p-3 rounded">{{ errors.general }}</p>
-
-          <!-- Sign In Button -->
-          <button
-            type="submit"
-            :disabled="loading"
-            class="w-full h-14 bg-primary text-on-primary font-bold uppercase tracking-wider rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
-          >
-            <span v-if="!loading">Sign In →</span>
-            <span v-else>Signing in...</span>
-          </button>
-        </form>
-
-        <!-- Footer -->
-        <p class="text-center text-on-surface-variant text-sm">
-          Don't have an account yet?
-          <a href="#" class="text-primary hover:text-tertiary font-semibold transition-colors">Contact administration</a>
-        </p>
-      </div>
-    </main>
-  </div>
-</template>
-
-<script setup>
-import { ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
-import { authAPI } from '../api/auth'
-
-const router = useRouter()
-const authStore = useAuthStore()
-
-const form = reactive({
-  studio_email: '',
-  password: '',
-  keepSigned: false,
-})
-
-const showPassword = ref(false)
-const loading = ref(false)
-const errors = reactive({
-  email: '',
-  password: '',
-  general: '',
-})
-
-const handleLogin = async () => {
-  // Reset errors
-  errors.email = ''
-  errors.password = ''
-  errors.general = ''
-
-  // Validation
-  if (!form.studio_email) {
-    errors.email = 'Studio email is required'
-    return
-  }
-  if (!form.password) {
-    errors.password = 'Password is required'
-    return
-  }
-
-  loading.value = true
-
-  try {
-    const response = await authAPI.login(form.studio_email, form.password)
-    
-    if (response.data.access_token) {
-      authStore.setToken(response.data.access_token, response.data.role || 'employee')
-      
-      // Redirect based on role
-      if (response.data.role === 'admin') {
-        router.push('/employee-management')
-      } else {
-        router.push('/')
-      }
-    }
-  } catch (error) {
-    if (error.response?.status === 401) {
-      errors.general = 'Invalid email or password'
-    } else {
-      errors.general = error.message || 'Login failed. Please try again.'
-    }
-    console.error('Login error:', error)
-  } finally {
-    loading.value = false
-  }
-}
-</script>
-
-<style scoped>
-.material-symbols-outlined {
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-}
-</style>
-
-          <!-- Password Field -->
-          <div class="space-y-2">
-            <div class="flex justify-between items-center px-0">
-              <label for="password" class="text-sm font-semibold text-gray-700 block">Password</label>
-              <a href="#" class="text-sm text-indigo-600 hover:text-indigo-700 transition-colors font-semibold">
-                Forgot password?
-              </a>
-            </div>
-            <div class="relative group">
+          <div class="checkbox-row">
+            <label class="checkbox-label">
               <input
-                id="password"
-                v-model="form.password"
-                :type="showPassword ? 'text' : 'password'"
-                placeholder="••••••••••••"
-                required
-                class="w-full h-14 pl-4 pr-12 font-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600 focus:ring-4 focus:ring-indigo-600/10 transition-all placeholder:text-gray-400 shadow-sm group-hover:border-gray-400"
-              />
-              <button
-                type="button"
-                @click="showPassword = !showPassword"
-                class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-auto text-gray-400 group-focus-within:text-indigo-600 transition-colors hover:text-gray-600"
-              >
-                <i :class="showPassword ? 'pi pi-eye-slash text-xl' : 'pi pi-eye text-xl'"></i>
-              </button>
-            </div>
-            <p v-if="passwordError" class="text-red-500 text-sm mt-1">{{ passwordError }}</p>
-          </div>
-
-          <!-- Secondary Actions -->
-          <div class="flex items-center px-0">
-            <label class="flex items-center gap-3 cursor-pointer group">
-              <input
-                v-model="form.rememberMe"
+                v-model="form.keepSigned"
                 type="checkbox"
-                class="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600/20 cursor-pointer transition-all"
+                class="checkbox-input"
               />
-              <span class="font-sm text-gray-700 group-hover:text-gray-900 transition-colors">
-                Keep me signed in
-              </span>
+              <span class="checkbox-text">Keep me signed in</span>
             </label>
           </div>
 
-          <!-- Primary Action -->
-          <div class="space-y-4">
-            <button
-              type="submit"
-              :disabled="isLoading || !form.email || !form.password"
-              class="w-full h-14 bg-indigo-600 text-white font-semibold text-base rounded-lg flex items-center justify-center gap-2 hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-600/20 active:scale-[0.98] transition-all uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
+          <!-- Error Message -->
+          <div v-if="errors.general" class="error-banner">
+            <span class="material-symbols-outlined error-banner-icon"
+              >error</span
             >
-              <span>{{ isLoading ? 'Signing in...' : 'Sign In' }}</span>
-              <i class="pi pi-arrow-right text-lg"></i>
-            </button>
+            <p>{{ errors.general }}</p>
+          </div>
 
-            <!-- Error Message -->
-            <div v-if="apiError" class="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p class="text-red-700 text-sm font-medium">{{ apiError }}</p>
-            </div>
+          <!-- Sign In Button -->
+          <div class="submit-group">
+            <button type="submit" :disabled="loading" class="sign-in-btn">
+              <template v-if="!loading">
+                <span>Sign In</span>
+                <span class="material-symbols-outlined btn-arrow"
+                  >arrow_forward</span
+                >
+              </template>
+              <template v-else>
+                <span class="spinner"></span>
+                <span>Signing in…</span>
+              </template>
+            </button>
           </div>
         </form>
 
         <!-- Footer / Registration -->
-        <footer class="pt-6 text-center border-t border-gray-200">
-          <p class="font-sm text-gray-600">
+        <footer class="login-footer">
+          <p>
             Don't have an account yet?
-            <a href="#" class="font-semibold text-indigo-600 ml-1 hover:underline underline-offset-4">
-              Contact administration
-            </a>
+            <a href="#" class="contact-link">Contact administration</a>
           </p>
         </footer>
       </div>
@@ -304,70 +171,694 @@ const handleLogin = async () => {
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
-import { authAPI } from '../api/auth'
+import { ref, reactive } from "vue";
+import { useRouter } from "vue-router";
+import { useAuthStore } from "../stores/auth";
+import { authAPI } from "../api/auth";
 
-const router = useRouter()
-const authStore = useAuthStore()
+const router = useRouter();
+const authStore = useAuthStore();
 
-const form = ref({
-  email: '',
-  password: '',
-  rememberMe: false,
-})
+const form = reactive({
+  studio_email: "",
+  password: "",
+  keepSigned: false,
+});
 
-const showPassword = ref(false)
-const isLoading = ref(false)
-const apiError = ref('')
-const emailError = ref('')
-const passwordError = ref('')
+const showPassword = ref(false);
+const loading = ref(false);
+const emailFocused = ref(false);
+const passwordFocused = ref(false);
 
-const validateEmail = () => {
-  const email = form.value.email
-  if (!email) {
-    emailError.value = 'Email is required'
-  } else if (!email.includes('@')) {
-    emailError.value = 'Please enter a valid email'
-  } else {
-    emailError.value = ''
+const errors = reactive({
+  email: "",
+  password: "",
+  general: "",
+});
+
+/**
+ * Redirect the user to the correct dashboard based on their role.
+ */
+function redirectByRole(role) {
+  switch (role) {
+    case "admin":
+      router.push("/admin/dashboard");
+      break;
+    case "project_manager":
+      router.push("/pm/dashboard");
+      break;
+    case "employee":
+      router.push("/employee/dashboard");
+      break;
+    default:
+      router.push("/");
   }
 }
 
 const handleLogin = async () => {
-  emailError.value = ''
-  passwordError.value = ''
-  apiError.value = ''
+  // Reset errors
+  errors.email = "";
+  errors.password = "";
+  errors.general = "";
 
-  // Basic validation
-  if (!form.value.email) {
-    emailError.value = 'Email is required'
-    return
+  // Client-side validation
+  if (!form.studio_email) {
+    errors.email = "Studio email is required";
+    return;
   }
-  if (!form.value.password) {
-    passwordError.value = 'Password is required'
-    return
+  if (!form.studio_email.includes("@")) {
+    errors.email = "Please enter a valid email address";
+    return;
+  }
+  if (!form.password) {
+    errors.password = "Password is required";
+    return;
   }
 
-  isLoading.value = true
+  loading.value = true;
+
   try {
-    const response = await authAPI.login(form.value.email, form.value.password)
-    const { access_token, token_type, role } = response.data
+    const response = await authAPI.login(form.studio_email, form.password);
+    const { access_token, role } = response.data;
 
-    authStore.setToken(access_token, role)
-    router.push('/')
+    authStore.setToken(access_token, role || "employee");
+    redirectByRole(role);
   } catch (error) {
-    apiError.value = error.response?.data?.detail || 'Login failed. Please try again.'
+    if (error.response?.status === 401) {
+      errors.general =
+        error.response?.data?.detail || "Invalid email or password";
+    } else if (error.response?.status === 422) {
+      errors.general = "Please check the format of your credentials";
+    } else if (!error.response) {
+      errors.general =
+        "Unable to connect to the server. Please try again later.";
+    } else {
+      errors.general =
+        error.response?.data?.detail || "Login failed. Please try again.";
+    }
+    console.error("Login error:", error);
   } finally {
-    isLoading.value = false
+    loading.value = false;
   }
-}
+};
 </script>
 
 <style scoped>
+/* ───────────── Page Layout + Design Tokens ───────────── */
+.login-page {
+  /* Design tokens scoped to this component's root */
+  --color-primary: #3525cd;
+  --color-tertiary: #3130c0;
+  --color-on-primary: #ffffff;
+  --color-on-surface: #191c1e;
+  --color-on-surface-variant: #464555;
+  --color-outline: #777587;
+  --color-outline-variant: #c7c4d8;
+  --color-surface: #f7f9fb;
+  --color-background: #f7f9fb;
+  --color-error: #ba1a1a;
+  --color-primary-fixed: #e2dfff;
+
+  --font-headline: "Manrope", sans-serif;
+  --font-body: "Inter", sans-serif;
+
+  --shadow-architectural: 0 1px 2px rgba(53, 37, 205, 0.05),
+    0 4px 12px rgba(53, 37, 205, 0.05);
+
+  display: flex;
+  min-height: 100vh;
+  font-family: var(--font-body);
+  color: var(--color-on-surface);
+  background: var(--color-background);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ───────────── Left Branding Panel ───────────── */
+.branding-panel {
+  display: none;
+  position: relative;
+  overflow: hidden;
+  width: 50%;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(165deg, #e2dfff 0%, #f7f9fb 100%);
+  border-right: 1px solid rgba(199, 196, 216, 0.3);
+}
+
+@media (min-width: 1024px) {
+  .branding-panel {
+    display: flex;
+  }
+}
+
 .pattern-overlay {
-  background-image: radial-gradient(circle at 1px 1px, #3525cd 1px, transparent 0);
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    #3525cd 1px,
+    transparent 0
+  );
   background-size: 32px 32px;
+  opacity: 0.08;
+}
+
+.gradient-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top right,
+    rgba(53, 37, 205, 0.05),
+    transparent,
+    transparent
+  );
+}
+
+.branding-content {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 672px;
+  padding: 0 32px;
+}
+
+.branding-top {
+  margin-bottom: 32px;
+}
+
+.logo-block {
+  display: inline-flex;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: var(--shadow-architectural);
+  margin-bottom: 24px;
+  transition: transform 0.5s ease;
+}
+
+.logo-block:hover {
+  transform: translateY(-2px);
+}
+
+.logo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.logo-cell {
+  width: 40px;
+  height: 40px;
+  border-radius: 2px;
+}
+
+.logo-full {
+  background-color: var(--color-primary);
+}
+
+.logo-light {
+  background-color: var(--color-primary);
+  opacity: 0.3;
+}
+
+.logo-mid {
+  background-color: var(--color-primary);
+  opacity: 0.6;
+}
+
+.brand-title {
+  font-family: var(--font-headline);
+  font-size: 72px;
+  font-weight: 800;
+  color: var(--color-primary);
+  margin: 0 0 16px;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.brand-divider {
+  width: 96px;
+  height: 6px;
+  background: rgba(53, 37, 205, 0.2);
+  margin-bottom: 24px;
+  border-radius: 3px;
+}
+
+.brand-tagline {
+  font-family: var(--font-body);
+  font-size: 20px;
+  line-height: 1.6;
+  color: var(--color-on-surface-variant);
+  max-width: 448px;
+  margin: 0;
+}
+
+/* Stats */
+.stats-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  margin-top: 48px;
+  padding-top: 48px;
+  border-top: 1px solid rgba(199, 196, 216, 0.4);
+}
+
+.stat-value {
+  font-family: var(--font-headline);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-primary);
+  letter-spacing: -0.01em;
+  line-height: 32px;
+}
+
+.stat-label {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(70, 69, 85, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: 4px;
+  line-height: 16px;
+}
+
+/* ───────────── Right Login Panel ───────────── */
+.login-panel {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--color-surface);
+  position: relative;
+}
+
+@media (min-width: 640px) {
+  .login-panel {
+    padding: 32px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .login-panel {
+    width: 50%;
+  }
+}
+
+.mobile-gradient {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 160px;
+  background: linear-gradient(165deg, #e2dfff 0%, #f7f9fb 100%);
+  opacity: 0.6;
+  z-index: 0;
+}
+
+@media (min-width: 1024px) {
+  .mobile-gradient {
+    display: none;
+  }
+}
+
+.login-container {
+  width: 100%;
+  max-width: 440px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Mobile logo */
+.mobile-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+@media (min-width: 1024px) {
+  .mobile-logo {
+    display: none;
+  }
+}
+
+.mobile-logo-block {
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-architectural);
+}
+
+.mobile-logo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.logo-cell-sm {
+  width: 16px;
+  height: 16px;
+}
+
+.mobile-brand-title {
+  font-family: var(--font-headline);
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--color-on-surface);
+  letter-spacing: -0.02em;
+  line-height: 38px;
+  margin: 0;
+}
+
+/* Header */
+.login-header {
+  margin-bottom: 32px;
+}
+
+.welcome-title {
+  font-family: var(--font-headline);
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--color-on-surface);
+  letter-spacing: -0.02em;
+  line-height: 38px;
+  margin: 0 0 8px;
+}
+
+.welcome-subtitle {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
+
+/* ───────────── Form ───────────── */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-label {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--color-on-surface-variant);
+  display: block;
+  margin-left: 4px;
+}
+
+.field-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 4px;
+}
+
+.forgot-link {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: 0.05em;
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.forgot-link:hover {
+  color: var(--color-tertiary);
+}
+
+.input-wrapper {
+  position: relative;
+}
+
+.field-input {
+  width: 100%;
+  height: 56px;
+  padding: 0 48px 0 16px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-on-surface);
+  background: #ffffff;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-architectural);
+  box-sizing: border-box;
+}
+
+.field-input::placeholder {
+  color: rgba(119, 117, 135, 0.6);
+}
+
+.input-wrapper:hover .field-input {
+  border-color: var(--color-outline);
+}
+
+.field-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px rgba(53, 37, 205, 0.05);
+}
+
+.input-icon {
+  position: absolute;
+  inset: 0 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding-right: 16px;
+  pointer-events: none;
+  color: var(--color-outline);
+  transition: color 0.2s ease;
+}
+
+.input-icon.active {
+  color: var(--color-primary);
+}
+
+.input-icon .material-symbols-outlined {
+  font-size: 22px;
+}
+
+.input-icon-btn {
+  position: absolute;
+  inset: 0 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding-right: 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-outline);
+  transition: color 0.2s ease;
+}
+
+.input-icon-btn:hover {
+  color: var(--color-primary);
+}
+
+.input-icon-btn.active {
+  color: var(--color-primary);
+}
+
+.input-icon-btn .material-symbols-outlined {
+  font-size: 22px;
+}
+
+.field-error {
+  font-size: 13px;
+  color: var(--color-error);
+  margin: 0;
+  padding-left: 4px;
+}
+
+/* Checkbox */
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.checkbox-input {
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--color-outline-variant);
+  border-radius: 6px;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+  transition: all 0.2s ease;
+}
+
+.checkbox-text {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--color-on-surface-variant);
+  transition: color 0.2s ease;
+}
+
+.checkbox-label:hover .checkbox-text {
+  color: var(--color-on-surface);
+}
+
+/* Error banner */
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: rgba(186, 26, 26, 0.06);
+  border: 1px solid rgba(186, 26, 26, 0.2);
+  border-radius: 10px;
+  animation: slideIn 0.3s ease;
+}
+
+.error-banner-icon {
+  color: var(--color-error);
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.error-banner p {
+  font-size: 14px;
+  color: var(--color-error);
+  margin: 0;
+  line-height: 20px;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Submit button */
+.submit-group {
+  margin-top: 4px;
+}
+
+.sign-in-btn {
+  width: 100%;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-family: var(--font-headline);
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.sign-in-btn:hover:not(:disabled) {
+  background: var(--color-tertiary);
+  box-shadow: 0 8px 24px rgba(53, 37, 205, 0.2);
+}
+
+.sign-in-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.sign-in-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-arrow {
+  font-size: 20px;
+}
+
+/* Spinner */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Footer */
+.login-footer {
+  padding-top: 24px;
+  text-align: center;
+  margin-top: 32px;
+}
+
+.login-footer p {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
+
+.contact-link {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin-left: 4px;
+  text-decoration: none;
+  text-underline-offset: 4px;
+}
+
+.contact-link:hover {
+  text-decoration: underline;
+  text-decoration-color: rgba(53, 37, 205, 0.3);
+}
+
+/* ───────────── Material Icons ───────────── */
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
 }
 </style>

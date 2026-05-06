@@ -2,11 +2,15 @@ import client from './client'
 
 export const usersAPI = {
   createUser: (userData) => {
-    return client.post('/users', userData)
+    return client.post('/users/', userData)
   },
 
   getUsers: () => {
-    return client.get('/users')
+    return client.get('/users/')
+  },
+
+  getMe: () => {
+    return client.get('/users/me')
   },
 
   getUser: (userId) => {
@@ -14,7 +18,7 @@ export const usersAPI = {
   },
 
   updateUser: (userId, userData) => {
-    return client.put(`/users/${userId}`, userData)
+    return client.patch(`/users/${userId}`, userData)
   },
 
   deleteUser: (userId) => {

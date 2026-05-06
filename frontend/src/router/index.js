@@ -5,8 +5,7 @@ const routes = [
   {
     path: '/',
     name: 'Home',
-    component: () => import('../views/Home.vue'),
-    meta: { requiresAuth: true },
+    redirect: '/login',
   },
   {
     path: '/login',
@@ -14,10 +13,84 @@ const routes = [
     component: () => import('../views/Login.vue'),
     meta: { requiresAuth: false },
   },
+
+  // ── Admin routes ──
+  {
+    path: '/admin/dashboard',
+    name: 'AdminDashboard',
+    component: () => import('../views/AdminDashboard.vue'),
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
+    path: '/admin/employees',
+    name: 'AdminEmployees',
+    component: () => import('../views/AdminEmployees.vue'),
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
+    path: '/admin/projects',
+    name: 'AdminProjects',
+    component: () => import('../views/AdminDashboard.vue'), // placeholder
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
+    path: '/admin/clients',
+    name: 'AdminClients',
+    component: () => import('../views/AdminDashboard.vue'), // placeholder
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
+    path: '/admin/expenses',
+    name: 'AdminExpenses',
+    component: () => import('../views/AdminDashboard.vue'), // placeholder
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
+    path: '/admin/invoices',
+    name: 'AdminInvoices',
+    component: () => import('../views/AdminDashboard.vue'), // placeholder
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
+    path: '/admin/estimates',
+    name: 'AdminEstimates',
+    component: () => import('../views/AdminDashboard.vue'), // placeholder
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
+    path: '/admin/reports',
+    name: 'AdminReports',
+    component: () => import('../views/AdminDashboard.vue'), // placeholder
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+
+  // ── Project Manager routes ──
+  {
+    path: '/pm/dashboard',
+    name: 'PMDashboard',
+    component: () => import('../views/AdminDashboard.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+  },
+  {
+    path: '/pm/employees',
+    name: 'PMEmployees',
+    component: () => import('../views/AdminEmployees.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+  },
+
+  // ── Employee routes ──
+  {
+    path: '/employee/dashboard',
+    name: 'EmployeeDashboard',
+    component: () => import('../views/Home.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'project_manager', 'employee'] },
+  },
+
+  // Legacy route
   {
     path: '/employee-management',
     name: 'EmployeeManagement',
-    component: () => import('../views/EmployeeManagement.vue'),
+    component: () => import('../views/AdminEmployees.vue'),
     meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
   },
 ]
@@ -27,6 +100,22 @@ const router = createRouter({
   routes,
 })
 
+/**
+ * Return the default dashboard path for a given role.
+ */
+function dashboardForRole(role) {
+  switch (role) {
+    case 'admin':
+      return '/admin/dashboard'
+    case 'project_manager':
+      return '/pm/dashboard'
+    case 'employee':
+      return '/employee/dashboard'
+    default:
+      return '/login'
+  }
+}
+
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
   const isAuthenticated = authStore.isAuthenticated
@@ -35,9 +124,9 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth && !isAuthenticated) {
     next('/login')
   } else if (to.path === '/login' && isAuthenticated) {
-    next('/')
+    next(dashboardForRole(userRole))
   } else if (to.meta.roles && !to.meta.roles.includes(userRole)) {
-    next('/')
+    next(dashboardForRole(userRole))
   } else {
     next()
   }
