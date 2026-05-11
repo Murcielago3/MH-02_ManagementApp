@@ -21,4 +21,8 @@ export const projectsAPI = {
   deleteProject: (projectId) => {
     return client.delete(`/projects/${projectId}`)
   },
+
+  assignUser: (projectId, userId) => {
+    return client.post(`/projects/${projectId}/assign`, { user_id: userId })
+  },
 }

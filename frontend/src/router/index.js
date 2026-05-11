@@ -36,13 +36,37 @@ const routes = [
   {
     path: '/admin/clients',
     name: 'AdminClients',
-    component: () => import('../views/AdminDashboard.vue'), // placeholder
+    component: () => import('../views/AdminClients.vue'),
     meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
     path: '/admin/expenses',
     name: 'AdminExpenses',
-    component: () => import('../views/AdminDashboard.vue'), // placeholder
+    component: () => import('../views/AdminExpenses.vue'),
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
+    path: '/admin/tasks',
+    name: 'AdminTasks',
+    component: () => import('../views/AdminTasks.vue'),
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
+    path: '/admin/leaves',
+    name: 'AdminLeaves',
+    component: () => import('../views/AdminLeaves.vue'),
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
+    path: '/admin/attendance',
+    name: 'AdminAttendance',
+    component: () => import('../views/AdminAttendance.vue'),
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
+    path: '/admin/employees/:id',
+    name: 'EmployeeProfile',
+    component: () => import('../views/EmployeeProfile.vue'),
     meta: { requiresAuth: true, roles: ['admin'] },
   },
   {

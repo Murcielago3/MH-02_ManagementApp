@@ -40,7 +40,7 @@
           <tr v-else-if="paginated.length === 0">
             <td colspan="8" class="empty-cell">No projects found.</td>
           </tr>
-          <tr v-for="p in paginated" :key="p.id" class="proj-row">
+          <tr v-for="p in paginated" :key="p.id" class="proj-row" @click="openDetailModal(p)">
             <td class="mono"><span class="proj-num">{{ p.project_number }}</span></td>
             <td><span class="proj-name">{{ p.name }}</span></td>
             <td class="muted">{{ p.location || '—' }}</td>
@@ -56,7 +56,7 @@
               </span>
             </td>
             <td class="text-right mono">{{ formatAmount(p.project_remuneration) }}</td>
-            <td>
+            <td @click.stop>
               <div class="row-actions">
                 <button class="action-btn edit-btn" title="Edit" @click="openEditModal(p)">
                   <span class="material-symbols-outlined">edit</span>
@@ -199,6 +199,119 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- Project Detail Modal -->
+    <Teleport to="body">
+      <div v-if="detailModalOpen" class="modal-backdrop" @click.self="closeDetailModal">
+        <div class="modal modal-xl">
+          <div class="modal-header">
+            <h3 class="modal-title">{{ detailProject?.name }}</h3>
+            <button class="modal-close" @click="closeDetailModal">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+
+          <div class="modal-body">
+            <div class="detail-grid">
+              <!-- Project Info -->
+              <div class="detail-section">
+                <h4 class="section-title">Project Information</h4>
+                <div class="info-grid">
+                  <div class="info-item">
+                    <label>Project Number</label>
+                    <span>{{ detailProject?.project_number }}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>Name</label>
+                    <span>{{ detailProject?.name }}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>Location</label>
+                    <span>{{ detailProject?.location || '—' }}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>Google Maps</label>
+                    <span v-if="detailProject?.gmap_link">
+                      <a :href="detailProject.gmap_link" target="_blank">View Map</a>
+                    </span>
+                    <span v-else>—</span>
+                  </div>
+                  <div class="info-item">
+                    <label>Year</label>
+                    <span>{{ detailProject?.year || '—' }}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>Stage</label>
+                    <span>{{ detailProject?.current_stage || '—' }}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>Billing Status</label>
+                    <span>{{ detailProject?.is_billed }}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>Client</label>
+                    <span>{{ getClientName(detailProject?.client_id) }}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>Partner Remuneration</label>
+                    <span>{{ formatAmount(detailProject?.partner_remuneration) }}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>Employee Remuneration</label>
+                    <span>{{ formatAmount(detailProject?.employee_remuneration) }}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>Total Remuneration</label>
+                    <span>{{ formatAmount(detailProject?.project_remuneration) }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Assigned Employees -->
+              <div class="detail-section">
+                <h4 class="section-title">Assigned Employees</h4>
+                <div v-if="detailProject?.assignments?.length" class="assignments-list">
+                  <div v-for="a in detailProject.assignments" :key="a.id" class="assignment-item">
+                    {{ a.user?.name }} ({{ a.user?.designation }})
+                  </div>
+                </div>
+                <div v-else class="empty-state">No employees assigned yet.</div>
+
+                <!-- Assign Employee -->
+                <div class="assign-form">
+                  <select v-model="assignUserId">
+                    <option :value="null">— Select Employee —</option>
+                    <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }} ({{ u.designation }})</option>
+                  </select>
+                  <button class="btn-assign" :disabled="!assignUserId || assignSubmitting" @click="assignUser">
+                    {{ assignSubmitting ? 'Assigning…' : 'Assign' }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Work Orders -->
+              <div class="detail-section">
+                <h4 class="section-title">Work Orders</h4>
+                <div v-if="detailProject?.work_order_urls" class="workorders-list">
+                  <div v-for="url in detailProject.work_order_urls.split(';')" :key="url" class="workorder-item">
+                    <a :href="url" target="_blank">View Work Order</a>
+                  </div>
+                </div>
+                <div v-else class="empty-state">No work orders uploaded yet.</div>
+
+                <!-- Upload Work Order -->
+                <div class="upload-form">
+                  <input type="file" ref="uploadInput" @change="uploadFile = $event.target.files[0]" accept=".pdf,.jpg,.jpeg,.png" />
+                  <button class="btn-upload" :disabled="!uploadFile || uploadSubmitting" @click="uploadWorkorder">
+                    {{ uploadSubmitting ? 'Uploading…' : 'Upload' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </AppLayout>
 </template>
 
@@ -207,9 +320,11 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import { projectsAPI } from '../api/projects'
 import { clientsAPI } from '../api/clients'
+import { usersAPI } from '../api/users'
 
 const projects = ref([])
 const clients = ref([])
+const users = ref([])
 const loading = ref(true)
 const searchQuery = ref('')
 const filterYear = ref('')
@@ -222,6 +337,14 @@ const editingId = ref(null)
 const submitting = ref(false)
 const formError = ref('')
 const deleteTarget = ref(null)
+
+const detailModalOpen = ref(false)
+const detailProject = ref(null)
+const assignUserId = ref(null)
+const assignSubmitting = ref(false)
+const uploadFile = ref(null)
+const uploadSubmitting = ref(false)
+const uploadInput = ref(null)
 
 const stages = [
   'Concept Design', 'Schematic Design', 'Design Development',
@@ -245,9 +368,10 @@ const form = reactive({
 async function fetchAll() {
   loading.value = true
   try {
-    const [pr, cl] = await Promise.all([projectsAPI.getProjects(), clientsAPI.getClients()])
+    const [pr, cl, us] = await Promise.all([projectsAPI.getProjects(), clientsAPI.getClients(), usersAPI.getUsers()])
     projects.value = pr.data
     clients.value = cl.data
+    users.value = us.data
   } catch (e) {
     console.error(e)
   } finally {
@@ -320,6 +444,57 @@ function openEditModal(p) {
 }
 
 function closeModal() { modalOpen.value = false }
+
+async function openDetailModal(p) {
+  try {
+    const res = await projectsAPI.getProject(p.id)
+    detailProject.value = res.data
+    detailModalOpen.value = true
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+function closeDetailModal() { detailModalOpen.value = false }
+
+async function assignUser() {
+  if (!assignUserId.value) return
+  assignSubmitting.value = true
+  try {
+    await projectsAPI.assignUser(detailProject.value.id, assignUserId.value)
+    assignUserId.value = null
+    // Refresh detail
+    const res = await projectsAPI.getProject(detailProject.value.id)
+    detailProject.value = res.data
+  } catch (e) {
+    console.error(e)
+  } finally {
+    assignSubmitting.value = false
+  }
+}
+
+async function uploadWorkorder() {
+  if (!uploadFile.value) return
+  uploadSubmitting.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', uploadFile.value)
+    // Use client directly for upload
+    const client = (await import('../api/client')).default
+    await client.post(`/uploads/project/${detailProject.value.id}/workorder`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    uploadFile.value = null
+    uploadInput.value.value = ''
+    // Refresh detail
+    const res = await projectsAPI.getProject(detailProject.value.id)
+    detailProject.value = res.data
+  } catch (e) {
+    console.error(e)
+  } finally {
+    uploadSubmitting.value = false
+  }
+}
 
 async function handleSubmit() {
   formError.value = ''
@@ -395,20 +570,20 @@ function stageBadgeClass(stage) {
 }
 .search-input {
   padding: 8px 8px 8px 32px; background: #fff; border: 1px solid #c8c5cd;
-  border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 13px;
+  border-radius: 6px; font-family: 'Integral CF', sans-serif; font-size: 13px;
   color: #1c1b1d; width: 256px; outline: none; transition: border 0.15s;
 }
 .search-input:focus { border-color: #1a1a2e; box-shadow: 0 0 0 1px #1a1a2e; }
 .search-input::placeholder { color: #78767d; }
 .year-select {
   height: 36px; padding: 0 10px; border: 1px solid #c8c5cd; border-radius: 6px;
-  font-family: 'Inter', sans-serif; font-size: 13px; color: #1c1b1d;
+  font-family: 'Integral CF', sans-serif; font-size: 13px; color: #1c1b1d;
   background: #fff; outline: none; cursor: pointer;
 }
 .add-btn {
   display: flex; align-items: center; gap: 4px; padding: 8px 16px;
   background: #1a1a2e; color: #fff; border: none; border-radius: 6px;
-  font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600;
+  font-family: 'Integral CF', sans-serif; font-size: 14px; font-weight: 600;
   cursor: pointer; transition: opacity 0.15s;
 }
 .add-btn:hover { opacity: 0.9; }
@@ -483,7 +658,7 @@ function stageBadgeClass(stage) {
 .page-btns { display: flex; gap: 4px; }
 .page-btn {
   padding: 4px 8px; border: 1px solid #c8c5cd; border-radius: 4px;
-  background: #fff; font-family: 'Inter', sans-serif; font-size: 13px;
+  background: #fff; font-family: 'Integral CF', sans-serif; font-size: 13px;
   color: #1c1b1d; cursor: pointer; transition: background 0.15s;
 }
 .page-btn:hover:not(:disabled) { background: #f1edef; }
@@ -525,7 +700,7 @@ function stageBadgeClass(stage) {
 .form-field input,
 .form-field select {
   height: 40px; padding: 0 12px; border: 1px solid #c8c5cd;
-  border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 14px;
+  border-radius: 6px; font-family: 'Integral CF', sans-serif; font-size: 14px;
   color: #1c1b1d; outline: none; transition: border 0.15s; background: #fff;
 }
 .form-field input:focus,
@@ -548,20 +723,20 @@ form .modal-footer { margin-top: 24px; padding: 0; border-top: none; }
 
 .btn-cancel {
   padding: 8px 16px; border: 1px solid #c8c5cd; border-radius: 6px;
-  background: #fff; font-family: 'Inter', sans-serif; font-size: 14px;
+  background: #fff; font-family: 'Integral CF', sans-serif; font-size: 14px;
   color: #1c1b1d; cursor: pointer;
 }
 .btn-cancel:hover { background: #f1edef; }
 .btn-submit {
   padding: 8px 20px; border: none; border-radius: 6px;
-  background: #1a1a2e; color: #fff; font-family: 'Inter', sans-serif;
+  background: #1a1a2e; color: #fff; font-family: 'Integral CF', sans-serif;
   font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
 }
 .btn-submit:hover:not(:disabled) { opacity: 0.9; }
 .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-danger {
   padding: 8px 20px; border: none; border-radius: 6px;
-  background: #ba1a1a; color: #fff; font-family: 'Inter', sans-serif;
+  background: #ba1a1a; color: #fff; font-family: 'Integral CF', sans-serif;
   font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
 }
 .btn-danger:hover:not(:disabled) { opacity: 0.9; }
@@ -569,5 +744,81 @@ form .modal-footer { margin-top: 24px; padding: 0; border-top: none; }
 
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* ─── Detail Modal ─── */
+.modal-xl { max-width: 1200px; }
+.detail-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 32px;
+}
+.detail-section { margin-bottom: 32px; }
+.section-title {
+  font-family: 'Integral CF', sans-serif; font-size: 16px; font-weight: 600;
+  color: #1c1b1d; margin-bottom: 16px;
+}
+.info-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+}
+.info-item {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.info-item label {
+  font-family: 'Integral CF', sans-serif; font-size: 12px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em; color: #64748b;
+}
+.info-item span {
+  font-family: 'Integral CF', sans-serif; font-size: 14px; color: #1c1b1d;
+}
+.assignments-list {
+  margin-bottom: 16px;
+}
+.assignment-item {
+  padding: 8px 12px; background: #f8fafc; border-radius: 4px;
+  font-family: 'Integral CF', sans-serif; font-size: 13px; color: #1c1b1d;
+  margin-bottom: 8px;
+}
+.assign-form {
+  display: flex; gap: 12px; align-items: center;
+}
+.assign-form select {
+  flex: 1; padding: 8px 12px; border: 1px solid #e2e8f0;
+  border-radius: 4px; font-family: 'Integral CF', sans-serif; font-size: 13px;
+}
+.btn-assign {
+  padding: 8px 16px; background: #1a1a2e; color: #fff; border: none;
+  border-radius: 4px; font-family: 'Integral CF', sans-serif; font-size: 13px;
+  cursor: pointer; transition: background 0.15s;
+}
+.btn-assign:hover:not(:disabled) { background: #2a2a3e; }
+.btn-assign:disabled { opacity: 0.5; cursor: not-allowed; }
+.workorders-list {
+  margin-bottom: 16px;
+}
+.workorder-item {
+  padding: 8px 12px; background: #f8fafc; border-radius: 4px;
+  margin-bottom: 8px;
+}
+.workorder-item a {
+  font-family: 'Integral CF', sans-serif; font-size: 13px; color: #0d9488;
+  text-decoration: none;
+}
+.workorder-item a:hover { text-decoration: underline; }
+.upload-form {
+  display: flex; gap: 12px; align-items: center;
+}
+.upload-form input {
+  flex: 1; padding: 8px 12px; border: 1px solid #e2e8f0;
+  border-radius: 4px; font-family: 'Integral CF', sans-serif; font-size: 13px;
+}
+.btn-upload {
+  padding: 8px 16px; background: #0d9488; color: #fff; border: none;
+  border-radius: 4px; font-family: 'Integral CF', sans-serif; font-size: 13px;
+  cursor: pointer; transition: background 0.15s;
+}
+.btn-upload:hover:not(:disabled) { background: #0a7a6a; }
+.btn-upload:disabled { opacity: 0.5; cursor: not-allowed; }
+.empty-state {
+  padding: 16px; text-align: center; color: #64748b;
+  font-family: 'Integral CF', sans-serif; font-size: 13px;
 }
 </style>

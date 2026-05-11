@@ -502,7 +502,7 @@ onMounted(async () => {
 
 const calculateSalaryPerHour = () => {
   if (!form.salary_month || form.salary_month === 0) return '0.00'
-  return (form.salary_month / 160).toFixed(2)
+  return ((form.salary_month * 13) / 12 / 160).toFixed(2)
 }
 
 // Photo upload

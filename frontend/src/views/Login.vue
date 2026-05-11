@@ -280,7 +280,7 @@ const handleLogin = async () => {
   --color-primary-fixed: #e2dfff;
 
   --font-headline: "Manrope", sans-serif;
-  --font-body: "Inter", sans-serif;
+  --font-body: "Integral CF", sans-serif;
 
   --shadow-architectural: 0 1px 2px rgba(53, 37, 205, 0.05),
     0 4px 12px rgba(53, 37, 205, 0.05);

@@ -24,6 +24,7 @@ class User(Base):
     role = Column(String, default="employee")
     is_active = Column(Boolean, default=True)
     hashed_password = Column(String, nullable=False)
+    documents_url = Column(String, nullable=True)
 
     manager_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     manager = relationship("User", remote_side=[id])

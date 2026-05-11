@@ -12,7 +12,7 @@
           </div>
         </div>
         <div>
-          <h1 class="brand-name">Archistruct</h1>
+          <h1 class="brand-name">{{ brandName }}</h1>
           <p class="brand-sub">Enterprise ERP</p>
         </div>
       </div>
@@ -68,16 +68,43 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { usersAPI } from '../api/users'
 
 const route = useRoute()
 const authStore = useAuthStore()
+const currentUser = ref(null)
+
+const brandName = computed(() => {
+  if (currentUser.value?.name) return currentUser.value.name
+  if (authStore.user?.name) return authStore.user.name
+  if (authStore.role === 'admin') return 'Studio MH02'
+  if (authStore.role === 'project_manager') return 'Project Manager'
+  if (authStore.role === 'employee') return 'Employee'
+  return 'Studio MH02'
+})
 
 const userInitials = computed(() => {
-  // Fallback to "AD" (Admin)
-  return 'AD'
+  const name = currentUser.value?.name || authStore.user?.name || 'Admin'
+  return name
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+})
+
+onMounted(async () => {
+  if (!authStore.isAuthenticated) return
+
+  try {
+    const response = await usersAPI.getMe()
+    currentUser.value = response.data
+  } catch (err) {
+    console.warn('Unable to load current user profile', err)
+  }
 })
 
 const navItems = [
@@ -85,6 +112,9 @@ const navItems = [
   { path: '/admin/employees', icon: 'group', label: 'Employees' },
   { path: '/admin/projects', icon: 'architecture', label: 'Projects' },
   { path: '/admin/clients', icon: 'handshake', label: 'Clients' },
+  { path: '/admin/tasks', icon: 'task', label: 'Tasks' },
+  { path: '/admin/leaves', icon: 'event_busy', label: 'Leaves' },
+  { path: '/admin/attendance', icon: 'schedule', label: 'Attendance' },
   { path: '/admin/expenses', icon: 'payments', label: 'Expenses' },
   { path: '/admin/invoices', icon: 'receipt_long', label: 'Invoices' },
   { path: '/admin/estimates', icon: 'calculate', label: 'Estimates' },
@@ -101,7 +131,7 @@ function isActive(path) {
 .app-shell {
   display: flex;
   min-height: 100vh;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Integral CF', sans-serif;
   font-size: 14px;
   line-height: 20px;
   color: #1c1b1d;
@@ -266,7 +296,7 @@ function isActive(path) {
   background: transparent;
   border: none;
   outline: none;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Integral CF', sans-serif;
   font-size: 14px;
   line-height: 20px;
   color: #1c1b1d;

@@ -69,6 +69,9 @@
             <td class="text-right mono">{{ formatSalary(emp.salary_month) }}</td>
             <td>
               <div class="row-actions">
+                <button class="action-btn view-btn" title="View Profile" @click="viewProfile(emp)">
+                  <span class="material-symbols-outlined">visibility</span>
+                </button>
                 <button class="action-btn edit-btn" title="Edit" @click="openEditModal(emp)">
                   <span class="material-symbols-outlined">edit</span>
                 </button>
@@ -264,10 +267,13 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 import { usersAPI } from '../api/users'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
+const router = useRouter()
 
 const employees = ref([])
 const managers = ref([])
@@ -312,7 +318,7 @@ const form = reactive({
 
 const salaryPerHour = computed(() => {
   if (!form.salary_month) return ''
-  return (form.salary_month / 160).toFixed(2)
+  return ((form.salary_month * 13) / 12 / 160).toFixed(2)
 })
 
 // ── Fetch employees ──
@@ -431,6 +437,10 @@ function closeModal() {
   modalOpen.value = false
 }
 
+function viewProfile(emp) {
+  router.push(`/admin/employees/${emp.id}`)
+}
+
 async function handleSubmit() {
   formError.value = ''
   submitting.value = true
@@ -449,7 +459,16 @@ async function handleSubmit() {
       const res = await usersAPI.updateUser(editingId.value, payload)
       userId = editingId.value
     } else {
-      const res = await usersAPI.createUser({ ...form })
+      const payload = {}
+      const fields = ['name', 'designation', 'studio_email', 'personal_mail', 'password', 'role',
+        'joining_date', 'end_date', 'salary_month', 'leaves_allowed', 'manager_id',
+        'pan_number', 'aadhar_number', 'time_tracker_login', 'time_tracker_password']
+      for (const f of fields) {
+        if (form[f] !== '' && form[f] !== null && form[f] !== undefined) {
+          payload[f] = form[f]
+        }
+      }
+      const res = await usersAPI.createUser(payload)
       userId = res.data.id
     }
 
@@ -544,7 +563,7 @@ function formatSalary(val) {
   background: #ffffff;
   border: 1px solid #c8c5cd;
   border-radius: 6px;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Integral CF', sans-serif;
   font-size: 13px;
   line-height: 18px;
   color: #1c1b1d;
@@ -570,7 +589,7 @@ function formatSalary(val) {
   border: 1px solid #c8c5cd;
   border-radius: 6px;
   background: #ffffff;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Integral CF', sans-serif;
   font-size: 13px;
   line-height: 18px;
   color: #1c1b1d;
@@ -595,7 +614,7 @@ function formatSalary(val) {
   color: #ffffff;
   border: none;
   border-radius: 6px;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Integral CF', sans-serif;
   font-size: 14px;
   font-weight: 600;
   line-height: 20px;
@@ -759,6 +778,11 @@ function formatSalary(val) {
   background: #f1edef;
 }
 
+.view-btn:hover {
+  color: #0d9488;
+  background: #dcfce7;
+}
+
 .delete-btn:hover {
   color: #ba1a1a;
   background: #ffdad6;
@@ -805,7 +829,7 @@ function formatSalary(val) {
   border: 1px solid #c8c5cd;
   border-radius: 4px;
   background: #ffffff;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Integral CF', sans-serif;
   font-size: 13px;
   color: #1c1b1d;
   cursor: pointer;
@@ -925,7 +949,7 @@ function formatSalary(val) {
   padding: 0 12px;
   border: 1px solid #c8c5cd;
   border-radius: 6px;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Integral CF', sans-serif;
   font-size: 14px;
   color: #1c1b1d;
   outline: none;
@@ -983,7 +1007,7 @@ form .modal-footer {
   border: 1px solid #c8c5cd;
   border-radius: 6px;
   background: #ffffff;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Integral CF', sans-serif;
   font-size: 14px;
   color: #1c1b1d;
   cursor: pointer;
@@ -999,7 +1023,7 @@ form .modal-footer {
   border-radius: 6px;
   background: #1a1a2e;
   color: #ffffff;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Integral CF', sans-serif;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -1021,7 +1045,7 @@ form .modal-footer {
   border-radius: 6px;
   background: #ba1a1a;
   color: #ffffff;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Integral CF', sans-serif;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
