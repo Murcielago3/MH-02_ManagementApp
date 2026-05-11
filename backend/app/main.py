@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
-from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance
+from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks
 
 security = HTTPBearer()
 app = FastAPI(title="Studio MH02")
@@ -30,6 +30,7 @@ app.include_router(dashboard.router)
 app.include_router(expenses.router)
 app.include_router(leaves.router)
 app.include_router(attendance.router)
+app.include_router(tasks.router)
 
 
 @app.get("/health")
