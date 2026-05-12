@@ -5,6 +5,10 @@ export const tasksAPI = {
     return client.get('/tasks/', { params })
   },
 
+  getMyTasks: (params) => {
+    return client.get('/tasks/my', { params })
+  },
+
   getCalendarTasks: (year, month, employeeId) => {
     const params = { year, month }
     if (employeeId) params.employee_id = employeeId
@@ -17,6 +21,10 @@ export const tasksAPI = {
 
   updateTask: (taskId, data) => {
     return client.put(`/tasks/${taskId}`, data)
+  },
+
+  patchTask: (taskId, data) => {
+    return client.patch(`/tasks/${taskId}`, data)
   },
 
   updateTaskStatus: (taskId, status) => {

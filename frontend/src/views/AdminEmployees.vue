@@ -1,5 +1,5 @@
 <template>
-  <AppLayout>
+  <component :is="layout">
     <!-- Page Header Actions -->
     <div class="page-actions">
       <div class="actions-left">
@@ -32,18 +32,18 @@
             <th>Designation</th>
             <th>Role</th>
             <th>Joining Date</th>
-            <th class="text-right">Monthly Salary (₹)</th>
+            <th v-if="isAdmin" class="text-right">Monthly Salary (₹)</th>
             <th class="text-center col-actions">Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="6" class="empty-cell">
+            <td :colspan="isAdmin ? 6 : 5" class="empty-cell">
               <div class="loading-text">Loading employees…</div>
             </td>
           </tr>
           <tr v-else-if="paginatedEmployees.length === 0">
-            <td colspan="6" class="empty-cell">No employees found.</td>
+            <td :colspan="isAdmin ? 6 : 5" class="empty-cell">No employees found.</td>
           </tr>
           <tr
             v-for="emp in paginatedEmployees"
@@ -66,7 +66,7 @@
               <span class="role-badge">{{ emp.role }}</span>
             </td>
             <td class="mono muted">{{ formatDate(emp.joining_date) }}</td>
-            <td class="text-right mono">{{ formatSalary(emp.salary_month) }}</td>
+            <td v-if="isAdmin" class="text-right mono">{{ formatSalary(emp.salary_month) }}</td>
             <td>
               <div class="row-actions">
                 <button class="action-btn view-btn" title="View Profile" @click="viewProfile(emp)">
@@ -166,11 +166,11 @@
                 <label>End Date</label>
                 <input v-model="form.end_date" type="date" />
               </div>
-              <div class="form-field">
-                <label>Monthly Salary (₹)</label>
-                <input v-model.number="form.salary_month" type="number" placeholder="e.g. 25000" />
+              <div class="form-field" v-if="isAdmin">
+                <label>Salary / Month (₹)</label>
+                <CurrencyInput v-model="form.salary_month" placeholder="e.g. 25000" />
               </div>
-              <div class="form-field">
+              <div class="form-field" v-if="isAdmin">
                 <label>Hourly Rate (₹) — auto</label>
                 <input :value="salaryPerHour" type="text" disabled class="readonly-input" />
               </div>
@@ -262,18 +262,28 @@
         </div>
       </div>
     </Teleport>
-  </AppLayout>
+  </component>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
+import EmployeeLayout from '../components/EmployeeLayout.vue'
+import { useAuthStore } from '../stores/auth'
 import { usersAPI } from '../api/users'
+import CurrencyInput from '../components/CurrencyInput.vue'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const router = useRouter()
+const authStore = useAuthStore()
+
+const layout = computed(() => {
+  return authStore.role === 'admin' ? AppLayout : EmployeeLayout
+})
+
+const isAdmin = computed(() => authStore.role === 'admin')
 
 const employees = ref([])
 const managers = ref([])
@@ -554,31 +564,31 @@ function formatSalary(val) {
   left: 8px;
   top: 50%;
   transform: translateY(-50%);
-  color: #78767d;
+  color: var(--color-on-surface-variant);
   font-size: 18px;
 }
 
 .search-input {
   padding: 8px 8px 8px 32px;
   background: #ffffff;
-  border: 1px solid #c8c5cd;
-  border-radius: 6px;
-  font-family: 'Integral CF', sans-serif;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-display);
   font-size: 13px;
   line-height: 18px;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
   width: 256px;
   outline: none;
   transition: border 0.15s;
 }
 
 .search-input:focus {
-  border-color: #1a1a2e;
-  box-shadow: 0 0 0 1px #1a1a2e;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
 }
 
 .search-input::placeholder {
-  color: #78767d;
+  color: var(--color-on-surface-variant);
 }
 
 .filter-btn {
@@ -586,19 +596,19 @@ function formatSalary(val) {
   align-items: center;
   gap: 4px;
   padding: 8px;
-  border: 1px solid #c8c5cd;
-  border-radius: 6px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg);
   background: #ffffff;
-  font-family: 'Integral CF', sans-serif;
+  font-family: var(--font-display);
   font-size: 13px;
   line-height: 18px;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .filter-btn:hover {
-  background: #f1edef;
+  background: var(--color-surface-container);
 }
 
 .filter-btn .material-symbols-outlined {
@@ -610,11 +620,11 @@ function formatSalary(val) {
   align-items: center;
   gap: 4px;
   padding: 8px 16px;
-  background: #1a1a2e;
+  background: var(--color-primary);
   color: #ffffff;
   border: none;
-  border-radius: 6px;
-  font-family: 'Integral CF', sans-serif;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-display);
   font-size: 14px;
   font-weight: 600;
   line-height: 20px;
@@ -638,8 +648,8 @@ function formatSalary(val) {
 /* ───────── Table Card ───────── */
 .table-card {
   background: #ffffff;
-  border: 1px solid #c8c5cd;
-  border-radius: 8px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
@@ -650,8 +660,8 @@ function formatSalary(val) {
 }
 
 .emp-table thead {
-  background: #f6f2f4;
-  border-bottom: 1px solid #c8c5cd;
+  background: var(--color-surface-container);
+  border-bottom: 1px solid var(--color-outline);
 }
 
 .emp-table th {
@@ -661,7 +671,7 @@ function formatSalary(val) {
   line-height: 16px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #47464c;
+  color: var(--color-on-surface-variant);
 }
 
 .col-actions {
@@ -678,14 +688,14 @@ function formatSalary(val) {
 }
 
 .emp-row:hover {
-  background: #fcf8fa;
+  background: var(--color-background);
 }
 
 .emp-table td {
   padding: 8px 16px;
   font-size: 13px;
   line-height: 18px;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
 }
 
 .name-cell {
@@ -703,30 +713,30 @@ function formatSalary(val) {
   justify-content: center;
   font-size: 12px;
   font-weight: 700;
-  color: #1a1a2e;
+  color: var(--color-primary);
   flex-shrink: 0;
 }
 
 .emp-name {
   font-weight: 600;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
 }
 
 .emp-id {
   font-size: 13px;
-  color: #47464c;
+  color: var(--color-on-surface-variant);
   font-variant-numeric: tabular-nums;
 }
 
 .role-badge {
   display: inline-block;
   padding: 4px 8px;
-  background: #ebe7e9;
-  border-radius: 4px;
+  background: var(--color-surface-container-high);
+  border-radius: var(--radius);
   font-size: 11px;
   font-weight: 600;
   text-transform: capitalize;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
   letter-spacing: 0.05em;
 }
 
@@ -735,7 +745,7 @@ function formatSalary(val) {
 }
 
 .muted {
-  color: #47464c;
+  color: var(--color-on-surface-variant);
 }
 
 .text-right {
@@ -763,9 +773,9 @@ function formatSalary(val) {
   padding: 4px;
   border: none;
   background: none;
-  border-radius: 4px;
+  border-radius: var(--radius);
   cursor: pointer;
-  color: #47464c;
+  color: var(--color-on-surface-variant);
   transition: all 0.15s;
 }
 
@@ -774,12 +784,12 @@ function formatSalary(val) {
 }
 
 .edit-btn:hover {
-  color: #1a1a2e;
-  background: #f1edef;
+  color: var(--color-primary);
+  background: var(--color-surface-container);
 }
 
 .view-btn:hover {
-  color: #0d9488;
+  color: var(--color-primary);
   background: #dcfce7;
 }
 
@@ -791,7 +801,7 @@ function formatSalary(val) {
 .empty-cell {
   padding: 24px;
   text-align: center;
-  color: #78767d;
+  color: var(--color-on-surface-variant);
 }
 
 .loading-text {
@@ -806,8 +816,8 @@ function formatSalary(val) {
 /* ── Pagination ── */
 .table-footer {
   padding: 8px 16px;
-  border-top: 1px solid #c8c5cd;
-  background: #f6f2f4;
+  border-top: 1px solid var(--color-outline);
+  background: var(--color-surface-container);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -816,7 +826,7 @@ function formatSalary(val) {
 .page-info {
   font-size: 13px;
   line-height: 18px;
-  color: #47464c;
+  color: var(--color-on-surface-variant);
 }
 
 .page-btns {
@@ -826,18 +836,18 @@ function formatSalary(val) {
 
 .page-btn {
   padding: 4px 8px;
-  border: 1px solid #c8c5cd;
-  border-radius: 4px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius);
   background: #ffffff;
-  font-family: 'Integral CF', sans-serif;
+  font-family: var(--font-display);
   font-size: 13px;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .page-btn:hover:not(:disabled) {
-  background: #f1edef;
+  background: var(--color-surface-container);
 }
 
 .page-btn:disabled {
@@ -864,7 +874,7 @@ function formatSalary(val) {
 
 .modal {
   background: #ffffff;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   width: 600px;
   max-width: 95vw;
   max-height: 90vh;
@@ -897,21 +907,21 @@ function formatSalary(val) {
 .modal-title {
   font-size: 18px;
   font-weight: 600;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
   margin: 0;
 }
 
 .modal-close {
   background: none;
   border: none;
-  color: #47464c;
+  color: var(--color-on-surface-variant);
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius);
 }
 
 .modal-close:hover {
-  background: #f1edef;
+  background: var(--color-surface-container);
 }
 
 .modal-body {
@@ -921,7 +931,7 @@ function formatSalary(val) {
 .modal-body p {
   font-size: 14px;
   line-height: 22px;
-  color: #47464c;
+  color: var(--color-on-surface-variant);
   margin: 0;
 }
 
@@ -940,18 +950,18 @@ function formatSalary(val) {
 .form-field label {
   font-size: 13px;
   font-weight: 600;
-  color: #47464c;
+  color: var(--color-on-surface-variant);
 }
 
 .form-field input,
 .form-field select {
   height: 40px;
   padding: 0 12px;
-  border: 1px solid #c8c5cd;
-  border-radius: 6px;
-  font-family: 'Integral CF', sans-serif;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-display);
   font-size: 14px;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
   outline: none;
   transition: border 0.15s;
   background: #ffffff;
@@ -959,12 +969,12 @@ function formatSalary(val) {
 
 .form-field input:focus,
 .form-field select:focus {
-  border-color: #1a1a2e;
-  box-shadow: 0 0 0 1px #1a1a2e;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
 }
 
 .form-field input::placeholder {
-  color: #78767d;
+  color: var(--color-on-surface-variant);
 }
 
 .form-error {
@@ -973,7 +983,7 @@ function formatSalary(val) {
   gap: 8px;
   padding: 12px;
   background: #ffdad6;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   color: #93000a;
   font-size: 14px;
   margin-top: 16px;
@@ -1004,26 +1014,26 @@ form .modal-footer {
 
 .btn-cancel {
   padding: 8px 16px;
-  border: 1px solid #c8c5cd;
-  border-radius: 6px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg);
   background: #ffffff;
-  font-family: 'Integral CF', sans-serif;
+  font-family: var(--font-display);
   font-size: 14px;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
   cursor: pointer;
 }
 
 .btn-cancel:hover {
-  background: #f1edef;
+  background: var(--color-surface-container);
 }
 
 .btn-submit {
   padding: 8px 20px;
   border: none;
-  border-radius: 6px;
-  background: #1a1a2e;
+  border-radius: var(--radius-lg);
+  background: var(--color-primary);
   color: #ffffff;
-  font-family: 'Integral CF', sans-serif;
+  font-family: var(--font-display);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -1042,10 +1052,10 @@ form .modal-footer {
 .btn-danger {
   padding: 8px 20px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-lg);
   background: #ba1a1a;
   color: #ffffff;
-  font-family: 'Integral CF', sans-serif;
+  font-family: var(--font-display);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -1080,8 +1090,8 @@ form .modal-footer {
 .photo-upload-area {
   width: 120px;
   height: 120px;
-  border: 2px dashed #c8c5cd;
-  border-radius: 8px;
+  border: 2px dashed var(--color-outline);
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1092,7 +1102,7 @@ form .modal-footer {
 }
 
 .photo-upload-area:hover {
-  border-color: #1a1a2e;
+  border-color: var(--color-primary);
 }
 
 .photo-preview {
@@ -1106,7 +1116,7 @@ form .modal-footer {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  color: #78767d;
+  color: var(--color-on-surface-variant);
   font-size: 11px;
   font-weight: 600;
   text-align: center;
@@ -1130,19 +1140,19 @@ form .modal-footer {
   gap: 12px;
   padding: 8px 12px;
   border: 1px solid #e5e1e3;
-  border-radius: 6px;
+  border-radius: var(--radius-lg);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
 
 .doc-slot:hover {
-  background: #f6f2f4;
-  border-color: #c8c5cd;
+  background: var(--color-surface-container);
+  border-color: var(--color-outline);
 }
 
 .doc-icon {
   font-size: 20px;
-  color: #1a1a2e;
+  color: var(--color-primary);
 }
 
 .doc-slot-text {
@@ -1153,12 +1163,12 @@ form .modal-footer {
 .doc-slot-text strong {
   font-size: 12px;
   font-weight: 600;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
 }
 
 .doc-slot-text span {
   font-size: 11px;
-  color: #78767d;
+  color: var(--color-on-surface-variant);
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1166,8 +1176,8 @@ form .modal-footer {
 }
 
 .readonly-input {
-  background: #f6f2f4 !important;
-  color: #47464c;
+  background: var(--color-surface-container) !important;
+  color: var(--color-on-surface-variant);
   cursor: not-allowed;
 }
 </style>

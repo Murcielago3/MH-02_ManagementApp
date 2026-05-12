@@ -1,20 +1,17 @@
 <template>
-  <div class="app-shell">
+  <div class="app-layout">
     <!-- Sidebar -->
     <aside class="sidebar">
-      <div class="sidebar-brand">
-        <div class="brand-logo">
-          <div class="logo-grid-mini">
-            <div class="lg-cell lg-a"></div>
-            <div class="lg-cell lg-b"></div>
-            <div class="lg-cell lg-c"></div>
-            <div class="lg-cell lg-a"></div>
+      <div class="sidebar-header">
+        <div class="logo-box">
+          <div class="logo-grid">
+            <div class="logo-cell logo-full"></div>
+            <div class="logo-cell logo-light"></div>
+            <div class="logo-cell logo-mid"></div>
+            <div class="logo-cell logo-full"></div>
           </div>
         </div>
-        <div>
-          <h1 class="brand-name">{{ brandName }}</h1>
-          <p class="brand-sub">Enterprise ERP</p>
-        </div>
+        <h1 class="brand-title">{{ brandName }}</h1>
       </div>
 
       <nav class="sidebar-nav">
@@ -22,15 +19,17 @@
           v-for="item in navItems"
           :key="item.path"
           :to="item.path"
-          :class="['nav-item', { active: isActive(item.path) }]"
+          class="nav-item"
+          :class="{ active: isActive(item.path) }"
         >
-          <span
-            class="material-symbols-outlined"
-            :style="isActive(item.path) ? 'font-variation-settings: \'FILL\' 1;' : ''"
-          >{{ item.icon }}</span>
-          <span>{{ item.label }}</span>
+          <span class="material-symbols-outlined nav-icon">{{ item.icon }}</span>
+          <span class="nav-label">{{ item.label }}</span>
         </router-link>
       </nav>
+
+      <div class="sidebar-footer">
+        <div class="version-tag">v1.0.0</div>
+      </div>
     </aside>
 
     <!-- Main content area -->
@@ -38,42 +37,30 @@
       <!-- Top App Bar -->
       <header class="top-bar">
         <div class="top-bar-left">
-          <span class="material-symbols-outlined top-bar-icon">search</span>
-          <input
-            type="text"
-            placeholder="Search..."
-            class="search-input"
-          />
+          <!-- Employee view generally won't have global search, keeping it simple -->
+          <h2 class="page-title">{{ currentPageTitle }}</h2>
         </div>
         <div class="top-bar-right">
           <button class="icon-btn">
             <span class="material-symbols-outlined">notifications</span>
           </button>
-          <button class="icon-btn">
-            <span class="material-symbols-outlined">settings</span>
-          </button>
-          <button class="icon-btn">
-            <span class="material-symbols-outlined">help</span>
-          </button>
           
           <div class="avatar-wrapper" style="position: relative;" @click="showProfileMenu = !showProfileMenu">
-            <div class="avatar">{{ userInitials }}</div>
+            <div class="avatar" :style="avatarStyle">
+              <span v-if="!avatarUrl">{{ userInitials }}</span>
+            </div>
             
             <!-- Profile Dropdown -->
             <div v-if="showProfileMenu" class="profile-dropdown">
               <div class="dropdown-header">
-                <p class="dropdown-name">{{ currentUser?.name || authStore.user?.name || 'Admin' }}</p>
+                <p class="dropdown-name">{{ currentUser?.name || authStore.user?.name || 'Employee' }}</p>
                 <p class="dropdown-role">{{ authStore.role }}</p>
               </div>
               <div class="dropdown-divider"></div>
-              <button class="dropdown-item">
+              <router-link to="/employee/profile" class="dropdown-item" @click="showProfileMenu = false">
                 <span class="material-symbols-outlined">person</span>
                 My Profile
-              </button>
-              <button class="dropdown-item">
-                <span class="material-symbols-outlined">settings</span>
-                Settings
-              </button>
+              </router-link>
               <div class="dropdown-divider"></div>
               <button class="dropdown-item text-error" @click.stop="handleLogout">
                 <span class="material-symbols-outlined">logout</span>
@@ -110,25 +97,6 @@ const closeProfileMenu = (e) => {
   }
 }
 
-const brandName = computed(() => {
-  if (currentUser.value?.name) return currentUser.value.name
-  if (authStore.user?.name) return authStore.user.name
-  if (authStore.role === 'admin') return 'Studio MH02'
-  if (authStore.role === 'project_manager') return 'Project Manager'
-  if (authStore.role === 'employee') return 'Employee'
-  return 'Studio MH02'
-})
-
-const userInitials = computed(() => {
-  const name = currentUser.value?.name || authStore.user?.name || 'Admin'
-  return name
-    .split(' ')
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
-})
-
 onMounted(async () => {
   document.addEventListener('click', closeProfileMenu)
   if (!authStore.isAuthenticated) return
@@ -151,200 +119,217 @@ const handleLogout = () => {
   router.push('/login')
 }
 
-const navItems = [
-  { path: '/admin/dashboard', icon: 'dashboard', label: 'Dashboard' },
-  { path: '/employee/dashboard', icon: 'badge', label: 'Employee Portal' },
-  { path: '/admin/employees', icon: 'group', label: 'Employees' },
-  { path: '/admin/projects', icon: 'architecture', label: 'Projects' },
-  { path: '/admin/clients', icon: 'handshake', label: 'Clients' },
-  { path: '/admin/tasks', icon: 'task', label: 'Tasks' },
-  { path: '/admin/leaves', icon: 'event_busy', label: 'Leaves' },
-  { path: '/admin/attendance', icon: 'schedule', label: 'Attendance' },
-  { path: '/admin/expenses', icon: 'payments', label: 'Expenses' },
-  { path: '/admin/invoices', icon: 'receipt_long', label: 'Invoices' },
-  { path: '/admin/estimates', icon: 'calculate', label: 'Estimates' },
-  { path: '/admin/reports', icon: 'analytics', label: 'Reports' },
-]
+const brandName = computed(() => {
+  return 'Studio MH02'
+})
+
+const avatarUrl = computed(() => {
+  return currentUser.value?.photo_url ? usersAPI.resolveFileUrl(currentUser.value.photo_url) : null
+})
+
+const avatarStyle = computed(() => {
+  if (avatarUrl.value) {
+    return {
+      backgroundImage: `url(${avatarUrl.value})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      color: 'transparent'
+    }
+  }
+  return {}
+})
+
+const userInitials = computed(() => {
+  const name = currentUser.value?.name || authStore.user?.name || 'Employee'
+  return name
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+})
+
+const navItems = computed(() => {
+  const items = [
+    { path: '/employee/dashboard', icon: 'dashboard', label: 'Dashboard' },
+    { path: '/employee/checkin', icon: 'sensor_door', label: 'Check In/Out' },
+    { path: '/employee/leaves', icon: 'event_busy', label: 'Leaves' },
+    { path: '/employee/profile', icon: 'person', label: 'Profile' },
+    { path: '/employee/salary', icon: 'payments', label: 'Salary' },
+    { path: '/employee/reimbursements', icon: 'receipt_long', label: 'Reimbursements' },
+  ]
+  
+  if (authStore.role === 'project_manager') {
+    items.push({ path: '/pm/employees', icon: 'group', label: 'Team Members' })
+    items.push({ path: '/pm/projects', icon: 'architecture', label: 'Projects' })
+  }
+  
+  if (authStore.role === 'admin') {
+    items.push({ path: '/admin/dashboard', icon: 'admin_panel_settings', label: 'Admin Portal' })
+  }
+  
+  return items
+})
 
 function isActive(path) {
-  return route.path === path
+  return route.path.startsWith(path)
 }
+
+const currentPageTitle = computed(() => {
+  const item = navItems.value.find(nav => route.path.startsWith(nav.path))
+  return item ? item.label : 'Employee Portal'
+})
 </script>
 
 <style scoped>
 /* ───────── Shell ───────── */
-.app-shell {
+.app-layout {
   display: flex;
-  min-height: 100vh;
-  font-family: var(--font-body);
-  font-size: 14px;
-  line-height: 20px;
-  color: var(--color-on-surface);
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
   background: var(--color-background);
+  font-family: var(--font-body);
 }
 
 /* ───────── Sidebar ───────── */
 .sidebar {
-  width: 260px;
-  min-width: 260px;
-  height: 100vh;
-  position: fixed;
-  left: 0;
-  top: 0;
-  background: var(--color-on-surface);
+  width: 280px;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-outline-variant);
   display: flex;
   flex-direction: column;
-  padding: 16px 0;
+  flex-shrink: 0;
   z-index: 20;
 }
 
-.sidebar-brand {
+.sidebar-header {
+  height: 80px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 32px;
   padding: 0 24px;
+  border-bottom: 1px solid var(--color-outline-variant);
 }
 
-.brand-logo {
+.logo-box {
   width: 32px;
   height: 32px;
-  border-radius: var(--radius);
-  overflow: hidden;
-  flex-shrink: 0;
+  margin-right: 12px;
 }
 
-.logo-grid-mini {
+.logo-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
   width: 100%;
   height: 100%;
-  padding: 3px;
-  background: var(--color-primary);
 }
 
-.lg-cell {
-  border-radius: 1px;
-}
+.logo-cell { border-radius: 2px; }
+.logo-full { background: var(--color-primary); }
+.logo-light { background: var(--color-primary); opacity: 0.3; }
+.logo-mid { background: var(--color-primary); opacity: 0.6; }
 
-.lg-a {
-  background: #ffffff;
-}
-
-.lg-b {
-  background: rgba(255, 255, 255, 0.4);
-}
-
-.lg-c {
-  background: rgba(255, 255, 255, 0.7);
-}
-
-.brand-name {
+.brand-title {
   font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: #ffffff;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--color-on-surface);
+  letter-spacing: -0.02em;
   margin: 0;
-}
-
-.brand-sub {
-  font-family: var(--font-body);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.5);
-  margin: 4px 0 0;
 }
 
-/* ───────── Nav ───────── */
 .sidebar-nav {
+  flex: 1;
+  padding: 24px 16px;
   display: flex;
   flex-direction: column;
-  flex-grow: 1;
+  gap: 4px;
+  overflow-y: auto;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 24px;
-  font-family: var(--font-body);
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.7);
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  color: var(--color-on-surface-variant);
   text-decoration: none;
-  cursor: pointer;
   transition: all 0.2s ease;
-  border-left: 3px solid transparent;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
 }
 
 .nav-item.active {
-  background: rgba(40, 116, 117, 0.15);
-  color: #ffffff;
-  border-left-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
 }
 
-.nav-item .material-symbols-outlined {
+.nav-item.active .nav-icon {
+  color: var(--color-on-primary);
+}
+
+.nav-icon {
   font-size: 20px;
+  color: var(--color-outline);
+}
+
+.sidebar-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--color-outline-variant);
+}
+
+.version-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-outline);
+  letter-spacing: 0.05em;
 }
 
 /* ───────── Main Area ───────── */
 .main-area {
-  flex-grow: 1;
-  margin-left: 260px;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-width: 0;
+  position: relative;
 }
 
 /* ───────── Top Bar ───────── */
 .top-bar {
   height: 64px;
-  position: fixed;
-  top: 0;
-  right: 0;
-  left: 260px;
-  z-index: 10;
-  background: var(--color-surface);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--color-outline-variant);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 32px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
 }
 
 .top-bar-left {
   display: flex;
   align-items: center;
-  gap: 12px;
-  width: 40%;
 }
 
-.top-bar-icon {
-  color: var(--color-outline);
+.page-title {
+  font-family: var(--font-display);
   font-size: 20px;
-}
-
-.search-input {
-  background: transparent;
-  border: none;
-  outline: none;
-  font-family: var(--font-body);
-  font-size: 14px;
+  font-weight: 700;
   color: var(--color-on-surface);
-  width: 100%;
-  padding: 0;
-}
-
-.search-input::placeholder {
-  color: var(--color-on-surface-variant);
+  margin: 0;
 }
 
 .top-bar-right {
@@ -354,43 +339,35 @@ function isActive(path) {
 }
 
 .icon-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
-  border: none;
-  background: none;
-  border-radius: var(--radius);
-  color: var(--color-on-surface-variant);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.2s ease;
 }
 
 .icon-btn:hover {
   background: var(--color-surface-container);
-}
-
-.icon-btn:active {
-  opacity: 0.8;
-}
-
-.icon-btn .material-symbols-outlined {
-  font-size: 22px;
+  color: var(--color-on-surface);
 }
 
 .avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
   background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
+  color: var(--color-primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-body);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
+  font-weight: 700;
+  font-size: 14px;
   cursor: pointer;
   border: 1px solid var(--color-outline-variant);
 }
@@ -457,6 +434,7 @@ function isActive(path) {
   cursor: pointer;
   text-align: left;
   transition: background 0.15s;
+  text-decoration: none;
 }
 
 .dropdown-item:hover {
@@ -480,14 +458,8 @@ function isActive(path) {
 .page-content {
   margin-top: 64px;
   padding: 32px;
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-}
-
-/* ───────── Material Symbols ───────── */
-.material-symbols-outlined {
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  flex: 1;
+  overflow-y: auto;
+  background: var(--color-background);
 }
 </style>

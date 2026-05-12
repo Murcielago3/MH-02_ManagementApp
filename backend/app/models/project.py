@@ -17,8 +17,10 @@ class Project(Base):
 
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=True)
     client = relationship("Client", back_populates="projects")
-    assignments = relationship("ProjectAssignment", back_populates="project")
+    assignments = relationship("ProjectAssignment", back_populates="project", cascade="all, delete-orphan")
     work_order_urls = Column(String, nullable=True)  # comma-separated URLs
+
+    color = Column(String, nullable=True, default='#287475')
 
     partner_remuneration = Column(Numeric(10, 2), nullable=True, default=0)
     employee_remuneration = Column(Numeric(10, 2), nullable=True, default=0)

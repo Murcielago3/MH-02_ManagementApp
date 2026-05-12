@@ -328,12 +328,12 @@ function isDueToday(task) {
 
 <style scoped>
 .profile-header {
-  background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+  background: #fff; border: 1px solid var(--color-surface-container-high); border-radius: var(--radius-lg);
   padding: 24px; margin-bottom: 24px; display: flex; align-items: center;
 }
 .profile-info { display: flex; align-items: center; gap: 16px; }
 .avatar {
-  width: 64px; height: 64px; border-radius: 50%; background: #0d9488;
+  width: 64px; height: 64px; border-radius: 50%; background: var(--color-primary);
   display: flex; align-items: center; justify-content: center;
   font-size: 24px; font-weight: 600; color: #fff;
 }
@@ -343,31 +343,31 @@ function isDueToday(task) {
 .avatar-initials { color: #fff; }
 .profile-details { flex: 1; }
 .profile-name {
-  font-size: 24px; font-weight: 600; color: #1c1b1d; margin: 0 0 4px 0;
+  font-size: 24px; font-weight: 600; color: var(--color-on-surface); margin: 0 0 4px 0;
 }
 .profile-role {
-  font-size: 14px; color: #64748b; margin: 0 0 4px 0;
+  font-size: 14px; color: var(--color-on-surface-variant); margin: 0 0 4px 0;
 }
 .profile-email {
-  font-size: 14px; color: #64748b; margin: 0;
+  font-size: 14px; color: var(--color-on-surface-variant); margin: 0;
 }
 
 .profile-tabs {
   display: flex; gap: 0; margin-bottom: 24px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--color-surface-container-high);
 }
 .tab-btn {
   padding: 12px 24px; background: none; border: none; border-bottom: 2px solid transparent;
-  font-family: 'Integral CF', sans-serif; font-size: 14px; font-weight: 500;
-  color: #64748b; cursor: pointer; transition: all 0.15s;
+  font-family: var(--font-display); font-size: 14px; font-weight: 500;
+  color: var(--color-on-surface-variant); cursor: pointer; transition: all 0.15s;
 }
-.tab-btn:hover { color: #334155; }
+.tab-btn:hover { color: var(--color-on-surface-variant); }
 .tab-btn.active {
-  color: #0d9488; border-bottom-color: #0d9488;
+  color: var(--color-primary); border-bottom-color: var(--color-primary);
 }
 
 .tab-content {
-  background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+  background: #fff; border: 1px solid var(--color-surface-container-high); border-radius: var(--radius-lg);
   padding: 24px;
 }
 
@@ -379,49 +379,49 @@ function isDueToday(task) {
 }
 .info-item label {
   font-size: 12px; font-weight: 600; text-transform: uppercase;
-  letter-spacing: 0.05em; color: #64748b;
+  letter-spacing: 0.05em; color: var(--color-on-surface-variant);
 }
 .info-item span {
-  font-size: 14px; color: #1c1b1d; font-weight: 500;
+  font-size: 14px; color: var(--color-on-surface); font-weight: 500;
 }
 
 .table-card {
-  background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+  background: #fff; border: 1px solid var(--color-surface-container-high); border-radius: var(--radius-lg);
   overflow: hidden;
 }
 .proj-table {
   width: 100%; border-collapse: collapse;
 }
 .proj-table th {
-  padding: 12px 16px; text-align: left; font-family: 'Integral CF', sans-serif;
+  padding: 12px 16px; text-align: left; font-family: var(--font-display);
   font-size: 11px; font-weight: 600; text-transform: uppercase;
-  letter-spacing: 0.05em; color: #334155; border-bottom: 1px solid #e2e8f0;
-  background: #f8fafc;
+  letter-spacing: 0.05em; color: var(--color-on-surface-variant); border-bottom: 1px solid var(--color-surface-container-high);
+  background: var(--color-background);
 }
 .proj-table td {
-  padding: 12px 16px; border-bottom: 1px solid #f1f5f9;
-  font-family: 'Integral CF', sans-serif; font-size: 13px; color: #1c1b1d;
+  padding: 12px 16px; border-bottom: 1px solid var(--color-surface-container);
+  font-family: var(--font-display); font-size: 13px; color: var(--color-on-surface);
 }
-.proj-row:hover { background: #f8fafc; }
+.proj-row:hover { background: var(--color-background); }
 .proj-name { font-weight: 500; }
-.muted { color: #64748b; }
+.muted { color: var(--color-on-surface-variant); }
 .mono { font-variant-numeric: tabular-nums; }
 
 .empty-cell {
-  text-align: center; padding: 48px 16px; color: #64748b;
-  font-family: 'Integral CF', sans-serif; font-size: 13px;
+  text-align: center; padding: 48px 16px; color: var(--color-on-surface-variant);
+  font-family: var(--font-display); font-size: 13px;
 }
 
 .site-badge {
   padding: 4px 8px; background: #dbeafe; color: #1e40af;
-  border-radius: 12px; font-size: 11px; font-weight: 600;
+  border-radius: var(--radius-lg); font-size: 11px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.05em;
 }
 
 .due-status {
   margin-top: 4px;
   font-size: 12px;
-  color: #475569;
+  color: var(--color-on-surface-variant);
 }
 .due-status.late {
   color: #b91c1c;
@@ -431,7 +431,7 @@ function isDueToday(task) {
 }
 
 .status-badge {
-  padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;
+  padding: 4px 8px; border-radius: var(--radius-lg); font-size: 11px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.05em;
 }
 .status-badge.status-pending { background: #fef3c7; color: #92400e; }
@@ -442,7 +442,7 @@ function isDueToday(task) {
 .status-badge.status-todo { background: #f3f4f6; color: #374151; }
 
 .priority-badge {
-  padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;
+  padding: 4px 8px; border-radius: var(--radius-lg); font-size: 11px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.05em;
 }
 .priority-badge.priority-high { background: #fee2e2; color: #991b1b; }

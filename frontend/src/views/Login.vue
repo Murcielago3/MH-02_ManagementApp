@@ -91,7 +91,6 @@
           <div class="field-group">
             <div class="field-label-row">
               <label for="password" class="field-label">Password</label>
-              <a href="#" class="forgot-link">Forgot password?</a>
             </div>
             <div class="input-wrapper" :class="{ focused: passwordFocused }">
               <input
@@ -266,24 +265,12 @@ const handleLogin = async () => {
 <style scoped>
 /* ───────────── Page Layout + Design Tokens ───────────── */
 .login-page {
-  /* Design tokens scoped to this component's root */
-  --color-primary: #3525cd;
-  --color-tertiary: #3130c0;
-  --color-on-primary: #ffffff;
-  --color-on-surface: #191c1e;
-  --color-on-surface-variant: #464555;
-  --color-outline: #777587;
-  --color-outline-variant: #c7c4d8;
-  --color-surface: #f7f9fb;
-  --color-background: #f7f9fb;
-  --color-error: #ba1a1a;
-  --color-primary-fixed: #e2dfff;
+  /* Inherit global tokens, override specific shadows if needed */
+  --font-headline: var(--font-display);
+  --font-body: var(--font-body);
 
-  --font-headline: "Manrope", sans-serif;
-  --font-body: "Integral CF", sans-serif;
-
-  --shadow-architectural: 0 1px 2px rgba(53, 37, 205, 0.05),
-    0 4px 12px rgba(53, 37, 205, 0.05);
+  --shadow-architectural: 0 1px 2px rgba(40, 116, 117, 0.05),
+    0 4px 12px rgba(40, 116, 117, 0.05);
 
   display: flex;
   min-height: 100vh;
@@ -301,8 +288,8 @@ const handleLogin = async () => {
   width: 50%;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(165deg, #e2dfff 0%, #f7f9fb 100%);
-  border-right: 1px solid rgba(199, 196, 216, 0.3);
+  background: linear-gradient(165deg, var(--color-primary-container) 0%, var(--color-background) 100%);
+  border-right: 1px solid var(--color-outline-variant);
 }
 
 @media (min-width: 1024px) {
@@ -316,7 +303,7 @@ const handleLogin = async () => {
   inset: 0;
   background-image: radial-gradient(
     circle at 1px 1px,
-    #3525cd 1px,
+    var(--color-primary) 1px,
     transparent 0
   );
   background-size: 32px 32px;
@@ -328,7 +315,7 @@ const handleLogin = async () => {
   inset: 0;
   background: linear-gradient(
     to top right,
-    rgba(53, 37, 205, 0.05),
+    rgba(40, 116, 117, 0.05),
     transparent,
     transparent
   );
@@ -351,7 +338,7 @@ const handleLogin = async () => {
   padding: 16px;
   background: rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(12px);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   border: 1px solid rgba(255, 255, 255, 0.4);
   box-shadow: var(--shadow-architectural);
   margin-bottom: 24px;
@@ -402,7 +389,7 @@ const handleLogin = async () => {
 .brand-divider {
   width: 96px;
   height: 6px;
-  background: rgba(53, 37, 205, 0.2);
+  background: rgba(40, 116, 117, 0.2);
   margin-bottom: 24px;
   border-radius: 3px;
 }
@@ -476,7 +463,7 @@ const handleLogin = async () => {
   left: 0;
   width: 100%;
   height: 160px;
-  background: linear-gradient(165deg, #e2dfff 0%, #f7f9fb 100%);
+  background: linear-gradient(165deg, var(--color-primary-container) 0%, var(--color-background) 100%);
   opacity: 0.6;
   z-index: 0;
 }
@@ -513,7 +500,7 @@ const handleLogin = async () => {
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(8px);
   border: 1px solid var(--color-outline-variant);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -624,7 +611,7 @@ const handleLogin = async () => {
   color: var(--color-on-surface);
   background: #ffffff;
   border: 1px solid var(--color-outline-variant);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   outline: none;
   transition: all 0.2s ease;
   box-shadow: var(--shadow-architectural);
@@ -641,7 +628,7 @@ const handleLogin = async () => {
 
 .field-input:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 4px rgba(53, 37, 205, 0.05);
+  box-shadow: 0 0 0 4px rgba(40, 116, 117, 0.05);
 }
 
 .input-icon {
@@ -713,7 +700,7 @@ const handleLogin = async () => {
   width: 20px;
   height: 20px;
   border: 1.5px solid var(--color-outline-variant);
-  border-radius: 6px;
+  border-radius: var(--radius-lg);
   cursor: pointer;
   accent-color: var(--color-primary);
   transition: all 0.2s ease;
@@ -740,7 +727,7 @@ const handleLogin = async () => {
   padding: 14px 16px;
   background: rgba(186, 26, 26, 0.06);
   border: 1px solid rgba(186, 26, 26, 0.2);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   animation: slideIn 0.3s ease;
 }
 
@@ -788,14 +775,14 @@ const handleLogin = async () => {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   cursor: pointer;
   transition: all 0.25s ease;
 }
 
 .sign-in-btn:hover:not(:disabled) {
-  background: var(--color-tertiary);
-  box-shadow: 0 8px 24px rgba(53, 37, 205, 0.2);
+  background: var(--color-on-surface);
+  box-shadow: 0 8px 24px rgba(40, 116, 117, 0.2);
 }
 
 .sign-in-btn:active:not(:disabled) {

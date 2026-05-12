@@ -22,8 +22,10 @@ class ProjectCreate(BaseModel):
     partner_remuneration: Optional[float] = None
     employee_remuneration: Optional[float] = None
     project_remuneration: Optional[float] = None
+    color: Optional[str] = '#287475'
 
 class ProjectUpdate(BaseModel):
+    project_number: Optional[str] = None
     name: Optional[str] = None
     location: Optional[str] = None
     gmap_link: Optional[str] = None
@@ -34,6 +36,7 @@ class ProjectUpdate(BaseModel):
     partner_remuneration: Optional[float] = None
     employee_remuneration: Optional[float] = None
     project_remuneration: Optional[float] = None
+    color: Optional[str] = None
 
 @router.get("/")
 async def list_projects(
@@ -74,7 +77,11 @@ async def create_project(
         year=data.year,
         current_stage=data.current_stage,
         is_billed=data.is_billed,
-        client_id=data.client_id
+        client_id=data.client_id,
+        partner_remuneration=data.partner_remuneration,
+        employee_remuneration=data.employee_remuneration,
+        project_remuneration=data.project_remuneration,
+        color=data.color
     )
     db.add(project)
     await db.commit()

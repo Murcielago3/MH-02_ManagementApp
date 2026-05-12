@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
-from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads
+from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements
 
 
 security = HTTPBearer()
@@ -34,9 +34,23 @@ app.include_router(attendance.router)
 app.include_router(tasks.router)
 app.include_router(timesheets.router)
 app.include_router(uploads.router)
+app.include_router(reimbursements.router)
 
 
 
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+@app.on_event("startup")
+async def run_migrations():
+    """Add any missing columns to existing tables."""
+    from app.database import engine
+    from sqlalchemy import text
+    async with engine.begin() as conn:
+        # Add color column to projects if missing
+        try:
+            await conn.execute(text("ALTER TABLE projects ADD COLUMN IF NOT EXISTS color VARCHAR DEFAULT '#287475'"))
+        except Exception:
+            pass  # Column already exists or DB doesn't support IF NOT EXISTS
+

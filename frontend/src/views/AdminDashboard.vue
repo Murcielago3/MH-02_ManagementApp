@@ -323,14 +323,14 @@ function formatCurrency(val) {
   font-weight: 600;
   line-height: 24px;
   letter-spacing: -0.01em;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
   margin: 0;
 }
 
 .page-subtitle {
   font-size: 13px;
   line-height: 18px;
-  color: #47464c;
+  color: var(--color-on-surface-variant);
   margin: 4px 0 0;
 }
 
@@ -341,10 +341,10 @@ function formatCurrency(val) {
 
 .btn-outline {
   background: #ffffff;
-  border: 1px solid #c8c5cd;
-  color: #1c1b1d;
+  border: 1px solid var(--color-outline);
+  color: var(--color-on-surface);
   padding: 8px 16px;
-  border-radius: 4px;
+  border-radius: var(--radius);
   font-size: 13px;
   line-height: 18px;
   cursor: pointer;
@@ -352,15 +352,15 @@ function formatCurrency(val) {
 }
 
 .btn-outline:hover {
-  background: #f1edef;
+  background: var(--color-surface-container);
 }
 
 .btn-primary {
-  background: #1a1a2e;
+  background: var(--color-primary);
   color: #ffffff;
   border: none;
   padding: 8px 16px;
-  border-radius: 4px;
+  border-radius: var(--radius);
   font-size: 13px;
   line-height: 18px;
   cursor: pointer;
@@ -380,8 +380,8 @@ function formatCurrency(val) {
 
 .kpi-card {
   background: #ffffff;
-  border: 1px solid #c8c5cd;
-  border-radius: 4px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -392,7 +392,7 @@ function formatCurrency(val) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #47464c;
+  color: var(--color-on-surface-variant);
 }
 
 .kpi-label {
@@ -412,14 +412,14 @@ function formatCurrency(val) {
   font-weight: 600;
   line-height: 32px;
   letter-spacing: -0.02em;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
   font-variant-numeric: tabular-nums;
 }
 
 .kpi-note {
   font-size: 13px;
   line-height: 18px;
-  color: #78767d;
+  color: var(--color-on-surface-variant);
 }
 
 /* ───────── Charts Row ───────── */
@@ -432,8 +432,8 @@ function formatCurrency(val) {
 
 .chart-card {
   background: #ffffff;
-  border: 1px solid #c8c5cd;
-  border-radius: 4px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -447,7 +447,7 @@ function formatCurrency(val) {
   font-size: 14px;
   font-weight: 600;
   line-height: 20px;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
   margin: 0 0 24px;
 }
 
@@ -493,14 +493,14 @@ function formatCurrency(val) {
   font-size: 18px;
   font-weight: 600;
   line-height: 24px;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
 }
 
 .donut-label {
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.05em;
-  color: #78767d;
+  color: var(--color-on-surface-variant);
 }
 
 /* ── Legend ── */
@@ -532,24 +532,24 @@ function formatCurrency(val) {
 .legend-name {
   font-size: 13px;
   font-weight: 600;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
 }
 
 .legend-val {
   font-size: 12px;
-  color: #78767d;
+  color: var(--color-on-surface-variant);
   font-variant-numeric: tabular-nums;
 }
 
 .legend-divider {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid #c8c5cd;
+  border-top: 1px solid var(--color-outline);
 }
 
 .legend-note {
   font-size: 13px;
-  color: #47464c;
+  color: var(--color-on-surface-variant);
   line-height: 18px;
   margin: 0;
 }
@@ -573,7 +573,7 @@ function formatCurrency(val) {
   justify-content: space-between;
   font-size: 13px;
   line-height: 18px;
-  color: #47464c;
+  color: var(--color-on-surface-variant);
 }
 
 .status-pct {
@@ -583,7 +583,7 @@ function formatCurrency(val) {
 .progress-track {
   width: 100%;
   height: 8px;
-  background: #f1edef;
+  background: var(--color-surface-container);
   border-radius: 9999px;
   overflow: hidden;
 }
@@ -597,15 +597,15 @@ function formatCurrency(val) {
 /* ───────── Data Table ───────── */
 .table-card {
   background: #ffffff;
-  border: 1px solid #c8c5cd;
-  border-radius: 4px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius);
   display: flex;
   flex-direction: column;
 }
 
 .table-header {
   padding: 16px;
-  border-bottom: 1px solid #c8c5cd;
+  border-bottom: 1px solid var(--color-outline);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -620,7 +620,7 @@ function formatCurrency(val) {
   border: none;
   font-size: 13px;
   line-height: 18px;
-  color: #47464c;
+  color: var(--color-on-surface-variant);
   cursor: pointer;
   text-decoration: none;
 }
@@ -641,8 +641,8 @@ function formatCurrency(val) {
 }
 
 .data-table thead tr {
-  background: #f6f2f4;
-  border-bottom: 1px solid #c8c5cd;
+  background: var(--color-surface-container);
+  border-bottom: 1px solid var(--color-outline);
 }
 
 .data-table th {
@@ -652,7 +652,7 @@ function formatCurrency(val) {
   line-height: 16px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #47464c;
+  color: var(--color-on-surface-variant);
 }
 
 .data-table th:first-child {
@@ -664,7 +664,7 @@ function formatCurrency(val) {
 }
 
 .data-table tbody tr {
-  border-bottom: 1px solid #c8c5cd;
+  border-bottom: 1px solid var(--color-outline);
   transition: background 0.1s;
 }
 
@@ -673,14 +673,14 @@ function formatCurrency(val) {
 }
 
 .data-table tbody tr:hover {
-  background: #fcf8fa;
+  background: var(--color-background);
 }
 
 .data-table td {
   padding: 8px;
   font-size: 13px;
   line-height: 18px;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
 }
 
 .data-table td:first-child {
@@ -696,7 +696,7 @@ function formatCurrency(val) {
 }
 
 .muted {
-  color: #78767d;
+  color: var(--color-on-surface-variant);
 }
 
 .text-right {
@@ -709,7 +709,7 @@ function formatCurrency(val) {
 
 .stage-badge {
   display: inline-block;
-  background: #ebe7e9;
+  background: var(--color-surface-container-high);
   padding: 2px 8px;
   border-radius: 9999px;
   font-size: 12px;
@@ -718,13 +718,13 @@ function formatCurrency(val) {
 .more-btn {
   background: none;
   border: none;
-  color: #78767d;
+  color: var(--color-on-surface-variant);
   cursor: pointer;
   padding: 2px;
 }
 
 .more-btn:hover {
-  color: #1c1b1d;
+  color: var(--color-on-surface);
 }
 
 .more-btn .material-symbols-outlined {
@@ -733,7 +733,7 @@ function formatCurrency(val) {
 
 .empty-row td {
   padding: 24px;
-  color: #78767d;
+  color: var(--color-on-surface-variant);
 }
 
 /* ───────── Dashboard Grid (2x2) ───────── */
@@ -746,8 +746,8 @@ function formatCurrency(val) {
 
 .dashboard-card {
   background: #ffffff;
-  border: 1px solid #c8c5cd;
-  border-radius: 4px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius);
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -758,7 +758,7 @@ function formatCurrency(val) {
   margin: 0 0 16px;
   font-size: 14px;
   font-weight: 600;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
 }
 
 /* ── Metric Card (Top Right) ── */
@@ -776,13 +776,13 @@ function formatCurrency(val) {
   font-weight: 700;
   line-height: 48px;
   letter-spacing: -0.02em;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
   text-align: center;
 }
 
 .metric-note {
   font-size: 13px;
-  color: #78767d;
+  color: var(--color-on-surface-variant);
   text-align: center;
 }
 
@@ -820,7 +820,7 @@ function formatCurrency(val) {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #78767d;
+  color: var(--color-on-surface-variant);
 }
 
 .status-value {
@@ -902,7 +902,7 @@ function formatCurrency(val) {
 .legend-label {
   font-size: 11px;
   font-weight: 600;
-  color: #78767d;
+  color: var(--color-on-surface-variant);
   text-transform: capitalize;
   letter-spacing: 0.03em;
 }
@@ -910,7 +910,7 @@ function formatCurrency(val) {
 .legend-value {
   font-size: 13px;
   font-weight: 700;
-  color: #1c1b1d;
+  color: var(--color-on-surface);
   font-variant-numeric: tabular-nums;
 }
 
@@ -918,7 +918,7 @@ function formatCurrency(val) {
 .status-badge {
   display: inline-block;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius);
   font-size: 12px;
   font-weight: 600;
   text-transform: capitalize;

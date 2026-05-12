@@ -1,5 +1,5 @@
 <template>
-  <AppLayout>
+  <component :is="layout">
     <!-- Page Actions -->
     <div class="page-actions">
       <div class="actions-left">
@@ -29,20 +29,25 @@
             <th>Stage</th>
             <th>Year</th>
             <th>Billing</th>
-            <th class="text-right">Remuneration (₹)</th>
+            <th v-if="isAdmin" class="text-right">Remuneration (₹)</th>
             <th class="text-center col-actions">Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="8" class="empty-cell"><div class="loading-text">Loading projects…</div></td>
+            <td :colspan="isAdmin ? 8 : 7" class="empty-cell"><div class="loading-text">Loading projects…</div></td>
           </tr>
           <tr v-else-if="paginated.length === 0">
-            <td colspan="8" class="empty-cell">No projects found.</td>
+            <td :colspan="isAdmin ? 8 : 7" class="empty-cell">No projects found.</td>
           </tr>
           <tr v-for="p in paginated" :key="p.id" class="proj-row" @click="openDetailModal(p)">
             <td class="mono"><span class="proj-num">{{ p.project_number }}</span></td>
-            <td><span class="proj-name">{{ p.name }}</span></td>
+            <td>
+              <span class="proj-name">
+                <span class="color-dot" :style="{ background: p.color || '#287475' }"></span>
+                {{ p.name }}
+              </span>
+            </td>
             <td class="muted">{{ p.location || '—' }}</td>
             <td>
               <span class="stage-badge" :class="stageBadgeClass(p.current_stage)">
@@ -55,7 +60,7 @@
                 {{ p.is_billed }}
               </span>
             </td>
-            <td class="text-right mono">{{ formatAmount(p.project_remuneration) }}</td>
+            <td v-if="isAdmin" class="text-right mono">{{ formatAmount(p.project_remuneration) }}</td>
             <td @click.stop>
               <div class="row-actions">
                 <button class="action-btn edit-btn" title="Edit" @click="openEditModal(p)">
@@ -97,7 +102,7 @@
               <!-- Project Number -->
               <div class="form-field">
                 <label>Project Number *</label>
-                <input v-model="form.project_number" type="text" required placeholder="e.g. MH02-2024-001" :disabled="isEditing" />
+                <input v-model="form.project_number" type="text" required placeholder="e.g. MH - 001" />
               </div>
               <!-- Name -->
               <div class="form-field">
@@ -144,20 +149,28 @@
                   <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.name }}</option>
                 </select>
               </div>
-              <!-- Partner Remuneration -->
+              <!-- Project Color -->
               <div class="form-field">
+                <label>Project Color</label>
+                <div class="color-picker-row">
+                  <span class="color-preview" :style="{ background: form.color }"></span>
+                  <input v-model="form.color" type="color" class="color-input" />
+                </div>
+              </div>
+              <!-- Partner Remuneration -->
+              <div class="form-field" v-if="isAdmin">
                 <label>Partner Remuneration (₹)</label>
-                <input v-model.number="form.partner_remuneration" type="number" placeholder="0" min="0" />
+                <CurrencyInput v-model="form.partner_remuneration" placeholder="0" />
               </div>
               <!-- Employee Remuneration -->
-              <div class="form-field">
+              <div class="form-field" v-if="isAdmin">
                 <label>Employee Remuneration (₹)</label>
-                <input v-model.number="form.employee_remuneration" type="number" placeholder="0" min="0" />
+                <CurrencyInput v-model="form.employee_remuneration" placeholder="0" />
               </div>
               <!-- Project Remuneration -->
-              <div class="form-field span-2">
+              <div class="form-field span-2" v-if="isAdmin">
                 <label>Total Project Remuneration (₹)</label>
-                <input v-model.number="form.project_remuneration" type="number" placeholder="0" min="0" />
+                <CurrencyInput v-model="form.project_remuneration" placeholder="0" />
               </div>
             </div>
 
@@ -252,18 +265,20 @@
                     <label>Client</label>
                     <span>{{ getClientName(detailProject?.client_id) }}</span>
                   </div>
-                  <div class="info-item">
-                    <label>Partner Remuneration</label>
-                    <span>{{ formatAmount(detailProject?.partner_remuneration) }}</span>
-                  </div>
-                  <div class="info-item">
-                    <label>Employee Remuneration</label>
-                    <span>{{ formatAmount(detailProject?.employee_remuneration) }}</span>
-                  </div>
-                  <div class="info-item">
-                    <label>Total Remuneration</label>
-                    <span>{{ formatAmount(detailProject?.project_remuneration) }}</span>
-                  </div>
+                  <template v-if="isAdmin">
+                    <div class="info-item">
+                      <label>Partner Remuneration</label>
+                      <span>{{ formatAmount(detailProject?.partner_remuneration) }}</span>
+                    </div>
+                    <div class="info-item">
+                      <label>Employee Remuneration</label>
+                      <span>{{ formatAmount(detailProject?.employee_remuneration) }}</span>
+                    </div>
+                    <div class="info-item">
+                      <label>Total Remuneration</label>
+                      <span>{{ formatAmount(detailProject?.project_remuneration) }}</span>
+                    </div>
+                  </template>
                 </div>
               </div>
 
@@ -312,15 +327,25 @@
         </div>
       </div>
     </Teleport>
-  </AppLayout>
+  </component>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
+import EmployeeLayout from '../components/EmployeeLayout.vue'
+import { useAuthStore } from '../stores/auth'
 import { projectsAPI } from '../api/projects'
 import { clientsAPI } from '../api/clients'
 import { usersAPI } from '../api/users'
+
+const authStore = useAuthStore()
+
+const layout = computed(() => {
+  return authStore.role === 'admin' ? AppLayout : EmployeeLayout
+})
+
+const isAdmin = computed(() => authStore.role === 'admin')
 
 const projects = ref([])
 const clients = ref([])
@@ -347,8 +372,7 @@ const uploadSubmitting = ref(false)
 const uploadInput = ref(null)
 
 const stages = [
-  'Concept Design', 'Schematic Design', 'Design Development',
-  'Construction Documents', 'Bidding', 'Construction Administration', 'Completed'
+  'In Progress', 'Incomplete Beyond Deadline', 'Halted', 'Completed'
 ]
 
 const form = reactive({
@@ -363,6 +387,7 @@ const form = reactive({
   partner_remuneration: null,
   employee_remuneration: null,
   project_remuneration: null,
+  color: '#287475',
 })
 
 async function fetchAll() {
@@ -415,6 +440,7 @@ function resetForm() {
   form.partner_remuneration = null
   form.employee_remuneration = null
   form.project_remuneration = null
+  form.color = '#287475'
   formError.value = ''
 }
 
@@ -439,6 +465,7 @@ function openEditModal(p) {
   form.partner_remuneration = p.partner_remuneration ? Number(p.partner_remuneration) : null
   form.employee_remuneration = p.employee_remuneration ? Number(p.employee_remuneration) : null
   form.project_remuneration = p.project_remuneration ? Number(p.project_remuneration) : null
+  form.color = p.color || '#287475'
   formError.value = ''
   modalOpen.value = true
 }
@@ -512,6 +539,7 @@ async function handleSubmit() {
       partner_remuneration: form.partner_remuneration,
       employee_remuneration: form.employee_remuneration,
       project_remuneration: form.project_remuneration,
+      color: form.color,
     }
     if (isEditing.value) {
       await projectsAPI.updateProject(editingId.value, payload)
@@ -550,7 +578,7 @@ function formatAmount(val) {
 function stageBadgeClass(stage) {
   if (!stage) return 'stage-na'
   if (stage === 'Completed') return 'stage-done'
-  if (stage === 'Construction Administration') return 'stage-const'
+  if (stage === 'Incomplete Beyond Deadline' || stage === 'Halted') return 'stage-const'
   return 'stage-active'
 }
 </script>
@@ -566,24 +594,24 @@ function stageBadgeClass(stage) {
 .search-box { position: relative; }
 .search-icon {
   position: absolute; left: 8px; top: 50%;
-  transform: translateY(-50%); color: #78767d; font-size: 18px;
+  transform: translateY(-50%); color: var(--color-on-surface-variant); font-size: 18px;
 }
 .search-input {
-  padding: 8px 8px 8px 32px; background: #fff; border: 1px solid #c8c5cd;
-  border-radius: 6px; font-family: 'Integral CF', sans-serif; font-size: 13px;
-  color: #1c1b1d; width: 256px; outline: none; transition: border 0.15s;
+  padding: 8px 8px 8px 32px; background: #fff; border: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg); font-family: var(--font-display); font-size: 13px;
+  color: var(--color-on-surface); width: 256px; outline: none; transition: border 0.15s;
 }
-.search-input:focus { border-color: #1a1a2e; box-shadow: 0 0 0 1px #1a1a2e; }
-.search-input::placeholder { color: #78767d; }
+.search-input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 1px var(--color-primary); }
+.search-input::placeholder { color: var(--color-on-surface-variant); }
 .year-select {
-  height: 36px; padding: 0 10px; border: 1px solid #c8c5cd; border-radius: 6px;
-  font-family: 'Integral CF', sans-serif; font-size: 13px; color: #1c1b1d;
+  height: 36px; padding: 0 10px; border: 1px solid var(--color-outline); border-radius: var(--radius-lg);
+  font-family: var(--font-display); font-size: 13px; color: var(--color-on-surface);
   background: #fff; outline: none; cursor: pointer;
 }
 .add-btn {
   display: flex; align-items: center; gap: 4px; padding: 8px 16px;
-  background: #1a1a2e; color: #fff; border: none; border-radius: 6px;
-  font-family: 'Integral CF', sans-serif; font-size: 14px; font-weight: 600;
+  background: var(--color-primary); color: #fff; border: none; border-radius: var(--radius-lg);
+  font-family: var(--font-display); font-size: 14px; font-weight: 600;
   cursor: pointer; transition: opacity 0.15s;
 }
 .add-btn:hover { opacity: 0.9; }
@@ -591,42 +619,42 @@ function stageBadgeClass(stage) {
 
 /* ─── Table ─── */
 .table-card {
-  background: #fff; border: 1px solid #c8c5cd; border-radius: 8px; overflow: hidden;
+  background: #fff; border: 1px solid var(--color-outline); border-radius: var(--radius-lg); overflow: hidden;
 }
 .proj-table { width: 100%; border-collapse: collapse; text-align: left; }
-.proj-table thead { background: #f6f2f4; border-bottom: 1px solid #c8c5cd; }
+.proj-table thead { background: var(--color-surface-container); border-bottom: 1px solid var(--color-outline); }
 .proj-table th {
   padding: 8px 16px; font-size: 11px; font-weight: 600;
-  letter-spacing: 0.05em; text-transform: uppercase; color: #47464c;
+  letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-on-surface-variant);
 }
 .proj-table tbody tr { border-bottom: 1px solid #e5e1e3; transition: background 0.1s; }
 .proj-table tbody tr:last-child { border-bottom: none; }
-.proj-row:hover { background: #fcf8fa; }
-.proj-table td { padding: 8px 16px; font-size: 13px; color: #1c1b1d; }
+.proj-row:hover { background: var(--color-background); }
+.proj-table td { padding: 8px 16px; font-size: 13px; color: var(--color-on-surface); }
 .proj-num {
   font-family: 'Courier New', monospace; font-size: 12px;
-  background: #ebe7e9; padding: 2px 6px; border-radius: 4px;
+  background: var(--color-surface-container-high); padding: 2px 6px; border-radius: var(--radius);
 }
 .proj-name { font-weight: 600; }
 .mono { font-variant-numeric: tabular-nums; }
-.muted { color: #47464c; }
+.muted { color: var(--color-on-surface-variant); }
 .text-right { text-align: right; }
 .text-center { text-align: center; }
 .col-actions { width: 96px; }
 
 /* Stage badges */
 .stage-badge {
-  display: inline-block; padding: 3px 8px; border-radius: 4px;
+  display: inline-block; padding: 3px 8px; border-radius: var(--radius);
   font-size: 11px; font-weight: 600; text-transform: capitalize;
 }
-.stage-active { background: #d5e3fd; color: #1a1a2e; }
+.stage-active { background: #d5e3fd; color: var(--color-primary); }
 .stage-done { background: #c8f5d0; color: #145a23; }
 .stage-const { background: #f2e1b7; color: #7a4f00; }
-.stage-na { background: #ebe7e9; color: #47464c; }
+.stage-na { background: var(--color-surface-container-high); color: var(--color-on-surface-variant); }
 
 /* Billing badges */
 .billing-badge {
-  display: inline-block; padding: 3px 8px; border-radius: 4px;
+  display: inline-block; padding: 3px 8px; border-radius: var(--radius);
   font-size: 11px; font-weight: 600; text-transform: capitalize;
 }
 .billed { background: #c8f5d0; color: #145a23; }
@@ -640,28 +668,28 @@ function stageBadgeClass(stage) {
 .proj-row:hover .row-actions { opacity: 1; }
 .action-btn {
   padding: 4px; border: none; background: none;
-  border-radius: 4px; cursor: pointer; color: #47464c; transition: all 0.15s;
+  border-radius: var(--radius); cursor: pointer; color: var(--color-on-surface-variant); transition: all 0.15s;
 }
 .action-btn .material-symbols-outlined { font-size: 18px; }
-.edit-btn:hover { color: #1a1a2e; background: #f1edef; }
+.edit-btn:hover { color: var(--color-primary); background: var(--color-surface-container); }
 .delete-btn:hover { color: #ba1a1a; background: #ffdad6; }
-.empty-cell { padding: 24px; text-align: center; color: #78767d; }
+.empty-cell { padding: 24px; text-align: center; color: var(--color-on-surface-variant); }
 .loading-text { animation: pulse 1.5s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
 /* Pagination */
 .table-footer {
-  padding: 8px 16px; border-top: 1px solid #c8c5cd; background: #f6f2f4;
+  padding: 8px 16px; border-top: 1px solid var(--color-outline); background: var(--color-surface-container);
   display: flex; justify-content: space-between; align-items: center;
 }
-.page-info { font-size: 13px; color: #47464c; }
+.page-info { font-size: 13px; color: var(--color-on-surface-variant); }
 .page-btns { display: flex; gap: 4px; }
 .page-btn {
-  padding: 4px 8px; border: 1px solid #c8c5cd; border-radius: 4px;
-  background: #fff; font-family: 'Integral CF', sans-serif; font-size: 13px;
-  color: #1c1b1d; cursor: pointer; transition: background 0.15s;
+  padding: 4px 8px; border: 1px solid var(--color-outline); border-radius: var(--radius);
+  background: #fff; font-family: var(--font-display); font-size: 13px;
+  color: var(--color-on-surface); cursor: pointer; transition: background 0.15s;
 }
-.page-btn:hover:not(:disabled) { background: #f1edef; }
+.page-btn:hover:not(:disabled) { background: var(--color-surface-container); }
 .page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ─── Modal ─── */
@@ -672,7 +700,7 @@ function stageBadgeClass(stage) {
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .modal {
-  background: #fff; border-radius: 12px; width: 600px; max-width: 95vw;
+  background: #fff; border-radius: var(--radius-lg); width: 600px; max-width: 95vw;
   max-height: 90vh; overflow-y: auto;
   box-shadow: 0 20px 60px rgba(0,0,0,0.15); animation: slideUp 0.2s ease;
 }
@@ -683,34 +711,34 @@ function stageBadgeClass(stage) {
   display: flex; justify-content: space-between; align-items: center;
   padding: 20px 24px; border-bottom: 1px solid #e5e1e3;
 }
-.modal-title { font-size: 18px; font-weight: 600; color: #1c1b1d; margin: 0; }
+.modal-title { font-size: 18px; font-weight: 600; color: var(--color-on-surface); margin: 0; }
 .modal-close {
-  background: none; border: none; color: #47464c; cursor: pointer;
-  padding: 4px; border-radius: 4px;
+  background: none; border: none; color: var(--color-on-surface-variant); cursor: pointer;
+  padding: 4px; border-radius: var(--radius);
 }
-.modal-close:hover { background: #f1edef; }
+.modal-close:hover { background: var(--color-surface-container); }
 .modal-body { padding: 24px; }
-.modal-body p { font-size: 14px; line-height: 22px; color: #47464c; margin: 0; }
+.modal-body p { font-size: 14px; line-height: 22px; color: var(--color-on-surface-variant); margin: 0; }
 
 /* Form grid */
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .form-field { display: flex; flex-direction: column; gap: 6px; }
 .span-2 { grid-column: span 2; }
-.form-field label { font-size: 13px; font-weight: 600; color: #47464c; }
+.form-field label { font-size: 13px; font-weight: 600; color: var(--color-on-surface-variant); }
 .form-field input,
 .form-field select {
-  height: 40px; padding: 0 12px; border: 1px solid #c8c5cd;
-  border-radius: 6px; font-family: 'Integral CF', sans-serif; font-size: 14px;
-  color: #1c1b1d; outline: none; transition: border 0.15s; background: #fff;
+  height: 40px; padding: 0 12px; border: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg); font-family: var(--font-display); font-size: 14px;
+  color: var(--color-on-surface); outline: none; transition: border 0.15s; background: #fff;
 }
 .form-field input:focus,
-.form-field select:focus { border-color: #1a1a2e; box-shadow: 0 0 0 1px #1a1a2e; }
-.form-field input::placeholder { color: #78767d; }
-.form-field input:disabled { background: #f6f2f4; color: #78767d; cursor: not-allowed; }
+.form-field select:focus { border-color: var(--color-primary); box-shadow: 0 0 0 1px var(--color-primary); }
+.form-field input::placeholder { color: var(--color-on-surface-variant); }
+.form-field input:disabled { background: var(--color-surface-container); color: var(--color-on-surface-variant); cursor: not-allowed; }
 
 .form-error {
   display: flex; align-items: center; gap: 8px; padding: 12px;
-  background: #ffdad6; border-radius: 8px; color: #93000a;
+  background: #ffdad6; border-radius: var(--radius-lg); color: #93000a;
   font-size: 14px; margin-top: 16px;
 }
 .form-error .material-symbols-outlined { font-size: 18px; flex-shrink: 0; }
@@ -722,21 +750,21 @@ function stageBadgeClass(stage) {
 form .modal-footer { margin-top: 24px; padding: 0; border-top: none; }
 
 .btn-cancel {
-  padding: 8px 16px; border: 1px solid #c8c5cd; border-radius: 6px;
-  background: #fff; font-family: 'Integral CF', sans-serif; font-size: 14px;
-  color: #1c1b1d; cursor: pointer;
+  padding: 8px 16px; border: 1px solid var(--color-outline); border-radius: var(--radius-lg);
+  background: #fff; font-family: var(--font-display); font-size: 14px;
+  color: var(--color-on-surface); cursor: pointer;
 }
-.btn-cancel:hover { background: #f1edef; }
+.btn-cancel:hover { background: var(--color-surface-container); }
 .btn-submit {
-  padding: 8px 20px; border: none; border-radius: 6px;
-  background: #1a1a2e; color: #fff; font-family: 'Integral CF', sans-serif;
+  padding: 8px 20px; border: none; border-radius: var(--radius-lg);
+  background: var(--color-primary); color: #fff; font-family: var(--font-display);
   font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
 }
 .btn-submit:hover:not(:disabled) { opacity: 0.9; }
 .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-danger {
-  padding: 8px 20px; border: none; border-radius: 6px;
-  background: #ba1a1a; color: #fff; font-family: 'Integral CF', sans-serif;
+  padding: 8px 20px; border: none; border-radius: var(--radius-lg);
+  background: #ba1a1a; color: #fff; font-family: var(--font-display);
   font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
 }
 .btn-danger:hover:not(:disabled) { opacity: 0.9; }
@@ -753,8 +781,8 @@ form .modal-footer { margin-top: 24px; padding: 0; border-top: none; }
 }
 .detail-section { margin-bottom: 32px; }
 .section-title {
-  font-family: 'Integral CF', sans-serif; font-size: 16px; font-weight: 600;
-  color: #1c1b1d; margin-bottom: 16px;
+  font-family: var(--font-display); font-size: 16px; font-weight: 600;
+  color: var(--color-on-surface); margin-bottom: 16px;
 }
 .info-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
@@ -763,30 +791,30 @@ form .modal-footer { margin-top: 24px; padding: 0; border-top: none; }
   display: flex; flex-direction: column; gap: 4px;
 }
 .info-item label {
-  font-family: 'Integral CF', sans-serif; font-size: 12px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.05em; color: #64748b;
+  font-family: var(--font-display); font-size: 12px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-on-surface-variant);
 }
 .info-item span {
-  font-family: 'Integral CF', sans-serif; font-size: 14px; color: #1c1b1d;
+  font-family: var(--font-display); font-size: 14px; color: var(--color-on-surface);
 }
 .assignments-list {
   margin-bottom: 16px;
 }
 .assignment-item {
-  padding: 8px 12px; background: #f8fafc; border-radius: 4px;
-  font-family: 'Integral CF', sans-serif; font-size: 13px; color: #1c1b1d;
+  padding: 8px 12px; background: var(--color-background); border-radius: var(--radius);
+  font-family: var(--font-display); font-size: 13px; color: var(--color-on-surface);
   margin-bottom: 8px;
 }
 .assign-form {
   display: flex; gap: 12px; align-items: center;
 }
 .assign-form select {
-  flex: 1; padding: 8px 12px; border: 1px solid #e2e8f0;
-  border-radius: 4px; font-family: 'Integral CF', sans-serif; font-size: 13px;
+  flex: 1; padding: 8px 12px; border: 1px solid var(--color-surface-container-high);
+  border-radius: var(--radius); font-family: var(--font-display); font-size: 13px;
 }
 .btn-assign {
-  padding: 8px 16px; background: #1a1a2e; color: #fff; border: none;
-  border-radius: 4px; font-family: 'Integral CF', sans-serif; font-size: 13px;
+  padding: 8px 16px; background: var(--color-primary); color: #fff; border: none;
+  border-radius: var(--radius); font-family: var(--font-display); font-size: 13px;
   cursor: pointer; transition: background 0.15s;
 }
 .btn-assign:hover:not(:disabled) { background: #2a2a3e; }
@@ -795,11 +823,11 @@ form .modal-footer { margin-top: 24px; padding: 0; border-top: none; }
   margin-bottom: 16px;
 }
 .workorder-item {
-  padding: 8px 12px; background: #f8fafc; border-radius: 4px;
+  padding: 8px 12px; background: var(--color-background); border-radius: var(--radius);
   margin-bottom: 8px;
 }
 .workorder-item a {
-  font-family: 'Integral CF', sans-serif; font-size: 13px; color: #0d9488;
+  font-family: var(--font-display); font-size: 13px; color: var(--color-primary);
   text-decoration: none;
 }
 .workorder-item a:hover { text-decoration: underline; }
@@ -807,18 +835,51 @@ form .modal-footer { margin-top: 24px; padding: 0; border-top: none; }
   display: flex; gap: 12px; align-items: center;
 }
 .upload-form input {
-  flex: 1; padding: 8px 12px; border: 1px solid #e2e8f0;
-  border-radius: 4px; font-family: 'Integral CF', sans-serif; font-size: 13px;
+  flex: 1; padding: 8px 12px; border: 1px solid var(--color-surface-container-high);
+  border-radius: var(--radius); font-family: var(--font-display); font-size: 13px;
 }
 .btn-upload {
-  padding: 8px 16px; background: #0d9488; color: #fff; border: none;
-  border-radius: 4px; font-family: 'Integral CF', sans-serif; font-size: 13px;
+  padding: 8px 16px; background: var(--color-primary); color: #fff; border: none;
+  border-radius: var(--radius); font-family: var(--font-display); font-size: 13px;
   cursor: pointer; transition: background 0.15s;
 }
 .btn-upload:hover:not(:disabled) { background: #0a7a6a; }
 .btn-upload:disabled { opacity: 0.5; cursor: not-allowed; }
 .empty-state {
-  padding: 16px; text-align: center; color: #64748b;
-  font-family: 'Integral CF', sans-serif; font-size: 13px;
+  padding: 16px; text-align: center; color: var(--color-on-surface-variant);
+  font-family: var(--font-display); font-size: 13px;
+}
+
+/* Color dot in table */
+.color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* Color picker in form */
+.color-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.color-preview {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--color-outline-variant);
+  flex-shrink: 0;
+}
+.color-input {
+  width: 48px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 4px;
+  cursor: pointer;
+  background: none;
 }
 </style>

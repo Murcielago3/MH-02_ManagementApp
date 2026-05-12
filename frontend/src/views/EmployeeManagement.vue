@@ -228,9 +228,8 @@
                     </label>
                     <div class="relative">
                       <span class="absolute left-0 top-2 text-on-surface">₹</span>
-                      <input
+                      <CurrencyInput
                         v-model="form.salary_month"
-                        type="number"
                         placeholder="0.00"
                         class="w-full bg-transparent border-b border-[#A2937E] focus:border-primary focus:ring-0 pl-6 py-2 outline-none transition-colors"
                       />
@@ -454,6 +453,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { usersAPI } from '../api/users'
+import CurrencyInput from '../components/CurrencyInput.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()

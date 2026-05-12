@@ -4,7 +4,7 @@ from sqlalchemy import select, func
 from app.database import get_db
 from app.models.user import User
 from app.models.project import Project
-from app.auth import require_admin
+from app.auth import require_manager
 from app.models.expense import Expense
 
 
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("/stats")
 async def get_dashboard_stats(
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db)
 ):
     from datetime import datetime
