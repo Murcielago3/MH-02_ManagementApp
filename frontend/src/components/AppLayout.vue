@@ -66,10 +66,10 @@
                 <p class="dropdown-role">{{ authStore.role }}</p>
               </div>
               <div class="dropdown-divider"></div>
-              <button class="dropdown-item">
+              <router-link to="/employee/profile" class="dropdown-item" @click="showProfileMenu = false">
                 <span class="material-symbols-outlined">person</span>
                 My Profile
-              </button>
+              </router-link>
               <button class="dropdown-item">
                 <span class="material-symbols-outlined">settings</span>
                 Settings
@@ -159,7 +159,7 @@ const navItems = [
   { path: '/admin/clients', icon: 'handshake', label: 'Clients' },
   { path: '/admin/tasks', icon: 'task', label: 'Tasks' },
   { path: '/admin/leaves', icon: 'event_busy', label: 'Leaves' },
-  { path: '/admin/attendance', icon: 'schedule', label: 'Attendance' },
+  { path: '/admin/timesheets', icon: 'pending_actions', label: 'Timesheets' },
   { path: '/admin/expenses', icon: 'payments', label: 'Expenses' },
   { path: '/admin/invoices', icon: 'receipt_long', label: 'Invoices' },
   { path: '/admin/estimates', icon: 'calculate', label: 'Estimates' },

@@ -32,8 +32,11 @@ class UserCreate(BaseModel):
     salary_month: Optional[float] = None
     salary_hour: Optional[float] = None
     leaves_allowed: int = 18
-    pan_number: Optional[str] = None
-    aadhar_number: Optional[str] = None
+    pan_number: str
+    aadhar_number: str
+    phone_number: Optional[str] = None
+    emergency_contact_number: Optional[str] = None
+    emergency_contact_relationship: Optional[str] = None
     manager_id: Optional[int] = None
     photo_url: Optional[str] = None
     documents_url: Optional[str] = None
@@ -54,6 +57,9 @@ class UserUpdate(BaseModel):
     leaves_allowed: Optional[int] = None
     pan_number: Optional[str] = None
     aadhar_number: Optional[str] = None
+    phone_number: Optional[str] = None
+    emergency_contact_number: Optional[str] = None
+    emergency_contact_relationship: Optional[str] = None
     manager_id: Optional[int] = None
     is_active: Optional[bool] = None
     photo_url: Optional[str] = None
@@ -114,6 +120,9 @@ async def create_user(
         leaves_allowed=data.leaves_allowed,
         pan_number=data.pan_number,
         aadhar_number=data.aadhar_number,
+        phone_number=data.phone_number,
+        emergency_contact_number=data.emergency_contact_number,
+        emergency_contact_relationship=data.emergency_contact_relationship,
         manager_id=data.manager_id,
         time_tracker_login=data.time_tracker_login,
         time_tracker_password=data.time_tracker_password,
@@ -129,14 +138,34 @@ async def update_user(
     user_id: int,
     data: UserUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(get_current_user)
 ):
+    # Authorization: Admins/Managers can edit anyone. Employees can edit only themselves.
+    is_self = current_user.id == user_id
+    is_manager = current_user.role in ("admin", "project_manager")
+    is_admin = current_user.role == "admin"
+
+    if not is_self and not is_manager:
+        raise HTTPException(status_code=403, detail="Not authorized to update this user")
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    for field, value in data.model_dump(exclude_unset=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+    
+    # Restrict fields for employees (non-managers)
+    if not is_manager:
+        sensitive_fields = {
+            "role", "joining_date", "end_date", "salary_month", "salary_hour", 
+            "leaves_allowed", "pan_number", "aadhar_number", "manager_id", "is_active"
+        }
+        for field in sensitive_fields:
+            if field in update_data:
+                del update_data[field]
+
+    for field, value in update_data.items():
         if field == "password" and value:
             setattr(user, "hashed_password", hash_password(value))
         else:

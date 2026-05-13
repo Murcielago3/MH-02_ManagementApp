@@ -37,9 +37,10 @@
             <div class="doc-row-amount">{{ formatINR(emp.totalCost) }}</div>
           </div>
         </div>
+        <!-- We show the subtotal override if it differs, or just the calculated one -->
         <div class="doc-subtotal">
           <span>Team Subtotal</span>
-          <span class="sub-val">{{ formatINR(store.teamTotalCost) }}</span>
+          <span class="sub-val">{{ formatINR(finalTeamCost) }}</span>
         </div>
       </div>
 
@@ -55,7 +56,7 @@
             <div class="doc-row-formula">
               {{ store.totalHours }} hrs × {{ formatINR(store.partnerPayPerHour) }}/hr
             </div>
-            <div class="doc-row-amount">{{ formatINR(store.partnerCost) }}</div>
+            <div class="doc-row-amount">{{ formatINR(finalPartnerCost) }}</div>
           </div>
         </div>
       </div>
@@ -63,7 +64,44 @@
       <!-- Grand total -->
       <div class="doc-grand-total">
         <div class="grand-label">TOTAL ESTIMATE</div>
-        <div class="grand-value">{{ formatINR(animatedGrand) }}</div>
+        <div class="grand-value">{{ formatINR(finalGrandTotal) }}</div>
+      </div>
+    </div>
+
+    <!-- Project Settings (Color) -->
+    <div class="project-push-settings">
+      <div class="push-setting-item">
+        <label class="setting-label">Project Brand Color</label>
+        <p class="setting-desc">This color will be used for task ribbons in the calendar.</p>
+        <div class="estimate-color-picker">
+          <button
+            v-for="c in projectPresets"
+            :key="c"
+            type="button"
+            class="est-color-btn"
+            :class="{ active: projectColor === c }"
+            :style="{ background: c }"
+            @click="projectColor = c"
+          ></button>
+          <div class="est-custom-color">
+            <input v-model="projectColor" type="color" class="est-color-input" />
+          </div>
+        </div>
+      </div>
+
+      <div class="push-setting-grid">
+        <div class="push-setting-item">
+          <label class="setting-label">Partner Remuneration (₹)</label>
+          <CurrencyInput v-model="finalPartnerCost" placeholder="0" />
+        </div>
+        <div class="push-setting-item">
+          <label class="setting-label">Team Remuneration (₹)</label>
+          <CurrencyInput v-model="finalTeamCost" placeholder="0" />
+        </div>
+        <div class="push-setting-item">
+          <label class="setting-label">Total Project Value (₹)</label>
+          <CurrencyInput v-model="finalGrandTotal" placeholder="0" />
+        </div>
       </div>
     </div>
 
@@ -96,12 +134,28 @@ import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEstimateStore } from '../../stores/estimate'
 import { projectsAPI } from '../../api/projects'
+import CurrencyInput from '../CurrencyInput.vue'
 
 const store = useEstimateStore()
 const router = useRouter()
 
 const animatedGrand = ref(store.grandTotal)
 const isAddingProject = ref(false)
+
+const projectPresets = [
+  '#287475', '#1e5d5e', '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b',
+  '#10b981', '#06b6d4', '#3b82f6', '#475569', '#1e293b'
+]
+const projectColor = ref('#287475')
+
+const finalPartnerCost = ref(0)
+const finalTeamCost = ref(0)
+const finalGrandTotal = ref(0)
+
+// Auto-update grand total when components change
+watch([finalPartnerCost, finalTeamCost], ([p, t]) => {
+  finalGrandTotal.value = (Number(p) || 0) + (Number(t) || 0)
+})
 
 function animateTo(refVal, target, duration = 600) {
   const start = refVal.value
@@ -124,6 +178,11 @@ onMounted(() => {
   const target = store.grandTotal
   animatedGrand.value = 0
   setTimeout(() => animateTo(animatedGrand, target), 80)
+
+  // Initialize overrides with store values
+  finalPartnerCost.value = store.partnerCost
+  finalTeamCost.value = store.teamTotalCost
+  finalGrandTotal.value = store.grandTotal
 })
 
 const inrFmt = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })
@@ -173,9 +232,10 @@ async function handleAddProject() {
       name: store.projectName,
       year: startYear,
       is_billed: 'unbilled',
-      partner_remuneration: store.partnerCost,
-      employee_remuneration: store.teamTotalCost,
-      project_remuneration: store.grandTotal,
+      partner_remuneration: finalPartnerCost.value,
+      employee_remuneration: finalTeamCost.value,
+      project_remuneration: finalGrandTotal.value,
+      color: projectColor.value,
     }
     
     // Create the project
@@ -458,4 +518,68 @@ async function handleAddProject() {
 .btn-print:hover { opacity: 0.85; }
 .btn-print:active { transform: scale(0.97); }
 .btn-print .material-symbols-outlined { font-size: 18px; }
+
+/* Push Settings */
+.project-push-settings {
+  padding: 24px;
+  background: var(--color-background);
+  border: 1px solid var(--color-surface-container-high);
+  border-radius: var(--radius-lg);
+  margin-top: 8px;
+}
+
+.push-setting-item { display: flex; flex-direction: column; gap: 4px; }
+.setting-label { font-family: var(--font-display); font-size: 14px; font-weight: 700; color: var(--color-on-surface); }
+.setting-desc { font-family: var(--font-body); font-size: 12px; color: var(--color-on-surface-variant); margin-bottom: 12px; }
+
+.push-setting-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--color-outline-variant);
+}
+
+.estimate-color-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.est-color-btn {
+  width: 28px;
+  height: 28px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+}
+
+.est-color-btn:hover { transform: scale(1.15); }
+.est-color-btn.active { border-color: var(--color-on-surface); box-shadow: 0 0 0 2px #fff inset; }
+
+.est-custom-color {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid var(--color-outline-variant);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.est-color-input {
+  width: 150%;
+  height: 150%;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
+
+@media print {
+  .project-push-settings { display: none !important; }
+}
 </style>

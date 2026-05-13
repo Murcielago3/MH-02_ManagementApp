@@ -49,25 +49,30 @@ export const useEstimateStore = defineStore('estimate', () => {
   const endDate = ref('')
 
   /** @type {import('vue').Ref<Array<{
-   *   id: number, name: string, designation: string,
-   *   payPerHour: number|null, hrsPerDay: number|null
+   *   id: number, label: string, type: string,
+   *   basePay: number|null, hrsPerDay: number|null
    * }>>} */
   const employees = ref([])
+  let nextEmpId = 1
 
   const partnerPayPerHour = ref(null)
 
   // ── Computed getters (derived — never stored) ──────────────────────────────
   const workingDays = computed(() => countWorkingDays(startDate.value, endDate.value))
   const calendarDays = computed(() => countCalendarDays(startDate.value, endDate.value))
-  const totalHours = computed(() => workingDays.value * 8)
+  const teamHrsPerDay = computed(() =>
+    employees.value.reduce((sum, emp) => sum + (Number(emp.hrsPerDay) || 0), 0)
+  )
+  const totalHours = computed(() => teamHrsPerDay.value * workingDays.value)
 
   const employeesWithCost = computed(() =>
     employees.value.map((emp) => {
-      const ph = Number(emp.payPerHour) || 0
+      const bp = Number(emp.basePay) || 0
+      const payPerHour = bp > 0 ? Math.round(((bp * 13 / 12) / 160) * 100) / 100 : 0
       const hd = Number(emp.hrsPerDay) || 0
       const hours = hd * workingDays.value
-      const cost = ph * hours
-      return { ...emp, totalHours: hours, totalCost: cost }
+      const cost = payPerHour * hours
+      return { ...emp, payPerHour, totalHours: hours, totalCost: cost }
     })
   )
 
@@ -96,9 +101,10 @@ export const useEstimateStore = defineStore('estimate', () => {
     if (employees.value.length === 0) return false
     return employees.value.every(
       (e) =>
-        e.payPerHour !== null &&
-        e.payPerHour !== '' &&
-        Number(e.payPerHour) > 0 &&
+        e.type &&
+        e.basePay !== null &&
+        e.basePay !== '' &&
+        Number(e.basePay) > 0 &&
         e.hrsPerDay !== null &&
         e.hrsPerDay !== '' &&
         Number(e.hrsPerDay) > 0 &&
@@ -115,13 +121,12 @@ export const useEstimateStore = defineStore('estimate', () => {
     step.value = n
   }
 
-  function addEmployee(emp) {
-    if (employees.value.find((e) => e.id === emp.id)) return
+  function addEmployee() {
     employees.value.push({
-      id: emp.id,
-      name: emp.name,
-      designation: emp.designation || '',
-      payPerHour: null,
+      id: nextEmpId++,
+      label: `Employee ${employees.value.length + 1}`,
+      type: '',
+      basePay: null,
       hrsPerDay: 8,
     })
   }
@@ -155,6 +160,7 @@ export const useEstimateStore = defineStore('estimate', () => {
     // computed
     workingDays,
     calendarDays,
+    teamHrsPerDay,
     totalHours,
     employeesWithCost,
     teamTotalHours,

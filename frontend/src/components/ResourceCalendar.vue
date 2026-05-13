@@ -1,0 +1,340 @@
+<template>
+  <div class="resource-calendar">
+    <div class="rc-controls">
+      <div class="rc-controls-left">
+        <button class="rc-btn" @click="prev"><span class="material-symbols-outlined">chevron_left</span></button>
+        <button class="rc-btn rc-today" @click="goToday">Today</button>
+        <button class="rc-btn" @click="next"><span class="material-symbols-outlined">chevron_right</span></button>
+        <span class="rc-period">{{ periodLabel }}</span>
+      </div>
+    </div>
+
+    <div class="rc-container" ref="containerRef" :class="{ dragging: drag.mode }">
+      <div class="rc-scroll" :style="{ width: scrollWidth + 'px' }">
+        <!-- Header -->
+        <div class="rc-header">
+          <div class="rc-corner">Team</div>
+          <div
+            v-for="day in visibleDays"
+            :key="day.dateStr"
+            class="rc-day-header"
+            :class="{ today: day.isToday, weekend: day.isWeekend, 'week-start': day.isMonday }"
+            :style="{ width: COL_W + 'px' }"
+          >
+            <span class="dh-name">{{ day.label }}</span>
+            <span class="dh-num">{{ day.num }}</span>
+          </div>
+        </div>
+
+        <!-- Body -->
+        <div class="rc-body" v-if="displayEmployees.length > 0">
+          <div v-for="emp in displayEmployees" :key="emp.id" class="rc-row" :style="{ minHeight: rowMinH(emp.id) + 'px' }">
+            <div class="rc-emp-cell" :class="{ overloaded: isOverloaded(emp.id) }">
+              <div class="emp-avatar" :style="{ background: avatarColor(emp.name) }">{{ initials(emp.name) }}</div>
+              <div class="emp-meta">
+                <span class="emp-name">{{ emp.name }}</span>
+                <span class="emp-hours" :class="hrsClass(emp.id)">
+                  <template v-if="isOverloaded(emp.id)">{{ getAssignedHours(emp.id) - 8 }}h over</template>
+                  <template v-else-if="getRemaining(emp.id) > 0">{{ getRemaining(emp.id) }}h left</template>
+                  <template v-else>0h ✓</template>
+                </span>
+              </div>
+            </div>
+            <div class="rc-timeline" :style="{ gridTemplateColumns: `repeat(${visibleDays.length}, ${COL_W}px)` }">
+              <div
+                v-for="day in visibleDays"
+                :key="day.dateStr"
+                class="rc-cell"
+                :class="{ today: day.isToday && !day.isWeekend, weekend: day.isWeekend, 'is-leave': isEmpLeave(emp.id, day.dateStr), 'drag-hl': isDragHL(day.dateStr, emp.id), 'week-start': day.isMonday }"
+                :data-date="day.dateStr"
+                :data-employee="emp.id"
+                @mousedown.prevent="!day.isWeekend && onCellDown($event, day.dateStr, emp.id)"
+              >
+                <span v-if="isEmpLeave(emp.id, day.dateStr)" class="leave-tag">Leave</span>
+              </div>
+              <div class="rc-ribbon-layer">
+                <div
+                  v-for="rb in empRibbons(emp.id)"
+                  :key="rb.task.id"
+                  class="rc-ribbon"
+                  :class="{ completed: rb.task.status === 'completed', delayed: isDelayed(rb.task) }"
+                  :style="rbStyle(rb)"
+                  @click.stop="$emit('ribbon-click', rb.task)"
+                  @mousedown.stop
+                >
+                  <div class="rb-content">
+                    <span class="rb-title">{{ rb.task.title }}</span>
+                    <span v-if="rb.project" class="rb-project">{{ rb.project.name }}</span>
+                  </div>
+                  <span v-if="isDelayed(rb.task)" class="rb-delay">{{ taskDelay(rb.task) }}d</span>
+                  <div class="rb-handle" @mousedown.stop.prevent="onHandleDown($event, rb.task)"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else class="rc-empty">No employees to display</div>
+      </div>
+    </div>
+
+    <div class="rc-legend" v-if="legendItems.length">
+      <div v-for="item in legendItems" :key="item.label" class="rc-legend-item">
+        <span class="rc-legend-dot" :style="{ background: item.color }"></span>
+        <span>{{ item.label }}</span>
+      </div>
+    </div>
+
+    <div v-if="drag.mode" class="rc-tooltip" :style="{ left: drag.mx + 16 + 'px', top: drag.my - 32 + 'px' }">
+      <template v-if="drag.mode === 'create'">{{ fmtShort(drag.startDate) }} → {{ fmtShort(drag.currentDate) }} · {{ dragDays }} days</template>
+      <template v-if="drag.mode === 'extend'">Ends: {{ fmtShort(drag.currentDate) }}</template>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, reactive, onMounted, onUnmounted, watch, nextTick } from 'vue'
+
+const props = defineProps({
+  tasks: { type: Array, default: () => [] },
+  employees: { type: Array, default: () => [] },
+  projectMap: { type: Object, default: () => ({}) },
+  leaves: { type: Array, default: () => [] },
+  filterEmployeeId: { type: Number, default: null },
+})
+const emit = defineEmits(['ribbon-click', 'cell-drag-create', 'ribbon-drag-extend'])
+
+const COL_W = 120
+const DAY_COUNT = 21 // 3 weeks
+const EMP_W = 200
+const containerRef = ref(null)
+const anchorDate = ref(new Date())
+const todayStr = new Date().toISOString().split('T')[0]
+
+// Nav
+function getMon(d) { d = new Date(d); const w = d.getDay(); d.setDate(d.getDate() - w + (w === 0 ? -6 : 1)); return d }
+const prev = () => { const d = new Date(anchorDate.value); d.setDate(d.getDate() - 7); anchorDate.value = d }
+const next = () => { const d = new Date(anchorDate.value); d.setDate(d.getDate() + 7); anchorDate.value = d }
+const goToday = () => { anchorDate.value = new Date() }
+
+const periodLabel = computed(() => {
+  const mon = getMon(anchorDate.value)
+  const sun = new Date(mon); sun.setDate(sun.getDate() + 6)
+  return `${fmtShort(toStr(mon))} – ${fmtShort(toStr(sun))}`
+})
+
+const scrollWidth = computed(() => EMP_W + DAY_COUNT * COL_W)
+
+// Days: 1 week before anchor + anchor week + 1 week after
+const visibleDays = computed(() => {
+  const mon = getMon(anchorDate.value)
+  const start = new Date(mon); start.setDate(start.getDate() - 7)
+  const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const days = []
+  for (let i = 0; i < DAY_COUNT; i++) {
+    const d = new Date(start); d.setDate(d.getDate() + i)
+    const ds = toStr(d), dow = d.getDay()
+    days.push({ label: labels[dow], num: d.getDate(), dateStr: ds, isToday: ds === todayStr, isWeekend: dow === 0 || dow === 6, isMonday: dow === 1 })
+  }
+  return days
+})
+
+// Scroll to anchor week on mount / nav
+function scrollToAnchor() {
+  nextTick(() => { if (containerRef.value) containerRef.value.scrollLeft = 7 * COL_W })
+}
+onMounted(scrollToAnchor)
+watch(anchorDate, scrollToAnchor)
+
+// Employees
+const displayEmployees = computed(() => props.filterEmployeeId ? props.employees.filter(e => e.id === props.filterEmployeeId) : props.employees)
+
+// Hours
+function getAssignedHours(eid) {
+  let h = 0
+  for (const t of props.tasks) { if (t.assigned_to === eid) { const e = t.end_date || t.date; if (t.date <= todayStr && e >= todayStr) h += (t.duration_hours || 0) } }
+  return h
+}
+function getRemaining(eid) { return Math.max(0, 8 - getAssignedHours(eid)) }
+function isOverloaded(eid) { return getAssignedHours(eid) > 8 }
+function hrsClass(eid) { if (isOverloaded(eid)) return 'hrs-over'; const r = getRemaining(eid); if (r === 0) return 'hrs-done'; if (r <= 3) return 'hrs-busy'; return 'hrs-ok' }
+
+// Ribbons
+const priorityColors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' }
+function rbColor(t) { if (t.project_id && props.projectMap[t.project_id]?.color) return props.projectMap[t.project_id].color; return priorityColors[t.priority] ?? '#287475' }
+function taskDelay(t) { if (t.status === 'completed') return 0; const dl = t.end_date || t.date; if (!dl) return 0; const d = daysBetween(dl, todayStr); return d > 0 ? d : 0 }
+function isDelayed(t) { return taskDelay(t) > 0 }
+
+function empRibbons(eid) {
+  const days = visibleDays.value, vStart = days[0].dateStr, vEnd = days[days.length - 1].dateStr
+  const empTasks = props.tasks.filter(t => t.assigned_to === eid && t.date <= vEnd && (t.end_date || t.date) >= vStart)
+  const lanes = Array.from({ length: days.length }, () => new Set())
+  const result = []
+  for (const task of empTasks) {
+    const tEnd = task.end_date || task.date
+    const rS = task.date < vStart ? vStart : task.date, rE = tEnd > vEnd ? vEnd : tEnd
+    const left = daysBetween(vStart, rS), width = daysBetween(rS, rE) + 1
+    let lane = 0, ok = false
+    while (!ok) { ok = true; for (let c = left; c < left + width; c++) if (lanes[c]?.has(lane)) { ok = false; break }; if (!ok) lane++ }
+    for (let c = left; c < left + width; c++) if (lanes[c]) lanes[c].add(lane)
+    result.push({ task, left, width, lane, project: task.project_id ? props.projectMap[task.project_id] : null })
+  }
+  return result
+}
+
+function rowMinH(eid) { const rbs = empRibbons(eid); const ml = rbs.length ? Math.max(...rbs.map(r => r.lane)) : -1; return Math.max(56, 28 + (ml + 1) * 28) }
+
+function rbStyle(rb) {
+  return { left: `${rb.left * COL_W + 2}px`, width: `${rb.width * COL_W - 4}px`, top: `${4 + rb.lane * 28}px`, background: rbColor(rb.task), height: '24px', borderRadius: '4px', opacity: rb.task.status === 'completed' ? '0.5' : '0.88' }
+}
+
+// Leave
+function isEmpLeave(eid, ds) { return props.leaves.some(l => (l.employee_id ?? l.user_id) === eid && ds >= l.start_date && ds <= l.end_date) }
+
+// Legend
+const legendItems = computed(() => {
+  const items = [], seen = new Set(); let hasNone = false
+  for (const t of props.tasks) { if (t.project_id && props.projectMap[t.project_id] && !seen.has(t.project_id)) { seen.add(t.project_id); const p = props.projectMap[t.project_id]; items.push({ color: p.color || '#287475', label: p.name }) }; if (!t.project_id) hasNone = true }
+  if (hasNone) { items.push({ color: '#ef4444', label: 'High' }, { color: '#f59e0b', label: 'Medium' }, { color: '#22c55e', label: 'Low' }) }
+  return items
+})
+
+// Drag
+const drag = reactive({ mode: null, taskId: null, empId: null, startDate: null, currentDate: null, origEnd: null, mx: 0, my: 0 })
+const dragDays = computed(() => (!drag.startDate || !drag.currentDate) ? 0 : Math.abs(daysBetween(drag.startDate, drag.currentDate)) + 1)
+let scrollRAF = null
+
+function isDragHL(ds, eid) {
+  if (drag.mode !== 'create' || drag.empId !== eid) return false
+  const mn = drag.startDate < drag.currentDate ? drag.startDate : drag.currentDate
+  const mx = drag.startDate > drag.currentDate ? drag.startDate : drag.currentDate
+  return ds >= mn && ds <= mx
+}
+
+function onCellDown(e, ds, eid) { drag.mode = 'create'; drag.empId = eid; drag.startDate = ds; drag.currentDate = ds; drag.mx = e.clientX; drag.my = e.clientY; document.body.style.userSelect = 'none'; startAutoScroll() }
+function onHandleDown(e, task) { drag.mode = 'extend'; drag.taskId = task.id; drag.origEnd = task.end_date || task.date; drag.currentDate = task.end_date || task.date; drag.mx = e.clientX; drag.my = e.clientY; document.body.style.userSelect = 'none'; startAutoScroll() }
+
+function onMove(e) {
+  if (!drag.mode) return
+  drag.mx = e.clientX; drag.my = e.clientY
+  const el = document.elementFromPoint(e.clientX, e.clientY)
+  const cell = el?.closest?.('[data-date]')
+  if (cell) {
+    const hd = cell.dataset.date
+    if (drag.mode === 'extend') { const task = props.tasks.find(t => t.id === drag.taskId); if (task && hd >= task.date) drag.currentDate = hd }
+    else drag.currentDate = hd
+  }
+}
+
+function startAutoScroll() {
+  function tick() {
+    if (!drag.mode || !containerRef.value) return
+    const rect = containerRef.value.getBoundingClientRect()
+    const threshold = 80
+    if (drag.mx > rect.right - threshold) containerRef.value.scrollLeft += 10
+    else if (drag.mx < rect.left + EMP_W + threshold && containerRef.value.scrollLeft > 0) containerRef.value.scrollLeft -= 10
+    scrollRAF = requestAnimationFrame(tick)
+  }
+  scrollRAF = requestAnimationFrame(tick)
+}
+function stopAutoScroll() { if (scrollRAF) { cancelAnimationFrame(scrollRAF); scrollRAF = null } }
+
+function onUp() {
+  if (!drag.mode) return
+  document.body.style.userSelect = ''; stopAutoScroll()
+  if (drag.mode === 'create' && drag.startDate && drag.currentDate) {
+    const mn = drag.startDate < drag.currentDate ? drag.startDate : drag.currentDate
+    const mx = drag.startDate > drag.currentDate ? drag.startDate : drag.currentDate
+    emit('cell-drag-create', { startDate: mn, endDate: mx, employeeId: drag.empId })
+  }
+  if (drag.mode === 'extend' && drag.taskId && drag.currentDate && drag.currentDate !== drag.origEnd)
+    emit('ribbon-drag-extend', { taskId: drag.taskId, newEndDate: drag.currentDate })
+  Object.assign(drag, { mode: null, taskId: null, empId: null, startDate: null, currentDate: null, origEnd: null })
+}
+
+onMounted(() => { document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp) })
+onUnmounted(() => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); stopAutoScroll() })
+
+// Helpers
+function toStr(d) { return d.toISOString().split('T')[0] }
+function daysBetween(a, b) { return Math.round((new Date(b) - new Date(a)) / 864e5) }
+function fmtShort(s) { if (!s) return ''; return new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) }
+const ap = ['#287475', '#6366f1', '#ec4899', '#f59e0b', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6']
+function avatarColor(n) { let h = 0; for (let i = 0; i < n.length; i++) h = n.charCodeAt(i) + ((h << 5) - h); return ap[Math.abs(h) % ap.length] }
+function initials(n) { return n.split(' ').map(x => x[0]).join('').toUpperCase().slice(0, 2) }
+
+defineExpose({ anchorDate })
+</script>
+
+<style scoped>
+.resource-calendar { display: flex; flex-direction: column; gap: 16px; }
+.rc-controls { display: flex; justify-content: space-between; align-items: center; }
+.rc-controls-left { display: flex; align-items: center; gap: 4px; }
+.rc-btn { height: 32px; padding: 0 12px; border: 1px solid var(--color-outline-variant); border-radius: 4px; background: var(--color-surface); font-family: var(--font-body); font-size: 12px; font-weight: 600; color: var(--color-on-surface-variant); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+.rc-btn:hover { background: var(--color-surface-container); }
+.rc-btn .material-symbols-outlined { font-size: 18px; }
+.rc-period { font-family: 'Integral CF', sans-serif; font-size: 16px; font-weight: 600; color: var(--color-on-surface); margin-left: 12px; }
+
+.rc-container { background: var(--color-surface); border: 1px solid var(--color-outline-variant); border-radius: 8px; overflow-x: auto; overflow-y: visible; }
+.rc-scroll { min-width: 100%; }
+
+.rc-header { display: flex; border-bottom: 2px solid var(--color-outline-variant); background: var(--color-surface-container-lowest, #fafafa); }
+.rc-corner { width: 200px; flex-shrink: 0; padding: 12px 16px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--color-on-surface-variant); border-right: 1px solid var(--color-outline-variant); display: flex; align-items: center; position: sticky; left: 0; z-index: 3; background: inherit; }
+.rc-day-header { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 0; border-right: 1px solid var(--color-outline-variant); gap: 2px; }
+.rc-day-header:last-child { border-right: none; }
+.rc-day-header.today { background: rgba(40,116,117,.06); }
+.rc-day-header.weekend { background: #f3f4f6; }
+.rc-day-header.weekend .dh-name, .rc-day-header.weekend .dh-num { color: #9ca3af; }
+.rc-day-header.week-start { border-left: 2px solid var(--color-outline-variant); }
+.dh-name { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--color-on-surface-variant); }
+.dh-num { font-size: 16px; font-weight: 700; color: var(--color-on-surface); }
+.rc-day-header.today .dh-num { color: var(--color-primary); }
+
+.rc-body { }
+.rc-row { display: flex; border-bottom: 1px solid var(--color-outline-variant); position: relative; }
+.rc-row:last-child { border-bottom: none; }
+.rc-row:hover { background: rgba(40,116,117,.015); }
+
+.rc-emp-cell { width: 200px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-right: 1px solid var(--color-outline-variant); background: var(--color-surface-container-lowest, #fafafa); position: sticky; left: 0; z-index: 2; transition: background .2s, box-shadow .2s; }
+.rc-emp-cell.overloaded { background: #fef2f2; box-shadow: inset 3px 0 0 #dc2626; }
+.emp-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .03em; flex-shrink: 0; }
+.rc-emp-cell.overloaded .emp-avatar { box-shadow: 0 0 0 2px #dc2626; }
+.emp-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.emp-name { font-size: 13px; font-weight: 600; color: var(--color-on-surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rc-emp-cell.overloaded .emp-name { color: #dc2626; }
+.emp-hours { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; width: fit-content; }
+.hrs-done { background: #dcfce7; color: #15803d; }
+.hrs-ok { background: #e0f2fe; color: #0369a1; }
+.hrs-busy { background: #fef3c7; color: #b45309; }
+.hrs-over { background: #fee2e2; color: #dc2626; }
+
+.rc-timeline { display: grid; position: relative; }
+.rc-cell { border-right: 1px solid var(--color-outline-variant); min-height: 48px; position: relative; transition: background .12s; }
+.rc-cell:last-of-type { border-right: none; }
+.rc-cell.today { background: rgba(40,116,117,.04); }
+.rc-cell.weekend { background: #f3f4f6; cursor: not-allowed; }
+.rc-cell.is-leave { background: rgba(229,231,235,.5); }
+.rc-cell.drag-hl { background: rgba(40,116,117,.12); outline: 1px dashed #287475; outline-offset: -1px; }
+.rc-cell.week-start { border-left: 2px solid var(--color-outline-variant); }
+.leave-tag { position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #9ca3af; }
+
+.rc-ribbon-layer { position: absolute; inset: 0; pointer-events: none; }
+.rc-ribbon { position: absolute; display: flex; align-items: center; color: #fff; font-size: 11px; cursor: pointer; pointer-events: auto; overflow: hidden; z-index: 5; transition: opacity .12s; }
+.rc-ribbon:hover { opacity: 1 !important; z-index: 10; filter: brightness(1.1); }
+.rc-container.dragging .rc-ribbon { pointer-events: none; }
+.rc-ribbon.completed { text-decoration: line-through; }
+.rc-ribbon.delayed { border-left: 3px solid #dc2626; background-image: repeating-linear-gradient(-45deg, transparent, transparent 6px, rgba(220,38,38,.12) 6px, rgba(220,38,38,.12) 12px); animation: dl-pulse 2.5s ease-in-out infinite; }
+@keyframes dl-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); } 50% { box-shadow: 0 0 0 2px rgba(220,38,38,.2); } }
+.rb-content { display: flex; flex-direction: column; overflow: hidden; padding: 0 6px; line-height: 1.1; flex: 1; min-width: 0; }
+.rb-title { font-weight: 700; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rb-project { font-size: 9px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rb-delay { flex-shrink: 0; font-size: 8px; font-weight: 700; background: #dc2626; color: #fff; padding: 1px 4px; border-radius: 3px; margin-right: 2px; }
+.rb-handle { width: 8px; height: 100%; position: absolute; right: 0; top: 0; cursor: col-resize; background: rgba(255,255,255,.2); border-radius: 0 4px 4px 0; transition: background .15s; }
+.rb-handle:hover { background: rgba(255,255,255,.5); }
+
+.rc-legend { display: flex; flex-wrap: wrap; gap: 16px; padding: 4px 0; }
+.rc-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-on-surface-variant); font-weight: 500; }
+.rc-legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+.rc-tooltip { position: fixed; background: var(--color-on-surface); color: #fff; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; white-space: nowrap; z-index: 9999; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+.rc-empty { padding: 48px; text-align: center; color: var(--color-on-surface-variant); font-size: 14px; }
+</style>

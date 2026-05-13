@@ -25,6 +25,10 @@ class Project(Base):
     partner_remuneration = Column(Numeric(10, 2), nullable=True, default=0)
     employee_remuneration = Column(Numeric(10, 2), nullable=True, default=0)
     project_remuneration = Column(Numeric(10, 2), nullable=True, default=0)
+    total_assigned_hours = Column(Numeric(10, 2), nullable=True, default=0)
+    partner_hourly_rate = Column(Numeric(10, 2), nullable=True, default=0)
+    billed_amount = Column(Numeric(12, 2), nullable=True, default=0)
+
 
 
 class ProjectAssignment(Base):
@@ -33,9 +37,10 @@ class ProjectAssignment(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    base_pay = Column(Numeric(10, 2), nullable=True)
+    hourly_rate = Column(Numeric(8, 2), nullable=True)
 
     user = relationship("User", back_populates="assignments")
     project = relationship("Project", back_populates="assignments")
-
 
 

@@ -186,12 +186,24 @@
                 <input v-model.number="form.leaves_allowed" type="number" placeholder="18" />
               </div>
               <div class="form-field">
-                <label>PAN Number</label>
-                <input v-model="form.pan_number" type="text" placeholder="ABCDE1234F" />
+                <label>PAN Number *</label>
+                <input v-model="form.pan_number" type="text" required placeholder="ABCDE1234F" />
               </div>
               <div class="form-field">
-                <label>Aadhar Number</label>
-                <input v-model="form.aadhar_number" type="text" placeholder="1234 5678 9012" />
+                <label>Aadhar Number *</label>
+                <input v-model="form.aadhar_number" type="text" required placeholder="1234 5678 9012" />
+              </div>
+              <div class="form-field">
+                <label>Phone Number</label>
+                <input v-model="form.phone_number" type="text" placeholder="e.g. +91 98765 43210" />
+              </div>
+              <div class="form-field">
+                <label>Emergency Contact</label>
+                <input v-model="form.emergency_contact_number" type="text" placeholder="e.g. +91 98765 43210" />
+              </div>
+              <div class="form-field">
+                <label>Relationship with Emergency Contact</label>
+                <input v-model="form.emergency_contact_relationship" type="text" placeholder="e.g. Spouse / Parent" />
               </div>
               <div class="form-field">
                 <label>Personal Email *</label>
@@ -213,14 +225,7 @@
                   <option value="admin">Admin</option>
                 </select>
               </div>
-              <div class="form-field">
-                <label>Time Tracker Login (User ID)</label>
-                <input v-model="form.time_tracker_login" type="text" placeholder="user@studiomh02.com" />
-              </div>
-              <div class="form-field">
-                <label>Time Tracker Password</label>
-                <input v-model="form.time_tracker_password" type="password" placeholder="••••••••" />
-              </div>
+
             </div>
 
             <!-- Errors -->
@@ -322,8 +327,9 @@ const form = reactive({
   manager_id: null,
   pan_number: '',
   aadhar_number: '',
-  time_tracker_login: '',
-  time_tracker_password: '',
+  phone_number: '',
+  emergency_contact_number: '',
+  emergency_contact_relationship: '',
 })
 
 const salaryPerHour = computed(() => {
@@ -399,8 +405,9 @@ function resetForm() {
   form.manager_id = null
   form.pan_number = ''
   form.aadhar_number = ''
-  form.time_tracker_login = ''
-  form.time_tracker_password = ''
+  form.phone_number = ''
+  form.emergency_contact_number = ''
+  form.emergency_contact_relationship = ''
   formError.value = ''
   photoPreview.value = null
   selectedPhoto.value = null
@@ -432,8 +439,9 @@ function openEditModal(emp) {
   form.manager_id = emp.manager_id ?? null
   form.pan_number = emp.pan_number || ''
   form.aadhar_number = emp.aadhar_number || ''
-  form.time_tracker_login = emp.time_tracker_login || ''
-  form.time_tracker_password = emp.time_tracker_password || ''
+  form.phone_number = emp.phone_number || ''
+  form.emergency_contact_number = emp.emergency_contact_number || ''
+  form.emergency_contact_relationship = emp.emergency_contact_relationship || ''
   formError.value = ''
   photoPreview.value = emp.photo_url ? `${API_BASE}${emp.photo_url}` : null
   selectedPhoto.value = null
@@ -461,7 +469,8 @@ async function handleSubmit() {
       const payload = {}
       const fields = ['name', 'designation', 'studio_email', 'personal_mail', 'role',
         'joining_date', 'end_date', 'salary_month', 'leaves_allowed', 'manager_id',
-        'pan_number', 'aadhar_number', 'time_tracker_login', 'time_tracker_password']
+        'pan_number', 'aadhar_number', 'phone_number', 'emergency_contact_number',
+        'emergency_contact_relationship']
       for (const f of fields) {
         if (form[f] !== '' && form[f] !== null && form[f] !== undefined) payload[f] = form[f]
       }
@@ -472,7 +481,8 @@ async function handleSubmit() {
       const payload = {}
       const fields = ['name', 'designation', 'studio_email', 'personal_mail', 'password', 'role',
         'joining_date', 'end_date', 'salary_month', 'leaves_allowed', 'manager_id',
-        'pan_number', 'aadhar_number', 'time_tracker_login', 'time_tracker_password']
+        'pan_number', 'aadhar_number', 'phone_number', 'emergency_contact_number',
+        'emergency_contact_relationship']
       for (const f of fields) {
         if (form[f] !== '' && form[f] !== null && form[f] !== undefined) {
           payload[f] = form[f]

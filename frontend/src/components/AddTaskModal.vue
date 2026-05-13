@@ -11,10 +11,15 @@
 
         <form @submit.prevent="handleSubmit" class="modal-body">
           <div class="form-grid">
-            <!-- Title -->
+            <!-- Project -->
             <div class="form-field span-2">
-              <label>Title *</label>
-              <input v-model="form.title" type="text" required placeholder="Task title" />
+              <label>Project</label>
+              <select v-model="form.project_id">
+                <option :value="null">— No Project —</option>
+                <option v-for="p in projects" :key="p.id" :value="p.id">
+                  ● {{ p.name }}
+                </option>
+              </select>
             </div>
             <!-- Assigned To -->
             <div class="form-field">
@@ -22,16 +27,6 @@
               <select v-model="form.assigned_to" required>
                 <option :value="null">— Select Employee —</option>
                 <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
-              </select>
-            </div>
-            <!-- Project -->
-            <div class="form-field">
-              <label>Project</label>
-              <select v-model="form.project_id">
-                <option :value="null">— No Project —</option>
-                <option v-for="p in projects" :key="p.id" :value="p.id">
-                  ● {{ p.name }}
-                </option>
               </select>
             </div>
             <!-- Priority -->
@@ -91,6 +86,7 @@ const props = defineProps({
   projects: { type: Array, default: () => [] },
   prefillDate: { type: String, default: '' },
   prefillEndDate: { type: String, default: '' },
+  prefillAssignedTo: { type: Number, default: null },
   editTask: { type: Object, default: null }, // if set, we're editing
 })
 
@@ -102,26 +98,28 @@ const submitting = ref(false)
 const formError = ref('')
 
 const form = reactive({
-  title: props.editTask?.title || '',
   description: props.editTask?.description || '',
   date: props.editTask?.date || props.prefillDate || '',
   end_date: props.editTask?.end_date || props.prefillEndDate || '',
   duration_hours: props.editTask?.duration_hours || null,
   priority: props.editTask?.priority || 'medium',
-  assigned_to: props.editTask?.assigned_to || null,
+  assigned_to: props.editTask?.assigned_to || props.prefillAssignedTo || null,
   project_id: props.editTask?.project_id || null,
 })
 
 async function handleSubmit() {
   formError.value = ''
-  if (!form.title || !form.date || !form.assigned_to) {
-    formError.value = 'Title, date, and assignee are required.'
+  if (!form.date || !form.assigned_to) {
+    formError.value = 'Date and assignee are required.'
     return
   }
   submitting.value = true
   try {
+    const proj = props.projects.find(p => p.id === form.project_id)
+    const derivedTitle = proj ? proj.name : 'General Task'
+
     const payload = {
-      title: form.title,
+      title: derivedTitle,
       description: form.description || null,
       date: form.date,
       end_date: form.end_date || null,

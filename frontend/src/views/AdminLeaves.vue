@@ -38,7 +38,7 @@
             <td colspan="7" class="empty-cell">No leave requests found.</td>
           </tr>
           <tr v-for="l in paginated" :key="l.id" class="proj-row">
-            <td><span class="proj-name">{{ l.user?.name }}</span></td>
+            <td><span class="proj-name">{{ l.employee?.name }}</span></td>
             <td class="mono">{{ formatDate(l.start_date) }}</td>
             <td class="mono">{{ formatDate(l.end_date) }}</td>
             <td class="mono">{{ l.days_count }}</td>
@@ -107,7 +107,7 @@ const filtered = computed(() => {
   if (filterStatus.value) list = list.filter(l => l.status === filterStatus.value)
   const q = searchQuery.value.toLowerCase()
   if (q) list = list.filter(l =>
-    (l.user?.name || '').toLowerCase().includes(q) ||
+    (l.employee?.name || '').toLowerCase().includes(q) ||
     l.reason.toLowerCase().includes(q)
   )
   return list

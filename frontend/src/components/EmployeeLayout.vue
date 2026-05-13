@@ -23,7 +23,10 @@
           :class="{ active: isActive(item.path) }"
         >
           <span class="material-symbols-outlined nav-icon">{{ item.icon }}</span>
-          <span class="nav-label">{{ item.label }}</span>
+          <div class="nav-label-wrapper">
+            <span class="nav-label">{{ item.label }}</span>
+            <span v-if="item.badge" class="nav-badge">{{ item.badge }}</span>
+          </div>
         </router-link>
       </nav>
 
@@ -83,11 +86,13 @@
 import { computed, onMounted, ref, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useTimesheetStore } from '../stores/timesheet'
 import { usersAPI } from '../api/users'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const timesheetStore = useTimesheetStore()
 const currentUser = ref(null)
 const showProfileMenu = ref(false)
 
@@ -104,8 +109,13 @@ onMounted(async () => {
   try {
     const response = await usersAPI.getMe()
     currentUser.value = response.data
+    
+    // Fetch timesheet data for badges if employee
+    if (authStore.role === 'employee' || authStore.role === 'project_manager' || authStore.role === 'admin') {
+      timesheetStore.fetchPendingWeeks()
+    }
   } catch (err) {
-    console.warn('Unable to load current user profile', err)
+    console.warn('Unable to load data', err)
   }
 })
 
@@ -152,9 +162,8 @@ const userInitials = computed(() => {
 const navItems = computed(() => {
   const items = [
     { path: '/employee/dashboard', icon: 'dashboard', label: 'Dashboard' },
-    { path: '/employee/checkin', icon: 'sensor_door', label: 'Check In/Out' },
+    { path: '/employee/timesheet', icon: 'pending_actions', label: 'Timesheet', badge: timesheetStore.pendingCount > 0 ? timesheetStore.pendingCount : null },
     { path: '/employee/leaves', icon: 'event_busy', label: 'Leaves' },
-    { path: '/employee/profile', icon: 'person', label: 'Profile' },
     { path: '/employee/salary', icon: 'payments', label: 'Salary' },
     { path: '/employee/reimbursements', icon: 'receipt_long', label: 'Reimbursements' },
   ]
@@ -279,6 +288,23 @@ const currentPageTitle = computed(() => {
 .nav-icon {
   font-size: 20px;
   color: var(--color-outline);
+}
+
+.nav-label-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+}
+
+.nav-badge {
+  background: var(--color-error, #dc2626);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 99px;
+  line-height: 1;
 }
 
 .sidebar-footer {

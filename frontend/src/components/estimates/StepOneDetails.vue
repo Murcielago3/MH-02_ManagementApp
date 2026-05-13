@@ -60,10 +60,6 @@
             <div class="stat-label">Working Days</div>
             <div class="stat-value" id="stat-working">{{ displayWorking }}</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">Total Hours</div>
-            <div class="stat-value" id="stat-hours">{{ displayHours }}</div>
-          </div>
           <div class="stat-card dim">
             <div class="stat-label">Weeks</div>
             <div class="stat-value" id="stat-weeks">{{ displayWeeks }}</div>
@@ -75,8 +71,7 @@
           <span class="material-symbols-outlined sum-icon">calendar_today</span>
           <span>
             <strong>{{ displayWeeks }}</strong> weeks ·
-            <strong>{{ displayWorking }}</strong> working days ·
-            <strong>{{ displayHours }}</strong> hours
+            <strong>{{ displayWorking }}</strong> working days
           </span>
         </div>
 
@@ -123,12 +118,10 @@ const statsVisible = ref(false)
 // Animated display values
 const animatedCalendar = ref(0)
 const animatedWorking = ref(0)
-const animatedHours = ref(0)
 
 // Formatted display strings
 const displayCalendar = computed(() => animatedCalendar.value)
 const displayWorking = computed(() => animatedWorking.value)
-const displayHours = computed(() => animatedHours.value)
 const displayWeeks = computed(() => {
   if (!store.calendarDays) return 0
   const w = store.calendarDays / 7
@@ -166,7 +159,6 @@ function onDateChange() {
     statsVisible.value = true
     animateTo(animatedCalendar, store.calendarDays)
     animateTo(animatedWorking, store.workingDays)
-    animateTo(animatedHours, store.totalHours)
     // Animate timeline fill
     timelineFillPct.value = 0
     setTimeout(() => {
@@ -183,7 +175,6 @@ watch(
       statsVisible.value = true
       animateTo(animatedCalendar, store.calendarDays)
       animateTo(animatedWorking, val)
-      animateTo(animatedHours, store.totalHours)
       timelineFillPct.value = 100
     }
   },
@@ -195,7 +186,6 @@ onMounted(() => {
     statsVisible.value = true
     animatedCalendar.value = store.calendarDays
     animatedWorking.value = store.workingDays
-    animatedHours.value = store.totalHours
     timelineFillPct.value = 100
   }
 })

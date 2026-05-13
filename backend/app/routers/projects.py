@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 from typing import Optional
 from pydantic import BaseModel
 from app.database import get_db
 from app.models.project import Project, ProjectAssignment
 from app.models.user import User
+from app.models.weekly_timesheet import WeeklyTimesheet, WeeklyTimesheetEntry
 from app.auth import require_admin, require_manager
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -22,6 +24,7 @@ class ProjectCreate(BaseModel):
     partner_remuneration: Optional[float] = None
     employee_remuneration: Optional[float] = None
     project_remuneration: Optional[float] = None
+    total_assigned_hours: Optional[float] = None
     color: Optional[str] = '#287475'
 
 class ProjectUpdate(BaseModel):
@@ -36,6 +39,7 @@ class ProjectUpdate(BaseModel):
     partner_remuneration: Optional[float] = None
     employee_remuneration: Optional[float] = None
     project_remuneration: Optional[float] = None
+    total_assigned_hours: Optional[float] = None
     color: Optional[str] = None
 
 @router.get("/")
@@ -57,11 +61,48 @@ async def get_project(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(require_manager)
 ):
-    result = await db.execute(select(Project).where(Project.id == project_id))
+    result = await db.execute(
+        select(Project)
+        .options(selectinload(Project.assignments).selectinload(ProjectAssignment.user))
+        .where(Project.id == project_id)
+    )
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    return project
+    
+    # Calculate worked hours from approved timesheets
+    worked_query = (
+        select(func.sum(WeeklyTimesheetEntry.hours))
+        .join(WeeklyTimesheet)
+        .where(
+            WeeklyTimesheetEntry.project_id == project_id,
+            WeeklyTimesheet.status == 'approved'
+        )
+    )
+    worked_result = await db.execute(worked_query)
+    total_worked_hours = worked_result.scalar() or 0
+    
+    # We can add this dynamically to the object or return a dict
+    project_data = {
+        "id": project.id,
+        "project_number": project.project_number,
+        "name": project.name,
+        "location": project.location,
+        "gmap_link": project.gmap_link,
+        "year": project.year,
+        "current_stage": project.current_stage,
+        "is_billed": project.is_billed,
+        "client_id": project.client_id,
+        "partner_remuneration": project.partner_remuneration,
+        "employee_remuneration": project.employee_remuneration,
+        "project_remuneration": project.project_remuneration,
+        "total_assigned_hours": project.total_assigned_hours,
+        "total_worked_hours": float(total_worked_hours),
+        "color": project.color,
+        "assignments": project.assignments,
+        "work_order_urls": project.work_order_urls
+    }
+    return project_data
 
 @router.post("/", status_code=201)
 async def create_project(
@@ -81,6 +122,7 @@ async def create_project(
         partner_remuneration=data.partner_remuneration,
         employee_remuneration=data.employee_remuneration,
         project_remuneration=data.project_remuneration,
+        total_assigned_hours=data.total_assigned_hours,
         color=data.color
     )
     db.add(project)
@@ -136,3 +178,13 @@ async def assign_user_to_project(
     await db.commit()
     await db.refresh(assignment)
     return assignment
+
+from pydantic import BaseModel
+class AssignEmployee(BaseModel):
+    user_id: int
+    base_pay: float
+
+@router.post("/{project_id}/assign", status_code=201)
+async def assign_employee(
+    project_id:int
+)

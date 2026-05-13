@@ -96,12 +96,12 @@ function formatDate(d) {
 }
 
 const step1Summary = computed(() =>
-  `${store.projectName} · ${store.workingDays} working days · ${store.totalHours} hrs`
+  `${store.projectName} · ${store.workingDays} working days`
 )
 
 const step2Summary = computed(() => {
   const cost = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(store.teamTotalCost)
-  return `${store.employees.length} employees · ${cost}`
+  return `${store.employees.length} team member${store.employees.length !== 1 ? 's' : ''} · ${cost}`
 })
 
 const step3Summary = computed(() => {

@@ -19,93 +19,93 @@ const routes = [
     path: '/admin/dashboard',
     name: 'AdminDashboard',
     component: () => import('../views/AdminDashboard.vue'),
-    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+    meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
     path: '/admin/employees',
     name: 'AdminEmployees',
     component: () => import('../views/AdminEmployees.vue'),
-    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+    meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
     path: '/admin/projects',
     name: 'AdminProjects',
     component: () => import('../views/AdminProjects.vue'),
-    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+    meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
     path: '/admin/clients',
     name: 'AdminClients',
     component: () => import('../views/AdminClients.vue'),
-    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+    meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
     path: '/admin/expenses',
     name: 'AdminExpenses',
     component: () => import('../views/AdminExpenses.vue'),
-    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+    meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
     path: '/admin/tasks',
     name: 'AdminTasks',
     component: () => import('../views/AdminTasks.vue'),
-    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+    meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
     path: '/admin/leaves',
     name: 'AdminLeaves',
     component: () => import('../views/AdminLeaves.vue'),
-    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+    meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
-    path: '/admin/attendance',
-    name: 'AdminAttendance',
-    component: () => import('../views/AdminAttendance.vue'),
-    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+    path: '/admin/timesheets',
+    name: 'AdminTimesheets',
+    component: () => import('../views/AdminTimesheets.vue'),
+    meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
     path: '/admin/employees/:id',
     name: 'EmployeeProfile',
     component: () => import('../views/EmployeeProfile.vue'),
-    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+    meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
     path: '/admin/invoices',
     name: 'AdminInvoices',
     component: () => import('../views/AdminDashboard.vue'), // placeholder
-    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+    meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
     path: '/admin/estimates',
     name: 'AdminEstimates',
     component: () => import('../views/EstimateView.vue'),
-    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+    meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
     path: '/admin/reports',
     name: 'AdminReports',
     component: () => import('../views/AdminDashboard.vue'), // placeholder
-    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+    meta: { requiresAuth: true, roles: ['admin'] },
   },
 
   // ── Project Manager routes ──
   {
     path: '/pm/dashboard',
     name: 'PMDashboard',
-    component: () => import('../views/AdminDashboard.vue'),
-    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+    component: () => import('../views/employee/EmployeeDashboard.vue'),
+    meta: { requiresAuth: true, roles: ['project_manager'] },
   },
   {
     path: '/pm/employees',
     name: 'PMEmployees',
-    component: () => import('../views/AdminEmployees.vue'),
-    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+    component: () => import('../views/employee/EmployeeDashboard.vue'),
+    meta: { requiresAuth: true, roles: ['project_manager'] },
   },
   {
     path: '/pm/projects',
     name: 'PMProjects',
-    component: () => import('../views/AdminProjects.vue'),
-    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+    component: () => import('../views/employee/EmployeeDashboard.vue'),
+    meta: { requiresAuth: true, roles: ['project_manager'] },
   },
 
   // ── Employee routes ──
@@ -116,9 +116,9 @@ const routes = [
     meta: { requiresAuth: true, roles: ['admin', 'project_manager', 'employee'] },
   },
   {
-    path: '/employee/checkin',
-    name: 'EmployeeCheckIn',
-    component: () => import('../views/employee/CheckInView.vue'),
+    path: '/employee/timesheet',
+    name: 'EmployeeTimesheet',
+    component: () => import('../views/employee/TimesheetView.vue'),
     meta: { requiresAuth: true, roles: ['admin', 'project_manager', 'employee'] },
   },
   {
@@ -129,7 +129,7 @@ const routes = [
   },
   {
     path: '/employee/profile',
-    name: 'EmployeeProfile',
+    name: 'SelfProfile',
     component: () => import('../views/employee/ProfileView.vue'),
     meta: { requiresAuth: true, roles: ['admin', 'project_manager', 'employee'] },
   },
@@ -151,7 +151,7 @@ const routes = [
     path: '/employee-management',
     name: 'EmployeeManagement',
     component: () => import('../views/AdminEmployees.vue'),
-    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
+    meta: { requiresAuth: true, roles: ['admin'] },
   },
 ]
 

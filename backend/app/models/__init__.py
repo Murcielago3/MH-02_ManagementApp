@@ -7,3 +7,4 @@ from app.models.leave import LeaveRequest
 from app.models.task import Task
 from app.models.timesheet import Timesheet
 from app.models.reimbursement import Reimbursement
+from app.models.weekly_timesheet import WeeklyTimesheet, WeeklyTimesheetEntry

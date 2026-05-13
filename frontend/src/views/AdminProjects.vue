@@ -150,11 +150,24 @@
                 </select>
               </div>
               <!-- Project Color -->
-              <div class="form-field">
-                <label>Project Color</label>
-                <div class="color-picker-row">
-                  <span class="color-preview" :style="{ background: form.color }"></span>
-                  <input v-model="form.color" type="color" class="color-input" />
+              <div class="form-field span-2">
+                <label>Project Color / Brand</label>
+                <div class="modern-color-picker">
+                  <div class="presets-grid">
+                    <button
+                      v-for="c in projectPresets"
+                      :key="c"
+                      type="button"
+                      class="color-preset-btn"
+                      :class="{ active: form.color === c }"
+                      :style="{ background: c }"
+                      @click="form.color = c"
+                    ></button>
+                  </div>
+                  <div class="custom-color-wrap">
+                    <input v-model="form.color" type="color" class="custom-color-input" />
+                    <span class="color-hex">{{ form.color }}</span>
+                  </div>
                 </div>
               </div>
               <!-- Partner Remuneration -->
@@ -171,6 +184,11 @@
               <div class="form-field span-2" v-if="isAdmin">
                 <label>Total Project Remuneration (₹)</label>
                 <CurrencyInput v-model="form.project_remuneration" placeholder="0" />
+              </div>
+              <!-- Total Assigned Hours -->
+              <div class="form-field span-2">
+                <label>Total Assigned Hours</label>
+                <input v-model.number="form.total_assigned_hours" type="number" step="0.5" placeholder="e.g. 500" />
               </div>
             </div>
 
@@ -282,6 +300,39 @@
                 </div>
               </div>
 
+              <!-- Hours Breakdown (Burn-down) -->
+              <div class="detail-section highlight-section" v-if="isAdmin">
+                <h4 class="section-title">Hours Tracking</h4>
+                <div class="hours-track-grid">
+                  <div class="track-item">
+                    <label>Assigned</label>
+                    <div class="track-val">{{ detailProject?.total_assigned_hours || 0 }}h</div>
+                  </div>
+                  <div class="track-item">
+                    <label>Worked (Approved)</label>
+                    <div class="track-val text-primary">{{ detailProject?.total_worked_hours || 0 }}h</div>
+                  </div>
+                  <div class="track-item">
+                    <label>Remaining</label>
+                    <div class="track-val" :class="remainingHours < 0 ? 'text-danger' : 'text-success'">
+                      {{ remainingHours }}h
+                    </div>
+                  </div>
+                </div>
+                <div class="progress-container">
+                  <div class="progress-bar">
+                    <div 
+                      class="progress-fill" 
+                      :style="{ width: Math.min(100, progressPercent) + '%', background: progressPercent > 100 ? '#dc2626' : 'var(--color-primary)' }"
+                    ></div>
+                  </div>
+                  <div class="progress-labels">
+                    <span>{{ progressPercent }}% Utilized</span>
+                    <span v-if="progressPercent > 100" class="text-danger">Budget Exceeded!</span>
+                  </div>
+                </div>
+              </div>
+
               <!-- Assigned Employees -->
               <div class="detail-section">
                 <h4 class="section-title">Assigned Employees</h4>
@@ -387,8 +438,14 @@ const form = reactive({
   partner_remuneration: null,
   employee_remuneration: null,
   project_remuneration: null,
+  total_assigned_hours: null,
   color: '#287475',
 })
+
+const projectPresets = [
+  '#287475', '#1e5d5e', '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b',
+  '#10b981', '#06b6d4', '#3b82f6', '#475569', '#1e293b'
+]
 
 async function fetchAll() {
   loading.value = true
@@ -440,6 +497,7 @@ function resetForm() {
   form.partner_remuneration = null
   form.employee_remuneration = null
   form.project_remuneration = null
+  form.total_assigned_hours = null
   form.color = '#287475'
   formError.value = ''
 }
@@ -465,6 +523,7 @@ function openEditModal(p) {
   form.partner_remuneration = p.partner_remuneration ? Number(p.partner_remuneration) : null
   form.employee_remuneration = p.employee_remuneration ? Number(p.employee_remuneration) : null
   form.project_remuneration = p.project_remuneration ? Number(p.project_remuneration) : null
+  form.total_assigned_hours = p.total_assigned_hours ? Number(p.total_assigned_hours) : null
   form.color = p.color || '#287475'
   formError.value = ''
   modalOpen.value = true
@@ -539,6 +598,7 @@ async function handleSubmit() {
       partner_remuneration: form.partner_remuneration,
       employee_remuneration: form.employee_remuneration,
       project_remuneration: form.project_remuneration,
+      total_assigned_hours: form.total_assigned_hours,
       color: form.color,
     }
     if (isEditing.value) {
@@ -581,6 +641,26 @@ function stageBadgeClass(stage) {
   if (stage === 'Incomplete Beyond Deadline' || stage === 'Halted') return 'stage-const'
   return 'stage-active'
 }
+
+function getClientName(clientId) {
+  if (!clientId) return '—'
+  const c = clients.value.find(client => client.id === clientId)
+  return c ? c.name : `Client #${clientId}`
+}
+
+
+const remainingHours = computed(() => {
+  const assigned = Number(detailProject.value?.total_assigned_hours) || 0
+  const worked = Number(detailProject.value?.total_worked_hours) || 0
+  return (assigned - worked).toFixed(1)
+})
+
+const progressPercent = computed(() => {
+  const assigned = Number(detailProject.value?.total_assigned_hours) || 0
+  if (assigned <= 0) return 0
+  const worked = Number(detailProject.value?.total_worked_hours) || 0
+  return Math.round((worked / assigned) * 100)
+})
 </script>
 
 <style scoped>
@@ -736,6 +816,69 @@ function stageBadgeClass(stage) {
 .form-field input::placeholder { color: var(--color-on-surface-variant); }
 .form-field input:disabled { background: var(--color-surface-container); color: var(--color-on-surface-variant); cursor: not-allowed; }
 
+/* Modern Color Picker */
+.modern-color-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--color-background);
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-outline-variant);
+}
+
+.presets-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+
+.color-preset-btn {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+}
+
+.color-preset-btn:hover { transform: scale(1.1); }
+.color-preset-btn.active { border-color: #000; box-shadow: 0 0 0 2px #fff inset; }
+
+.custom-color-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-outline-variant);
+}
+
+.custom-color-input {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.color-hex {
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+}
+
+.color-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
 .form-error {
   display: flex; align-items: center; gap: 8px; padding: 12px;
   background: #ffdad6; border-radius: var(--radius-lg); color: #93000a;
@@ -882,4 +1025,71 @@ form .modal-footer { margin-top: 24px; padding: 0; border-top: none; }
   cursor: pointer;
   background: none;
 }
+/* Highlight Section (Tracking) */
+.highlight-section {
+  background: var(--color-surface-container-lowest);
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-outline-variant);
+  grid-column: span 2;
+}
+
+.hours-track-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.track-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.track-item label {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+  letter-spacing: 0.05em;
+}
+
+.track-val {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-on-surface);
+}
+
+.progress-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.progress-bar {
+  height: 10px;
+  background: var(--color-surface-container-high);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+}
+
+.text-primary { color: var(--color-primary); }
+.text-success { color: #145a23; }
+.text-danger { color: #ba1a1a; }
 </style>

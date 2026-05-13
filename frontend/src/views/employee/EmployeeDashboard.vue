@@ -12,14 +12,6 @@
           </div>
         </div>
         
-        <div class="stat-pill checkin-pill" :class="{ active: checkedInToday }">
-          <span class="material-symbols-outlined icon">{{ checkedInToday ? 'how_to_reg' : 'sensor_door' }}</span>
-          <div class="stat-text">
-            <span class="stat-val">{{ checkInText }}</span>
-            <span class="stat-lbl">Attendance</span>
-          </div>
-        </div>
-
         <div class="stat-pill leave-pill">
           <span class="material-symbols-outlined icon">event_available</span>
           <div class="stat-text">
@@ -27,20 +19,10 @@
             <span class="stat-lbl">Leaves Remaining</span>
           </div>
         </div>
-
-        <div class="stat-pill tasks-pill">
-          <span class="material-symbols-outlined icon">task</span>
-          <div class="stat-text">
-            <span class="stat-val">{{ pendingTasksToday }}</span>
-            <span class="stat-lbl">Pending Tasks Today</span>
-          </div>
-        </div>
       </div>
 
-      <!-- Main Columns -->
+      <!-- Main Content -->
       <div class="main-content">
-        
-        <!-- Left: Calendar -->
         <div class="calendar-column">
           <CalendarGrid
             :tasks="allTasks"
@@ -48,56 +30,10 @@
             :userMap="{}"
             :leaves="approvedLeaves"
             :isAdmin="false"
+            :timesheetWeeks="combinedTimesheetWeeks"
             @ribbon-click="openTaskDrawer"
+            @timesheet-click="onTimesheetClick"
           />
-        </div>
-
-        <!-- Right: Today's Tasks -->
-        <div class="today-tasks-column">
-          <div class="column-header">
-            <h2 class="column-title">Today's Tasks</h2>
-          </div>
-          
-          <div class="today-tasks-list">
-            <div v-if="loadingTasks" class="loading-state">
-              <span class="material-symbols-outlined spinner">refresh</span>
-            </div>
-            
-            <div v-else-if="todayTasks.length === 0" class="empty-state">
-              <span class="material-symbols-outlined">celebration</span>
-              <p>No tasks assigned for today 🎉</p>
-            </div>
-
-            <div v-else class="task-card" v-for="task in todayTasks" :key="'today-'+task.id" :class="task.status">
-              <div class="task-header">
-                <span class="priority-badge" :class="task.priority">{{ task.priority }}</span>
-                <span class="duration-badge" v-if="task.duration_hours">{{ task.duration_hours }} hrs</span>
-              </div>
-              <h4 class="task-title">{{ task.title }}</h4>
-              <p v-if="task.project_id && projectMap[task.project_id]" class="task-project">
-                <span class="project-dot" :style="{ background: projectMap[task.project_id].color }"></span>
-                {{ projectMap[task.project_id].name }}
-              </p>
-              
-              <div class="task-actions">
-                <button 
-                  v-if="task.status === 'pending'" 
-                  class="btn-action start" 
-                  @click="updateTaskStatus(task.id, 'in-progress')"
-                  :disabled="statusUpdating === task.id"
-                >Start</button>
-                <button 
-                  v-if="task.status === 'in-progress'" 
-                  class="btn-action complete" 
-                  @click="updateTaskStatus(task.id, 'completed')"
-                  :disabled="statusUpdating === task.id"
-                >Complete</button>
-                <span v-if="task.status === 'completed'" class="completed-text">
-                  <span class="material-symbols-outlined">check_circle</span> Done
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -127,6 +63,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import EmployeeLayout from '../../components/EmployeeLayout.vue'
 import CalendarGrid from '../../components/CalendarGrid.vue'
 import TaskDetailDrawer from '../../components/TaskDetailDrawer.vue'
@@ -137,13 +74,14 @@ import { tasksAPI } from '../../api/tasks'
 import { leavesAPI } from '../../api/leaves'
 import { projectsAPI } from '../../api/projects'
 import { countWorkingDays } from '../../stores/estimate'
+import { useTimesheetStore } from '../../stores/timesheet'
 
+const router = useRouter()
+const timesheetStore = useTimesheetStore()
 const user = ref(null)
-const attendanceToday = ref(null)
 const leaves = ref([])
 const allTasks = ref([])
 const projectsList = ref([])
-const loadingTasks = ref(true)
 const statusUpdating = ref(null)
 const selectedTask = ref(null)
 
@@ -167,6 +105,10 @@ onMounted(async () => {
 
 async function fetchDashboardData() {
   try {
+    // Also fetch timesheet data
+    timesheetStore.fetchPendingWeeks()
+    timesheetStore.fetchMyTimesheets()
+
     const [uRes, aRes, lRes, tRes, pRes] = await Promise.all([
       usersAPI.getMe(),
       attendanceAPI.getMyAttendance(),
@@ -176,19 +118,28 @@ async function fetchDashboardData() {
     ])
     
     user.value = uRes.data
-    attendanceToday.value = aRes.data.find(a => a.date === todayStr) || null
     leaves.value = lRes.data
     allTasks.value = tRes.data
     projectsList.value = pRes.data || []
   } catch (err) {
     console.error('Failed to load dashboard data', err)
-  } finally {
-    loadingTasks.value = false
   }
 }
 
 // ── Computed ──
 const approvedLeaves = computed(() => leaves.value.filter(l => l.status === 'approved'))
+
+const combinedTimesheetWeeks = computed(() => {
+  const map = {}
+  timesheetStore.pendingWeeks.forEach(pw => {
+    map[pw.week_start] = { week_start: pw.week_start, status: pw.status }
+  })
+  timesheetStore.submittedTimesheets.forEach(ts => {
+    // submitted timesheets overwrite pending if same week
+    map[ts.week_start] = { week_start: ts.week_start, status: ts.status }
+  })
+  return Object.values(map)
+})
 
 const projectMap = computed(() => {
   const map = {}
@@ -198,12 +149,6 @@ const projectMap = computed(() => {
   return map
 })
 
-const checkedInToday = computed(() => !!attendanceToday.value)
-const checkInText = computed(() => {
-  if (attendanceToday.value?.check_in) return `Checked In ${attendanceToday.value.check_in}`
-  return 'Not Checked In'
-})
-
 const leavesRemaining = computed(() => {
   if (!user.value) return 0
   const allowed = user.value.leaves_allowed || 0
@@ -211,25 +156,14 @@ const leavesRemaining = computed(() => {
   return Math.max(0, allowed - used)
 })
 
-const pendingTasksToday = computed(() => {
-  return allTasks.value.filter(t => t.date <= todayStr && t.status !== 'completed').length
-})
-
-const todayTasks = computed(() => {
-  return allTasks.value
-    .filter(t => {
-      const tEnd = t.end_date || t.date
-      return t.date <= todayStr && tEnd >= todayStr
-    })
-    .sort((a, b) => {
-      const pMap = { high: 0, medium: 1, low: 2 }
-      return pMap[a.priority] - pMap[b.priority]
-    })
-})
-
 // ── Task interactions ──
 function openTaskDrawer(task) {
   selectedTask.value = task
+}
+
+function onTimesheetClick(weekObj) {
+  timesheetStore.selectWeek(weekObj)
+  router.push('/employee/timesheet')
 }
 
 async function onDrawerStatusUpdate(taskId, status) {
@@ -265,15 +199,11 @@ async function updateTaskStatus(taskId, status) {
 
 /* ── Top Strip ── */
 .stats-strip {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
   gap: 16px;
 }
-@media (max-width: 1024px) {
-  .stats-strip { grid-template-columns: repeat(2, 1fr); }
-}
-
 .stat-pill {
+  flex: 1;
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--radius-lg);
@@ -315,13 +245,7 @@ async function updateTaskStatus(taskId, status) {
 
 /* ── Main Layout ── */
 .main-content {
-  display: grid;
-  grid-template-columns: 1fr 380px;
-  gap: 24px;
-  min-height: 500px;
-}
-@media (max-width: 1200px) {
-  .main-content { grid-template-columns: 1fr; }
+  display: block;
 }
 
 .column-header {
@@ -336,123 +260,6 @@ async function updateTaskStatus(taskId, status) {
   color: var(--color-on-surface);
   margin: 0;
 }
-
-/* ── Today's Tasks Right Column ── */
-.today-tasks-list {
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--radius-lg);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-height: 400px;
-  overflow-y: auto;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--color-outline);
-  text-align: center;
-  padding: 32px;
-}
-.empty-state .material-symbols-outlined { font-size: 48px; margin-bottom: 16px; }
-
-.loading-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 48px;
-}
-
-.task-card {
-  padding: 16px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-outline-variant);
-  background: var(--color-surface-container-lowest);
-  transition: border-color 0.2s;
-}
-.task-card:hover { border-color: var(--color-outline); }
-.task-card.completed { opacity: 0.6; }
-
-.task-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-.priority-badge {
-  padding: 2px 8px;
-  border-radius: 2px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.priority-badge.high { background: #fee2e2; color: #b91c1c; }
-.priority-badge.medium { background: #fef3c7; color: #b45309; }
-.priority-badge.low { background: #ecfdf5; color: #059669; }
-
-.duration-badge {
-  font-size: 11px;
-  color: var(--color-outline);
-  font-weight: 600;
-}
-
-.task-title {
-  font-family: var(--font-display);
-  font-size: 14px;
-  margin: 0 0 4px 0;
-  color: var(--color-on-surface);
-}
-
-.task-project {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--color-primary);
-  margin: 0 0 16px 0;
-  font-weight: 600;
-}
-.project-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.task-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-.btn-action {
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  border: none;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-.btn-action:hover:not(:disabled) { opacity: 0.9; }
-.btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-action.start { background: var(--color-primary); color: white; }
-.btn-action.complete { background: #059669; color: white; }
-
-.completed-text {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #059669;
-}
-.completed-text .material-symbols-outlined { font-size: 16px; }
 
 @keyframes spin { 100% { transform: rotate(360deg); } }
 .spinner { animation: spin 1s linear infinite; }

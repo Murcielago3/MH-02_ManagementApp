@@ -15,13 +15,13 @@
     </div>
 
     <!-- Calendar Grid -->
-    <CalendarGrid
+    <ResourceCalendar
       ref="calGrid"
       :tasks="tasks"
+      :employees="usersList"
       :projectMap="projectMap"
-      :userMap="userMap"
       :leaves="allLeaves"
-      :isAdmin="true"
+      :filterEmployeeId="filterEmployee"
       @ribbon-click="openDrawer"
       @cell-drag-create="onDragCreate"
       @ribbon-drag-extend="onDragExtend"
@@ -46,6 +46,7 @@
       :projects="projectsList"
       :prefillDate="prefillDate"
       :prefillEndDate="prefillEndDate"
+      :prefillAssignedTo="prefillAssignedTo"
       :editTask="editingTask"
       @close="closeModal"
       @submit="handleModalSubmit"
@@ -75,6 +76,38 @@
       </div>
     </Teleport>
 
+    <!-- Weekend Warning -->
+    <Teleport to="body">
+      <div v-if="weekendWarning" class="modal-backdrop" @click.self="dismissWeekendWarning">
+        <div class="modal-sm">
+          <div class="modal-header weekend-warn-header">
+            <div class="weekend-warn-title">
+              <span class="material-symbols-outlined warn-icon">warning</span>
+              <h3 class="modal-title">Weekend Conflict</h3>
+            </div>
+            <button class="modal-close" @click="dismissWeekendWarning">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <p class="weekend-warn-msg">
+              <strong>{{ weekendWarning.weekendDays }}</strong> day{{ weekendWarning.weekendDays > 1 ? 's' : '' }} in the selected range fall{{ weekendWarning.weekendDays === 1 ? 's' : '' }} on a weekend.
+            </p>
+            <p v-if="weekendWarning.empName" class="weekend-warn-emp">
+              <strong>{{ weekendWarning.empName }}</strong>
+            </p>
+            <p class="weekend-warn-note">
+              Task will be assigned to weekend/non-working days. If this is not your intention, please go back and change the dates.
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-cancel" @click="dismissWeekendWarning">Go Back</button>
+            <button class="btn-submit" @click="confirmWeekendAction">Confirm Anyway</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- Toast -->
     <ToastNotification
       v-if="toastMsg"
@@ -89,7 +122,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import EmployeeLayout from '../components/EmployeeLayout.vue'
-import CalendarGrid from '../components/CalendarGrid.vue'
+import ResourceCalendar from '../components/ResourceCalendar.vue'
 import TaskDetailDrawer from '../components/TaskDetailDrawer.vue'
 import AddTaskModal from '../components/AddTaskModal.vue'
 import ToastNotification from '../components/ToastNotification.vue'
@@ -134,9 +167,11 @@ const selectedTask = ref(null)
 const modalOpen = ref(false)
 const prefillDate = ref('')
 const prefillEndDate = ref('')
+const prefillAssignedTo = ref(null)
 const editingTask = ref(null)
 const deleteTarget = ref(null)
 const deleting = ref(false)
+const weekendWarning = ref(null) // { action, payload, weekendDays, empName }
 
 // Toast
 const toastMsg = ref('')
@@ -204,17 +239,71 @@ function onDeleteTask(task) {
   deleteTarget.value = task
 }
 
+// ── Weekend helpers ──
+function isWeekendDate(dateStr) {
+  const day = new Date(dateStr).getDay()
+  return day === 0 || day === 6
+}
+
+function countWeekendDays(startDate, endDate) {
+  let count = 0
+  const d = new Date(startDate)
+  const end = new Date(endDate)
+  while (d <= end) {
+    const day = d.getDay()
+    if (day === 0 || day === 6) count++
+    d.setDate(d.getDate() + 1)
+  }
+  return count
+}
+
+function dismissWeekendWarning() {
+  // Revert optimistic update if it was an extend
+  if (weekendWarning.value?.action === 'extend') {
+    const t = tasks.value.find(x => x.id === weekendWarning.value.payload.taskId)
+    if (t) t.end_date = weekendWarning.value.payload.originalEnd
+  }
+  weekendWarning.value = null
+}
+
+async function confirmWeekendAction() {
+  const w = weekendWarning.value
+  weekendWarning.value = null
+  if (w.action === 'create') {
+    doOpenCreateModal(w.payload)
+  } else if (w.action === 'extend') {
+    await doExtendTask(w.payload.taskId, w.payload.newEndDate)
+  }
+}
+
 // ── Modal ──
-function onDragCreate({ startDate, endDate }) {
+function onDragCreate({ startDate, endDate, employeeId }) {
+  const wDays = countWeekendDays(startDate, endDate)
+  const empName = userMap.value[employeeId]?.name || ''
+  if (wDays > 0) {
+    weekendWarning.value = {
+      action: 'create',
+      payload: { startDate, endDate, employeeId },
+      weekendDays: wDays,
+      empName,
+    }
+    return
+  }
+  doOpenCreateModal({ startDate, endDate, employeeId })
+}
+
+function doOpenCreateModal({ startDate, endDate, employeeId }) {
   editingTask.value = null
   prefillDate.value = startDate
   prefillEndDate.value = startDate === endDate ? '' : endDate
+  prefillAssignedTo.value = employeeId || null
   modalOpen.value = true
 }
 
 function closeModal() {
   modalOpen.value = false
   editingTask.value = null
+  prefillAssignedTo.value = null
 }
 
 async function handleModalSubmit({ payload, isEditing, taskId }) {
@@ -255,20 +344,40 @@ async function confirmDelete() {
 }
 
 // ── Drag extend ──
-async function onDragExtend({ taskId, newEndDate }) {
-  // Optimistic update
+function onDragExtend({ taskId, newEndDate }) {
   const task = tasks.value.find(t => t.id === taskId)
   if (!task) return
   const originalEnd = task.end_date
-  task.end_date = newEndDate
 
+  // Check weekend
+  if (isWeekendDate(newEndDate)) {
+    // Optimistic update for visual, will revert on dismiss
+    task.end_date = newEndDate
+    const empName = userMap.value[task.assigned_to]?.name || ''
+    weekendWarning.value = {
+      action: 'extend',
+      payload: { taskId, newEndDate, originalEnd },
+      weekendDays: 1,
+      empName,
+    }
+    return
+  }
+
+  // No weekend conflict
+  task.end_date = newEndDate
+  doExtendTask(taskId, newEndDate, originalEnd)
+}
+
+async function doExtendTask(taskId, newEndDate, originalEnd) {
+  const task = tasks.value.find(t => t.id === taskId)
+  const prevEnd = originalEnd || task?.end_date
   try {
     await tasksAPI.patchTask(taskId, { end_date: newEndDate })
     const formatted = new Date(newEndDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
     showToast(`Task extended to ${formatted}`)
+    await fetchTasks()
   } catch (err) {
-    // Revert
-    task.end_date = originalEnd
+    if (task) task.end_date = prevEnd
     showToast('Failed to extend task', 'error')
   }
 }
@@ -352,4 +461,23 @@ async function onDragExtend({ taskId, newEndDate }) {
 }
 .btn-danger:hover:not(:disabled) { background: #b91c1c; }
 .btn-danger:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-submit {
+  padding: 10px 20px; background: var(--color-primary); color: #fff; border: none;
+  border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.btn-submit:hover { background: #1a4e4f; }
+
+/* Weekend warning */
+.weekend-warn-header { gap: 8px; }
+.weekend-warn-title {
+  display: flex; align-items: center; gap: 8px;
+}
+.warn-icon { font-size: 22px; color: #f59e0b; }
+.weekend-warn-msg { margin: 0 0 12px 0; font-size: 14px; color: var(--color-on-surface); line-height: 1.5; }
+.weekend-warn-emp {
+  margin: 0 0 12px 0; font-size: 14px; color: var(--color-on-surface);
+}
+.weekend-warn-note {
+  margin: 0; font-size: 13px; color: #dc2626; line-height: 1.5;
+}
 </style>

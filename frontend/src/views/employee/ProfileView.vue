@@ -23,7 +23,13 @@
             <div class="profile-info">
               <h2 class="profile-name">{{ user.name }}</h2>
               <p class="profile-designation">{{ user.designation || 'Employee' }}</p>
-              <span class="role-badge">{{ formatRole(user.role) }}</span>
+              <div class="profile-actions">
+                <span class="role-badge">{{ formatRole(user.role) }}</span>
+                <button class="edit-profile-btn" @click="showEditModal = true">
+                  <span class="material-symbols-outlined">edit</span>
+                  Edit Profile
+                </button>
+              </div>
             </div>
           </div>
 
@@ -33,11 +39,19 @@
             <div class="details-grid">
               <div class="detail-item">
                 <span class="label">Studio Email</span>
-                <span class="value">{{ user.email || '—' }}</span>
+                <span class="value">{{ user.studio_email || '—' }}</span>
               </div>
               <div class="detail-item">
                 <span class="label">Personal Email</span>
-                <span class="value">{{ user.personal_email || '—' }}</span>
+                <span class="value">{{ user.personal_mail || '—' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">Phone Number</span>
+                <span class="value">{{ user.phone_number || '—' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">Emergency Contact</span>
+                <span class="value">{{ user.emergency_contact_number || '—' }} ({{ user.emergency_contact_relationship || '—' }})</span>
               </div>
               <div class="detail-item">
                 <span class="label">PAN Number</span>
@@ -59,7 +73,6 @@
                 <span class="label">End Date</span>
                 <span class="value">{{ formatDate(user.end_date) }}</span>
               </div>
-
             </div>
           </div>
         </div>
@@ -122,13 +135,14 @@
             <div v-if="activeTab === 'timesheets'">
               <div v-if="timesheets.length === 0" class="empty-state">No recent timesheets</div>
               <table v-else class="data-table">
-                <thead><tr><th>Date</th><th>Project ID</th><th>Hours</th><th>Notes</th></tr></thead>
+                <thead><tr><th>Week Starting</th><th>Description</th><th>Status</th></tr></thead>
                 <tbody>
                   <tr v-for="t in timesheets" :key="t.id">
-                    <td>{{ formatDateShort(t.date) }}</td>
-                    <td>{{ t.project_id || '—' }}</td>
-                    <td>{{ t.hours_logged }}h</td>
-                    <td>{{ t.notes || '—' }}</td>
+                    <td>{{ formatDateShort(t.week_start) }}</td>
+                    <td class="desc-cell">{{ t.description || '—' }}</td>
+                    <td>
+                      <span class="status-badge" :class="t.status">{{ t.status }}</span>
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -172,6 +186,47 @@
 
       </template>
     </div>
+    <!-- Edit Profile Modal -->
+    <div v-if="showEditModal" class="modal-overlay" @click.self="showEditModal = false">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Edit Profile</h3>
+          <button class="close-btn" @click="showEditModal = false">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <form @submit.prevent="handleUpdateProfile" class="modal-form">
+          <div class="form-group">
+            <label>Phone Number</label>
+            <input v-model="editForm.phone_number" type="text" placeholder="+91 98765 43210" />
+          </div>
+          <div class="form-group">
+            <label>Emergency Contact Number</label>
+            <input v-model="editForm.emergency_contact_number" type="text" placeholder="+91 98765 43210" />
+          </div>
+          <div class="form-group">
+            <label>Relationship with Emergency Contact</label>
+            <input v-model="editForm.emergency_contact_relationship" type="text" placeholder="Spouse / Parent" />
+          </div>
+          <div class="form-group-row">
+            <div class="form-group">
+              <label>PAN Number (View Only)</label>
+              <input v-model="editForm.pan_number" type="text" readonly class="readonly-input" />
+            </div>
+            <div class="form-group">
+              <label>Aadhar Number (View Only)</label>
+              <input v-model="editForm.aadhar_number" type="text" readonly class="readonly-input" />
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" @click="showEditModal = false">Cancel</button>
+            <button type="submit" class="btn-primary" :disabled="updating">
+              {{ updating ? 'Saving...' : 'Save Changes' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </EmployeeLayout>
 </template>
 
@@ -180,7 +235,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import EmployeeLayout from '../../components/EmployeeLayout.vue'
 import { usersAPI } from '../../api/users'
 import { tasksAPI } from '../../api/tasks'
-import { timesheetsAPI } from '../../api/timesheets'
+import { weeklyTimesheetsAPI } from '../../api/weekly_timesheets'
 import { attendanceAPI } from '../../api/attendance'
 import { leavesAPI } from '../../api/leaves'
 
@@ -193,6 +248,16 @@ const tasks = ref([])
 const timesheets = ref([])
 const attendance = ref([])
 const leaves = ref([])
+
+const showEditModal = ref(false)
+const updating = ref(false)
+const editForm = ref({
+  phone_number: '',
+  emergency_contact_number: '',
+  emergency_contact_relationship: '',
+  pan_number: '',
+  aadhar_number: ''
+})
 
 onMounted(async () => {
   await fetchUserData()
@@ -207,6 +272,14 @@ const fetchUserData = async () => {
   try {
     const res = await usersAPI.getMe()
     user.value = res.data
+    // Sync edit form
+    editForm.value = {
+      phone_number: res.data.phone_number || '',
+      emergency_contact_number: res.data.emergency_contact_number || '',
+      emergency_contact_relationship: res.data.emergency_contact_relationship || '',
+      pan_number: res.data.pan_number || '',
+      aadhar_number: res.data.aadhar_number || ''
+    }
   } catch (err) {
     console.error('Failed to load user', err)
   } finally {
@@ -219,9 +292,9 @@ const fetchTabData = async (tab) => {
     if (tab === 'tasks' && tasks.value.length === 0) {
       const res = await tasksAPI.getMyTasks()
       tasks.value = res.data.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0,10)
-    } else if (tab === 'timesheets' && timesheets.value.length === 0) {
-      const res = await timesheetsAPI.getMyTimesheets()
-      timesheets.value = res.data.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0,10)
+    } else if (tab === 'timesheets') {
+      const res = await weeklyTimesheetsAPI.getMyTimesheets()
+      timesheets.value = res.data.sort((a,b) => new Date(b.week_start) - new Date(a.week_start)).slice(0,10)
     } else if (tab === 'attendance' && attendance.value.length === 0) {
       const res = await attendanceAPI.getMyAttendance()
       attendance.value = res.data.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0,30)
@@ -250,7 +323,19 @@ const handlePhotoChange = async (e) => {
     alert("Failed to upload photo: " + (err.response?.data?.detail || err.message))
   }
 }
-
+const handleUpdateProfile = async () => {
+  updating.value = true
+  try {
+    const res = await usersAPI.updateUser(user.value.id, editForm.value)
+    user.value = res.data
+    showEditModal.value = false
+    alert("Profile updated successfully!")
+  } catch (err) {
+    alert("Failed to update profile: " + (err.response?.data?.detail || err.message))
+  } finally {
+    updating.value = false
+  }
+}
 // Helpers
 const avatarUrl = computed(() => {
   return user.value?.photo_url ? usersAPI.resolveFileUrl(user.value.photo_url) : null
@@ -399,10 +484,39 @@ const formatCurrency = (val) => {
   background: rgba(40, 116, 117, 0.1);
   color: var(--color-primary);
   border-radius: 12px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
 }
+
+.profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.edit-profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.edit-profile-btn:hover {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+.edit-profile-btn .material-symbols-outlined { font-size: 16px; }
 
 .details-card {
   background: var(--color-surface);
@@ -580,6 +694,77 @@ const formatCurrency = (val) => {
   border-radius: 4px;
   font-size: 12px;
 }
+
+.status-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.status-badge.pending { background: #fee2e2; color: #ef4444; }
+.status-badge.submitted { background: #fef3c7; color: #d97706; }
+.status-badge.approved { background: #dcfce7; color: #15803d; }
+.status-badge.rejected { background: #fee2e2; color: #ef4444; }
+
+.desc-cell {
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+.modal-card {
+  background: var(--color-surface);
+  width: 100%;
+  max-width: 500px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+}
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-outline-variant);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal-header h3 { margin: 0; font-family: var(--font-display); font-size: 18px; }
+.close-btn { background: none; border: none; cursor: pointer; color: var(--color-outline); }
+
+.modal-form { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+.form-group { display: flex; flex-direction: column; gap: 8px; }
+.form-group-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-group label { font-size: 12px; font-weight: 700; color: var(--color-outline); text-transform: uppercase; }
+.form-group input {
+  padding: 10px;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+.form-group input:focus { outline: none; border-color: var(--color-primary); }
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+.btn-secondary { padding: 10px 20px; background: none; border: 1px solid var(--color-outline-variant); border-radius: 8px; cursor: pointer; }
+.btn-primary { padding: 10px 20px; background: var(--color-primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .text-green { color: #15803d !important; }
 .text-red { color: #b91c1c !important; }

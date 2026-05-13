@@ -29,6 +29,20 @@
           class="cal-week-row"
           :style="{ minHeight: weekMinHeight(wi) + 'px' }"
         >
+          <!-- Timesheet Week Shading -->
+          <div 
+            v-if="getWeekTimesheet(wi)" 
+            class="timesheet-week-bg" 
+            :class="getWeekTimesheet(wi).status"
+          >
+            <div 
+              class="timesheet-pill" 
+              @click.stop="$emit('timesheet-click', getWeekTimesheet(wi))"
+            >
+              {{ timesheetLabel(getWeekTimesheet(wi).status) }}
+            </div>
+          </div>
+
           <!-- Day cells -->
           <div
             v-for="day in week"
@@ -53,7 +67,7 @@
               v-for="ribbon in weekRibbons(wi)"
               :key="ribbon.task.id + '-' + wi"
               class="task-ribbon"
-              :class="{ 'completed': ribbon.task.status === 'completed', 'drag-preview': ribbon.task._isDragPreview }"
+              :class="{ 'completed': ribbon.task.status === 'completed', 'drag-preview': ribbon.task._isDragPreview, 'delayed': isDelayed(ribbon.task) }"
               :style="ribbonStyle(ribbon)"
               @click.stop="$emit('ribbon-click', ribbon.task)"
               @mousedown.stop
@@ -63,6 +77,10 @@
                 <span v-if="isAdmin && userMap[ribbon.task.assigned_to]" class="ribbon-assignee">→ {{ userMap[ribbon.task.assigned_to].name }}</span>
                 <span v-if="!isAdmin && ribbon.project" class="ribbon-project">{{ ribbon.project.name }}</span>
               </div>
+              <!-- Delay badge -->
+              <span v-if="isDelayed(ribbon.task)" class="delay-badge">
+                {{ getTaskDelay(ribbon.task) }}d late
+              </span>
               <!-- Drag handle (admin only) -->
               <div
                 v-if="isAdmin && !ribbon.task._isDragPreview"
@@ -105,14 +123,28 @@ const props = defineProps({
   userMap: { type: Object, default: () => ({}) },
   leaves: { type: Array, default: () => [] },
   isAdmin: { type: Boolean, default: false },
+  timesheetWeeks: { type: Array, default: () => [] } // { week_start, status }
 })
 
-const emit = defineEmits(['ribbon-click', 'cell-drag-create', 'ribbon-drag-extend'])
+const emit = defineEmits(['ribbon-click', 'cell-drag-create', 'ribbon-drag-extend', 'timesheet-click'])
 
 const viewMode = ref('week')
 const anchorDate = ref(new Date())
 
 const todayStr = new Date().toISOString().split('T')[0]
+
+// ── Delay detection ──
+function getTaskDelay(task) {
+  if (task.status === 'completed') return 0
+  const deadline = task.end_date || task.date
+  if (!deadline) return 0
+  const diff = daysBetween(deadline, todayStr)
+  return diff > 0 ? diff : 0
+}
+
+function isDelayed(task) {
+  return getTaskDelay(task) > 0
+}
 
 // Priority fallback colors
 const priorityColors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' }
@@ -265,6 +297,22 @@ function ribbonStyle(ribbon) {
     borderRadius: '4px',
     opacity: ribbon.task.status === 'completed' ? '0.5' : '0.88',
   }
+}
+
+// ── Timesheet Support ──
+function getWeekTimesheet(wi) {
+  const week = weeks.value[wi]
+  if (!week || week.length === 0) return null
+  const monday = week[0].dateStr
+  return props.timesheetWeeks.find(tw => tw.week_start === monday)
+}
+
+function timesheetLabel(status) {
+  if (status === 'pending') return 'Due'
+  if (status === 'submitted') return 'Sent'
+  if (status === 'approved') return 'OK'
+  if (status === 'rejected') return 'Err'
+  return ''
 }
 
 // ── Leave logic ──
@@ -567,6 +615,36 @@ defineExpose({ viewMode, anchorDate })
 .task-ribbon:hover { opacity: 1 !important; z-index: 10; filter: brightness(1.1); }
 .task-ribbon.completed { text-decoration: line-through; }
 .task-ribbon.drag-preview { opacity: 0.5; }
+.task-ribbon.delayed {
+  border-left: 3px solid #dc2626;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 6px,
+    rgba(220, 38, 38, 0.12) 6px,
+    rgba(220, 38, 38, 0.12) 12px
+  );
+  animation: delayed-pulse 2.5s ease-in-out infinite;
+}
+@keyframes delayed-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+  50% { box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.25); }
+}
+
+.delay-badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #dc2626;
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-right: 4px;
+  white-space: nowrap;
+  line-height: 1.4;
+}
 
 .ribbon-content {
   display: flex;
@@ -606,6 +684,39 @@ defineExpose({ viewMode, anchorDate })
   transition: background 0.15s;
 }
 .drag-handle:hover { background: rgba(255,255,255,0.5); }
+
+/* Timesheet Support */
+.timesheet-week-bg {
+  position: absolute;
+  top: 0; bottom: 0;
+  left: calc(100% * 4 / 7);
+  width: calc(100% / 7);
+  z-index: 1;
+  pointer-events: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4px 2px;
+}
+.timesheet-week-bg.pending { background: rgba(239, 68, 68, 0.08); }
+.timesheet-week-bg.rejected { background: rgba(239, 68, 68, 0.08); }
+.timesheet-week-bg.submitted { background: rgba(245, 158, 11, 0.05); }
+.timesheet-week-bg.approved { background: rgba(34, 197, 94, 0.05); }
+
+.timesheet-pill {
+  pointer-events: auto;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  z-index: 5;
+}
+.timesheet-week-bg.pending .timesheet-pill,
+.timesheet-week-bg.rejected .timesheet-pill { background: #ef4444; color: #fff; }
+.timesheet-week-bg.submitted .timesheet-pill { background: #f59e0b; color: #fff; }
+.timesheet-week-bg.approved .timesheet-pill { background: #22c55e; color: #fff; }
+.timesheet-pill:hover { filter: brightness(0.95); }
 
 /* Legend */
 .calendar-legend {

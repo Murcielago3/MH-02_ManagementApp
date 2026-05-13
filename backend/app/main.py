@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
-from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements
+from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets
 
 
 security = HTTPBearer()
@@ -35,6 +35,7 @@ app.include_router(tasks.router)
 app.include_router(timesheets.router)
 app.include_router(uploads.router)
 app.include_router(reimbursements.router)
+app.include_router(weekly_timesheets.router)
 
 
 
