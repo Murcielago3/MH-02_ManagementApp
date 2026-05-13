@@ -9,6 +9,7 @@ from app.models.project import Project, ProjectAssignment
 from app.models.user import User
 from app.models.weekly_timesheet import WeeklyTimesheet, WeeklyTimesheetEntry
 from app.auth import require_admin, require_manager
+from sqlalchemy import text
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -166,25 +167,186 @@ async def delete_project(
 class AssignUserBody(BaseModel):
     user_id: int
 
-@router.post("/{project_id}/assign", status_code=201)
-async def assign_user_to_project(
-    project_id: int,
-    data: AssignUserBody,
-    db: AsyncSession = Depends(get_db),
-    current_user = Depends(require_manager)
-):
-    assignment = ProjectAssignment(project_id=project_id, user_id=data.user_id)
-    db.add(assignment)
-    await db.commit()
-    await db.refresh(assignment)
-    return assignment
-
-from pydantic import BaseModel
 class AssignEmployee(BaseModel):
     user_id: int
     base_pay: float
 
 @router.post("/{project_id}/assign", status_code=201)
 async def assign_employee(
-    project_id:int
-)
+    project_id:int,
+    data: AssignEmployee,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_manager)
+):
+    existing = await db.execute(
+        select(ProjectAssignment).where(
+            ProjectAssignment.project_id == project_id,
+            ProjectAssignment.user_id == data.user_id
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(400, "Employee already assigned to this project")
+    hourly_rate = round((data.base_pay * 13 / 12) / 160, 2)
+
+    assignment = ProjectAssignment(
+        user_id=data.user_id,
+        project_id=project_id,
+        base_pay=data.base_pay,
+        hourly_rate=hourly_rate
+    )
+    db.add(assignment)
+    await db.commit()
+    return {
+        "message": "Employee assigned",
+        "user_id": data.user_id,
+        "base_pay": data.base_pay,
+        "hourly_rate": hourly_rate
+    }
+
+@router.get("/{project_id}/summary")
+async def get_project_summary(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_manager)
+):
+    from sqlalchemy import func
+    from app.models.weekly_timesheet import WeeklyTimesheet
+    from app.models.user import User
+
+    # Get project
+    proj_result = await db.execute(
+        select(Project).where(Project.id == project_id)
+    )
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    # Get all assignments for this project
+    assign_result = await db.execute(
+        select(ProjectAssignment).where(
+            ProjectAssignment.project_id == project_id
+        )
+    )
+    assignments = assign_result.scalars().all()
+
+    employee_rows = []
+    total_hours_all = 0
+    total_spent_all = 0
+
+    for assignment in assignments:
+        # Get employee name
+        user_result = await db.execute(
+            select(User).where(User.id == assignment.user_id)
+        )
+        user = user_result.scalar_one_or_none()
+        if not user:
+            continue
+
+        # Sum approved timesheet hours for this employee on this project
+        # Using weekly_timesheet_entries table
+        hours_result = await db.execute(
+            text("""
+                SELECT COALESCE(SUM(wte.hours), 0)
+                FROM weekly_timesheet_entries wte
+                JOIN weekly_timesheets wt ON wte.timesheet_id = wt.id
+                WHERE wte.project_id = :project_id
+                AND wt.employee_id = :employee_id
+                AND wt.status = 'approved'
+            """),
+            {"project_id": project_id, "employee_id": assignment.user_id}
+        )
+        hours_worked = float(hours_result.scalar() or 0)
+        hourly_rate = float(assignment.hourly_rate or 0)
+        total_spent = round(hours_worked * hourly_rate, 2)
+
+        total_hours_all += hours_worked
+        total_spent_all += total_spent
+
+        employee_rows.append({
+            "employee_id": assignment.user_id,
+            "name": user.name,
+            "designation": user.designation,
+            "base_pay": float(assignment.base_pay or 0),
+            "hourly_rate": hourly_rate,
+            "hours_worked": hours_worked,
+            "total_spent": total_spent
+        })
+
+    # Partner remuneration
+    partner_hourly_rate = float(project.partner_hourly_rate or 0)
+    partner_cost = round(partner_hourly_rate * total_hours_all, 2)
+
+    return {
+        "project_id": project_id,
+        "project_name": project.name,
+        "employee_rows": employee_rows,
+        "totals": {
+            "total_hours": total_hours_all,
+            "total_spent": total_spent_all,
+            "type": "expense"
+        },
+        "partner": {
+            "hourly_rate": partner_hourly_rate,
+            "total_hours": total_hours_all,
+            "partner_cost": partner_cost,
+            "type": "profit"
+        },
+        "grand_total": total_spent_all + partner_cost
+    }
+
+
+@router.get("/{project_id}/billing")
+async def get_project_billing(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_manager)
+):
+    proj_result = await db.execute(
+        select(Project).where(Project.id == project_id)
+    )
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    # Get summary to calculate unbilled
+    summary = await get_project_summary(project_id, db, current_user)
+    total_cost = summary["totals"]["total_spent"] + summary["partner"]["partner_cost"]
+
+    billed = float(project.billed_amount or 0)
+    unbilled = max(0, total_cost - billed)
+
+    return {
+        "project_id": project_id,
+        "project_name": project.name,
+        "billed_amount": billed,
+        "unbilled_amount": unbilled,
+        "total_cost": total_cost,
+        "pie_data": [
+            {"label": "Billed", "value": billed},
+            {"label": "Unbilled", "value": unbilled}
+        ]
+    }
+
+
+@router.patch("/{project_id}/billing")
+async def update_billing(
+    project_id: int,
+    billed_amount: float,
+    partner_hourly_rate: float = None,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_admin)
+):
+    proj_result = await db.execute(
+        select(Project).where(Project.id == project_id)
+    )
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    project.billed_amount = billed_amount
+    if partner_hourly_rate is not None:
+        project.partner_hourly_rate = partner_hourly_rate
+
+    await db.commit()
+    await db.refresh(project)
+    return {"message": "Billing updated", "billed_amount": billed_amount}
