@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
-from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets
+from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices
 
 
 security = HTTPBearer()
@@ -12,7 +12,7 @@ app = FastAPI(title="Studio MH02")
 # CORS – allow the Vite dev server to reach the API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -36,7 +36,8 @@ app.include_router(timesheets.router)
 app.include_router(uploads.router)
 app.include_router(reimbursements.router)
 app.include_router(weekly_timesheets.router)
-
+app.include_router(bank_accounts.router)
+app.include_router(invoices.router)
 
 
 @app.get("/health")

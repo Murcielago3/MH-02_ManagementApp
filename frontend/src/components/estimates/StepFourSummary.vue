@@ -244,7 +244,12 @@ async function handleAddProject() {
     
     // Assign team members
     for (const emp of store.employeesWithCost) {
-      await projectsAPI.assignUser(projectId, emp.id)
+      const basePay = Number(emp.basePay) || 0
+      if (!basePay) continue
+      await projectsAPI.assignEmployee(projectId, {
+        user_id: emp.userId ?? emp.id,
+        base_pay: basePay,
+      })
     }
     
     alert(`Project ${projectNumber} and team added successfully!`)

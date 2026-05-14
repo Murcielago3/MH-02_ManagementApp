@@ -25,6 +25,7 @@
           <tr>
             <th>Project No.</th>
             <th>Name</th>
+            <th>Client</th>
             <th>Location</th>
             <th>Stage</th>
             <th>Year</th>
@@ -48,6 +49,7 @@
                 {{ p.name }}
               </span>
             </td>
+            <td><span class="muted">{{ getClientName(p.client_id) }}</span></td>
             <td class="muted">{{ p.location || '—' }}</td>
             <td>
               <span class="stage-badge" :class="stageBadgeClass(p.current_stage)">
@@ -170,6 +172,26 @@
                   </div>
                 </div>
               </div>
+              <!-- Partner Hourly Rate -->
+              <div class="form-field" v-if="isAdmin">
+                <label>Partner Rate/hr (₹)</label>
+                <input
+                  v-model.number="form.partner_hourly_rate"
+                  type="number"
+                  min="0"
+                  step="100"
+                  placeholder="e.g. 1500"
+                />
+              </div>
+              <!-- Budgets -->
+              <div class="form-field" v-if="isAdmin">
+                <label>Employee Budget (₹)</label>
+                <CurrencyInput v-model="form.employee_budget" placeholder="e.g. 500000" />
+              </div>
+              <div class="form-field" v-if="isAdmin">
+                <label>Partner Budget (₹)</label>
+                <CurrencyInput v-model="form.partner_budget" placeholder="e.g. 200000" />
+              </div>
               <!-- Partner Remuneration -->
               <div class="form-field" v-if="isAdmin">
                 <label>Partner Remuneration (₹)</label>
@@ -243,92 +265,173 @@
           </div>
 
           <div class="modal-body">
+            <!-- Budget Alerts -->
+            <div v-if="isAdmin && (employeeBudgetPercent >= 90 || partnerBudgetPercent >= 90)" class="budget-alerts mb-4">
+              <div v-if="employeeBudgetPercent >= 90" class="form-error" :style="{ background: employeeBudgetPercent > 100 ? '#ffdad6' : '#fef3c7', color: employeeBudgetPercent > 100 ? '#93000a' : '#92400e', marginTop: '0', marginBottom: '8px' }">
+                <span class="material-symbols-outlined">{{ employeeBudgetPercent > 100 ? 'error' : 'warning' }}</span>
+                Employee Budget is {{ employeeBudgetPercent }}% utilized. {{ employeeBudgetPercent > 100 ? 'Limit exceeded!' : 'Approaching limit.' }}
+              </div>
+              <div v-if="partnerBudgetPercent >= 90" class="form-error" :style="{ background: partnerBudgetPercent > 100 ? '#ffdad6' : '#fef3c7', color: partnerBudgetPercent > 100 ? '#93000a' : '#92400e', marginTop: '0', marginBottom: '8px' }">
+                <span class="material-symbols-outlined">{{ partnerBudgetPercent > 100 ? 'error' : 'warning' }}</span>
+                Partner Budget is {{ partnerBudgetPercent }}% utilized. {{ partnerBudgetPercent > 100 ? 'Limit exceeded!' : 'Approaching limit.' }}
+              </div>
+            </div>
+
             <div class="detail-grid">
               <!-- Project Info -->
-              <div class="detail-section">
+              <div class="detail-section info-section">
                 <h4 class="section-title">Project Information</h4>
                 <div class="info-grid">
                   <div class="info-item">
                     <label>Project Number</label>
-                    <span>{{ detailProject?.project_number }}</span>
+                    <input v-if="isAdmin" v-model="detailProject.project_number" type="text" />
+                    <span v-else>{{ detailProject?.project_number }}</span>
                   </div>
                   <div class="info-item">
                     <label>Name</label>
-                    <span>{{ detailProject?.name }}</span>
+                    <input v-if="isAdmin" v-model="detailProject.name" type="text" />
+                    <span v-else>{{ detailProject?.name }}</span>
                   </div>
                   <div class="info-item">
                     <label>Location</label>
-                    <span>{{ detailProject?.location || '—' }}</span>
+                    <input v-if="isAdmin" v-model="detailProject.location" type="text" />
+                    <span v-else>{{ detailProject?.location || '—' }}</span>
                   </div>
                   <div class="info-item">
                     <label>Google Maps</label>
-                    <span v-if="detailProject?.gmap_link">
+                    <input v-if="isAdmin" v-model="detailProject.gmap_link" type="url" placeholder="https://..." />
+                    <span v-else-if="detailProject?.gmap_link">
                       <a :href="detailProject.gmap_link" target="_blank">View Map</a>
                     </span>
                     <span v-else>—</span>
                   </div>
                   <div class="info-item">
                     <label>Year</label>
-                    <span>{{ detailProject?.year || '—' }}</span>
+                    <input v-if="isAdmin" v-model.number="detailProject.year" type="number" />
+                    <span v-else>{{ detailProject?.year || '—' }}</span>
                   </div>
                   <div class="info-item">
                     <label>Stage</label>
-                    <span>{{ detailProject?.current_stage || '—' }}</span>
+                    <select v-if="isAdmin" v-model="detailProject.current_stage">
+                      <option v-for="s in stages" :key="s" :value="s">{{ s }}</option>
+                    </select>
+                    <span v-else>{{ detailProject?.current_stage || '—' }}</span>
                   </div>
                   <div class="info-item">
                     <label>Billing Status</label>
-                    <span>{{ detailProject?.is_billed }}</span>
+                    <select v-if="isAdmin" v-model="detailProject.is_billed">
+                      <option value="unbilled">Unbilled</option>
+                      <option value="billed">Billed</option>
+                      <option value="partial">Partial</option>
+                    </select>
+                    <span v-else>{{ detailProject?.is_billed }}</span>
                   </div>
                   <div class="info-item">
                     <label>Client</label>
-                    <span>{{ getClientName(detailProject?.client_id) }}</span>
+                    <select v-if="isAdmin" v-model="detailProject.client_id">
+                      <option :value="null">No Client</option>
+                      <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.name }}</option>
+                    </select>
+                    <span v-else>{{ getClientName(detailProject?.client_id) }}</span>
                   </div>
-                  <template v-if="isAdmin">
-                    <div class="info-item">
-                      <label>Partner Remuneration</label>
-                      <span>{{ formatAmount(detailProject?.partner_remuneration) }}</span>
-                    </div>
-                    <div class="info-item">
-                      <label>Employee Remuneration</label>
-                      <span>{{ formatAmount(detailProject?.employee_remuneration) }}</span>
-                    </div>
-                    <div class="info-item">
-                      <label>Total Remuneration</label>
-                      <span>{{ formatAmount(detailProject?.project_remuneration) }}</span>
-                    </div>
-                  </template>
+                </div>
+
+                <div class="info-grid mt-4" v-if="isAdmin">
+                  <div class="info-item">
+                    <label>Partner Rate/hr</label>
+                    <input v-model.number="detailProject.partner_hourly_rate" type="number" />
+                  </div>
+                  <div class="info-item">
+                    <label>Partner Remuneration</label>
+                    <CurrencyInput v-model="detailProject.partner_remuneration" />
+                  </div>
+                  <div class="info-item">
+                    <label>Employee Remuneration</label>
+                    <CurrencyInput v-model="detailProject.employee_remuneration" />
+                  </div>
+                  <div class="info-item">
+                    <label>Total Remuneration</label>
+                    <CurrencyInput v-model="detailProject.project_remuneration" />
+                  </div>
+                  <div class="info-item">
+                    <label>Employee Budget</label>
+                    <CurrencyInput v-model="detailProject.employee_budget" />
+                  </div>
+                  <div class="info-item">
+                    <label>Partner Budget</label>
+                    <CurrencyInput v-model="detailProject.partner_budget" />
+                  </div>
                 </div>
               </div>
 
-              <!-- Hours Breakdown (Burn-down) -->
+              <!-- Budget Tracking -->
               <div class="detail-section highlight-section" v-if="isAdmin">
-                <h4 class="section-title">Hours Tracking</h4>
-                <div class="hours-track-grid">
-                  <div class="track-item">
-                    <label>Assigned</label>
-                    <div class="track-val">{{ detailProject?.total_assigned_hours || 0 }}h</div>
+                <h4 class="section-title">Budget Tracking</h4>
+                <!-- Employee Budget -->
+                <div class="budget-block">
+                  <div class="hours-track-grid">
+                    <div class="track-item">
+                      <label>Employee Budget</label>
+                      <div class="track-val">₹{{ formatAmount(detailProject?.employee_budget || 0) }}</div>
+                    </div>
+                    <div class="track-item">
+                      <label>Employee Cost</label>
+                      <div class="track-val text-primary">₹{{ formatAmount(detailProject?.employee_remuneration || 0) }}</div>
+                    </div>
+                    <div class="track-item">
+                      <label>Remaining</label>
+                      <div class="track-val" :class="(detailProject?.employee_budget || 0) - (detailProject?.employee_remuneration || 0) < 0 ? 'text-danger' : 'text-success'">
+                        ₹{{ formatAmount((detailProject?.employee_budget || 0) - (detailProject?.employee_remuneration || 0)) }}
+                      </div>
+                    </div>
                   </div>
-                  <div class="track-item">
-                    <label>Worked (Approved)</label>
-                    <div class="track-val text-primary">{{ detailProject?.total_worked_hours || 0 }}h</div>
-                  </div>
-                  <div class="track-item">
-                    <label>Remaining</label>
-                    <div class="track-val" :class="remainingHours < 0 ? 'text-danger' : 'text-success'">
-                      {{ remainingHours }}h
+                  <div class="progress-container">
+                    <div class="progress-bar">
+                      <div 
+                        class="progress-fill" 
+                        :style="{ width: Math.min(100, employeeBudgetPercent) + '%', background: employeeBudgetPercent > 100 ? '#dc2626' : (employeeBudgetPercent >= 90 ? '#f59e0b' : 'var(--color-primary)') }"
+                      ></div>
+                    </div>
+                    <div class="progress-labels">
+                      <span>{{ employeeBudgetPercent }}% Utilized</span>
+                      <span v-if="employeeBudgetPercent >= 90" :style="{ color: employeeBudgetPercent > 100 ? '#ba1a1a' : '#f59e0b', fontWeight: '700' }">
+                        {{ employeeBudgetPercent > 100 ? 'Budget Exceeded!' : 'Nearing Budget Limit!' }}
+                      </span>
                     </div>
                   </div>
                 </div>
-                <div class="progress-container">
-                  <div class="progress-bar">
-                    <div 
-                      class="progress-fill" 
-                      :style="{ width: Math.min(100, progressPercent) + '%', background: progressPercent > 100 ? '#dc2626' : 'var(--color-primary)' }"
-                    ></div>
+
+                <!-- Partner Budget -->
+                <div class="budget-block" style="margin-top: 24px;">
+                  <div class="hours-track-grid">
+                    <div class="track-item">
+                      <label>Partner Budget</label>
+                      <div class="track-val">₹{{ formatAmount(detailProject?.partner_budget || 0) }}</div>
+                    </div>
+                    <div class="track-item">
+                      <label>Partner Cost</label>
+                      <div class="track-val text-primary">₹{{ formatAmount(detailProject?.partner_remuneration || 0) }}</div>
+                    </div>
+                    <div class="track-item">
+                      <label>Remaining</label>
+                      <div class="track-val" :class="(detailProject?.partner_budget || 0) - (detailProject?.partner_remuneration || 0) < 0 ? 'text-danger' : 'text-success'">
+                        ₹{{ formatAmount((detailProject?.partner_budget || 0) - (detailProject?.partner_remuneration || 0)) }}
+                      </div>
+                    </div>
                   </div>
-                  <div class="progress-labels">
-                    <span>{{ progressPercent }}% Utilized</span>
-                    <span v-if="progressPercent > 100" class="text-danger">Budget Exceeded!</span>
+                  <div class="progress-container">
+                    <div class="progress-bar">
+                      <div 
+                        class="progress-fill" 
+                        :style="{ width: Math.min(100, partnerBudgetPercent) + '%', background: partnerBudgetPercent > 100 ? '#dc2626' : (partnerBudgetPercent >= 90 ? '#f59e0b' : 'var(--color-primary)') }"
+                      ></div>
+                    </div>
+                    <div class="progress-labels">
+                      <span>{{ partnerBudgetPercent }}% Utilized</span>
+                      <span v-if="partnerBudgetPercent >= 90" :style="{ color: partnerBudgetPercent > 100 ? '#ba1a1a' : '#f59e0b', fontWeight: '700' }">
+                        {{ partnerBudgetPercent > 100 ? 'Budget Exceeded!' : 'Nearing Budget Limit!' }}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -338,7 +441,22 @@
                 <h4 class="section-title">Assigned Employees</h4>
                 <div v-if="detailProject?.assignments?.length" class="assignments-list">
                   <div v-for="a in detailProject.assignments" :key="a.id" class="assignment-item">
-                    {{ a.user?.name }} ({{ a.user?.designation }})
+                    <div class="assign-main">
+                      <div class="assign-info">
+                        <span class="assign-name">{{ a.user?.name }}</span>
+                        <span class="assign-role">{{ a.user?.designation }}</span>
+                      </div>
+                      <div class="assign-stats">
+                        <div class="stat-item">
+                          <label>Hours Spent</label>
+                          <span class="stat-val">{{ a.hours_worked || 0 }}h</span>
+                        </div>
+                        <div class="stat-item">
+                          <label>Base Pay</label>
+                          <span class="stat-val">₹{{ formatAmount(a.base_pay) }}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div v-else class="empty-state">No employees assigned yet.</div>
@@ -347,9 +465,29 @@
                 <div class="assign-form">
                   <select v-model="assignUserId">
                     <option :value="null">— Select Employee —</option>
-                    <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }} ({{ u.designation }})</option>
+                    <option v-for="u in assignableUsers" :key="u.id" :value="u.id">
+                      {{ u.name }} ({{ u.designation }})
+                    </option>
                   </select>
-                  <button class="btn-assign" :disabled="!assignUserId || assignSubmitting" @click="assignUser">
+                  <div class="assign-pay-block">
+                    <label class="assign-pay-label">Base Pay (₹/month)</label>
+                    <input
+                      v-model.number="assignBasePay"
+                      type="number"
+                      min="0"
+                      step="100"
+                      class="assign-base-input"
+                      placeholder="e.g. 80000"
+                    />
+                    <p v-if="assignPreviewHourly != null" class="assign-hourly-preview">
+                      Hourly Rate: {{ formatInrPerHour(assignPreviewHourly) }}
+                    </p>
+                  </div>
+                  <button
+                    class="btn-assign"
+                    :disabled="!assignUserId || assignBasePay == null || assignBasePay === '' || Number(assignBasePay) <= 0 || assignSubmitting"
+                    @click="assignUser"
+                  >
                     {{ assignSubmitting ? 'Assigning…' : 'Assign' }}
                   </button>
                 </div>
@@ -375,20 +513,36 @@
               </div>
             </div>
           </div>
+          <div class="modal-footer" v-if="isAdmin">
+            <button class="btn-cancel" @click="closeDetailModal">Cancel</button>
+            <button class="btn-submit" :disabled="submitting" @click="saveDetailChanges">
+              {{ submitting ? 'Saving...' : 'Save All Changes' }}
+            </button>
+          </div>
         </div>
       </div>
     </Teleport>
+
+    <ToastNotification
+      v-if="toastMsg"
+      :message="toastMsg"
+      :type="toastType"
+      @done="toastMsg = ''"
+    />
   </component>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import EmployeeLayout from '../components/EmployeeLayout.vue'
+import CurrencyInput from '../components/CurrencyInput.vue'
+import ToastNotification from '../components/ToastNotification.vue'
 import { useAuthStore } from '../stores/auth'
 import { projectsAPI } from '../api/projects'
 import { clientsAPI } from '../api/clients'
 import { usersAPI } from '../api/users'
+import { formatInrPerHour, previewHourlyFromBasePay } from '../utils/currency'
 
 const authStore = useAuthStore()
 
@@ -417,10 +571,29 @@ const deleteTarget = ref(null)
 const detailModalOpen = ref(false)
 const detailProject = ref(null)
 const assignUserId = ref(null)
+const assignBasePay = ref(null)
 const assignSubmitting = ref(false)
 const uploadFile = ref(null)
 const uploadSubmitting = ref(false)
 const uploadInput = ref(null)
+
+const toastMsg = ref('')
+const toastType = ref('success')
+
+function toast(msg, type = 'success') {
+  toastType.value = type
+  toastMsg.value = msg
+}
+
+const assignableUsers = computed(() => {
+  const assignments = detailProject.value?.assignments || []
+  const taken = new Set(
+    assignments.map((a) => a.user_id ?? a.user?.id).filter((id) => id != null)
+  )
+  return users.value.filter((u) => !taken.has(u.id))
+})
+
+const assignPreviewHourly = computed(() => previewHourlyFromBasePay(assignBasePay.value))
 
 const stages = [
   'In Progress', 'Incomplete Beyond Deadline', 'Halted', 'Completed'
@@ -440,6 +613,9 @@ const form = reactive({
   project_remuneration: null,
   total_assigned_hours: null,
   color: '#287475',
+  partner_hourly_rate: null,
+  employee_budget: null,
+  partner_budget: null,
 })
 
 const projectPresets = [
@@ -450,12 +626,23 @@ const projectPresets = [
 async function fetchAll() {
   loading.value = true
   try {
-    const [pr, cl, us] = await Promise.all([projectsAPI.getProjects(), clientsAPI.getClients(), usersAPI.getUsers()])
-    projects.value = pr.data
-    clients.value = cl.data
-    users.value = us.data
+    const results = await Promise.allSettled([
+      projectsAPI.getProjects(),
+      clientsAPI.getClients(),
+      usersAPI.getUsers()
+    ])
+    
+    if (results[0].status === 'fulfilled') projects.value = results[0].value.data
+    else console.error('Projects fetch failed', results[0].reason)
+    
+    if (results[1].status === 'fulfilled') clients.value = results[1].value.data
+    else console.error('Clients fetch failed', results[1].reason)
+    
+    if (results[2].status === 'fulfilled') users.value = results[2].value.data
+    else console.error('Users fetch failed', results[2].reason)
+    
   } catch (e) {
-    console.error(e)
+    console.error('FetchAll failed', e)
   } finally {
     loading.value = false
   }
@@ -469,7 +656,13 @@ const yearOptions = computed(() => {
 })
 
 const filtered = computed(() => {
-  let list = projects.value
+  let list = [...projects.value]
+  // Sort: Year desc, Number desc (Newer first)
+  list.sort((a, b) => {
+    if (b.year !== a.year) return (b.year || 0) - (a.year || 0)
+    return (b.project_number || '').localeCompare(a.project_number || '')
+  })
+  
   if (filterYear.value) list = list.filter(p => p.year === Number(filterYear.value))
   const q = searchQuery.value.toLowerCase()
   if (q) list = list.filter(p =>
@@ -499,14 +692,26 @@ function resetForm() {
   form.project_remuneration = null
   form.total_assigned_hours = null
   form.color = '#287475'
+  form.partner_hourly_rate = null
+  form.employee_budget = null
+  form.partner_budget = null
   formError.value = ''
 }
 
-function openAddModal() {
+async function openAddModal() {
   resetForm()
   isEditing.value = false
   editingId.value = null
   modalOpen.value = true
+  
+  try {
+    const res = await projectsAPI.getNextNumber()
+    if (res.data?.next_number) {
+      form.project_number = res.data.next_number
+    }
+  } catch (e) {
+    console.error('Failed to fetch next project number', e)
+  }
 }
 
 function openEditModal(p) {
@@ -525,37 +730,102 @@ function openEditModal(p) {
   form.project_remuneration = p.project_remuneration ? Number(p.project_remuneration) : null
   form.total_assigned_hours = p.total_assigned_hours ? Number(p.total_assigned_hours) : null
   form.color = p.color || '#287475'
+  form.partner_hourly_rate =
+    p.partner_hourly_rate != null && p.partner_hourly_rate !== ''
+      ? Number(p.partner_hourly_rate)
+      : null
+  form.employee_budget = p.employee_budget ? Number(p.employee_budget) : null
+  form.partner_budget = p.partner_budget ? Number(p.partner_budget) : null
   formError.value = ''
   modalOpen.value = true
 }
 
 function closeModal() { modalOpen.value = false }
 
+// Automatic Calculations in Detail Modal
+watch(() => detailProject.value?.partner_hourly_rate, (newVal) => {
+  if (!detailProject.value || newVal === null || newVal === undefined) return
+  const hrs = Number(detailProject.value.total_worked_hours) || 0
+  detailProject.value.partner_remuneration = Number(newVal) * hrs
+})
+
+watch([() => detailProject.value?.partner_remuneration, () => detailProject.value?.employee_remuneration], ([newP, newE]) => {
+  if (!detailProject.value) return
+  const pRem = Number(newP) || 0
+  const eRem = Number(newE) || 0
+  detailProject.value.project_remuneration = pRem + eRem
+})
+
 async function openDetailModal(p) {
   try {
     const res = await projectsAPI.getProject(p.id)
     detailProject.value = res.data
+    assignUserId.value = null
+    assignBasePay.value = null
     detailModalOpen.value = true
   } catch (e) {
+    toast(e.response?.data?.detail || 'Could not load project.', 'error')
     console.error(e)
   }
 }
 
-function closeDetailModal() { detailModalOpen.value = false }
+function closeDetailModal() {
+  detailModalOpen.value = false
+  assignUserId.value = null
+  assignBasePay.value = null
+}
 
 async function assignUser() {
-  if (!assignUserId.value) return
+  if (!assignUserId.value || assignBasePay.value == null || assignBasePay.value === '') return
+  const bp = Number(assignBasePay.value)
+  if (bp <= 0) return
   assignSubmitting.value = true
   try {
-    await projectsAPI.assignUser(detailProject.value.id, assignUserId.value)
+    await projectsAPI.assignEmployee(detailProject.value.id, {
+      user_id: assignUserId.value,
+      base_pay: bp,
+    })
     assignUserId.value = null
-    // Refresh detail
+    assignBasePay.value = null
+    toast('Employee assigned.')
     const res = await projectsAPI.getProject(detailProject.value.id)
     detailProject.value = res.data
   } catch (e) {
+    toast(e.response?.data?.detail || 'Assignment failed.', 'error')
     console.error(e)
   } finally {
     assignSubmitting.value = false
+  }
+}
+
+async function saveDetailChanges() {
+  if (!detailProject.value) return
+  submitting.value = true
+  try {
+    const payload = {
+      project_number: detailProject.value.project_number,
+      name: detailProject.value.name,
+      location: detailProject.value.location || null,
+      gmap_link: detailProject.value.gmap_link || null,
+      year: detailProject.value.year || null,
+      current_stage: detailProject.value.current_stage || null,
+      is_billed: detailProject.value.is_billed,
+      client_id: detailProject.value.client_id || null,
+      start_date: detailProject.value.start_date || null,
+      end_date: detailProject.value.end_date || null,
+      employee_budget: detailProject.value.employee_budget,
+      partner_budget: detailProject.value.partner_budget,
+      project_remuneration: detailProject.value.project_remuneration,
+      color: detailProject.value.color,
+      partner_hourly_rate: detailProject.value.partner_hourly_rate,
+    }
+    await projectsAPI.updateProject(detailProject.value.id, payload)
+    toast('Project details saved.')
+    await fetchAll()
+  } catch (err) {
+    toast(err.response?.data?.detail || 'Save failed.', 'error')
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -575,7 +845,9 @@ async function uploadWorkorder() {
     // Refresh detail
     const res = await projectsAPI.getProject(detailProject.value.id)
     detailProject.value = res.data
+    toast('Work order uploaded.')
   } catch (e) {
+    toast(e.response?.data?.detail || 'Upload failed.', 'error')
     console.error(e)
   } finally {
     uploadSubmitting.value = false
@@ -600,6 +872,9 @@ async function handleSubmit() {
       project_remuneration: form.project_remuneration,
       total_assigned_hours: form.total_assigned_hours,
       color: form.color,
+      partner_hourly_rate: form.partner_hourly_rate,
+      employee_budget: form.employee_budget,
+      partner_budget: form.partner_budget,
     }
     if (isEditing.value) {
       await projectsAPI.updateProject(editingId.value, payload)
@@ -607,9 +882,11 @@ async function handleSubmit() {
       await projectsAPI.createProject(payload)
     }
     closeModal()
+    toast(isEditing.value ? 'Project updated.' : 'Project created.')
     await fetchAll()
   } catch (err) {
     formError.value = err.response?.data?.detail || 'Operation failed. Please try again.'
+    toast(formError.value, 'error')
   } finally {
     submitting.value = false
   }
@@ -622,8 +899,10 @@ async function handleDelete() {
   try {
     await projectsAPI.deleteProject(deleteTarget.value.id)
     deleteTarget.value = null
+    toast('Project deleted.')
     await fetchAll()
   } catch (err) {
+    toast(err.response?.data?.detail || 'Delete failed.', 'error')
     console.error(err)
   } finally {
     submitting.value = false
@@ -660,6 +939,19 @@ const progressPercent = computed(() => {
   if (assigned <= 0) return 0
   const worked = Number(detailProject.value?.total_worked_hours) || 0
   return Math.round((worked / assigned) * 100)
+})
+const employeeBudgetPercent = computed(() => {
+  const budget = Number(detailProject.value?.employee_budget) || 0
+  if (budget <= 0) return 0
+  const cost = Number(detailProject.value?.employee_remuneration) || 0
+  return Math.round((cost / budget) * 100)
+})
+
+const partnerBudgetPercent = computed(() => {
+  const budget = Number(detailProject.value?.partner_budget) || 0
+  if (budget <= 0) return 0
+  const cost = Number(detailProject.value?.partner_remuneration) || 0
+  return Math.round((cost / budget) * 100)
 })
 </script>
 
@@ -918,7 +1210,8 @@ form .modal-footer { margin-top: 24px; padding: 0; border-top: none; }
 }
 
 /* ─── Detail Modal ─── */
-.modal-xl { max-width: 1200px; }
+.modal-xl { width: 1200px; max-width: 98vw; height: 95vh; display: flex; flex-direction: column; }
+.modal-xl .modal-body { flex: 1; overflow-y: auto; padding: 32px; }
 .detail-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 32px;
 }
@@ -938,24 +1231,75 @@ form .modal-footer { margin-top: 24px; padding: 0; border-top: none; }
   text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-on-surface-variant);
 }
 .info-item span {
-  font-family: var(--font-display); font-size: 14px; color: var(--color-on-surface);
+  font-family: var(--font-body); font-size: 14px; color: var(--color-on-surface);
 }
+.info-item input, .info-item select {
+  height: 36px; padding: 0 8px; border: 1px solid var(--color-outline-variant);
+  border-radius: 4px; font-family: var(--font-body); font-size: 13px; outline: none;
+  background: var(--color-surface-dim);
+}
+.info-item input:focus, .info-item select:focus {
+  border-color: var(--color-primary); background: #fff;
+}
+.mt-4 { margin-top: 16px; }
 .assignments-list {
   margin-bottom: 16px;
 }
 .assignment-item {
-  padding: 8px 12px; background: var(--color-background); border-radius: var(--radius);
-  font-family: var(--font-display); font-size: 13px; color: var(--color-on-surface);
-  margin-bottom: 8px;
+  padding: 12px 16px; background: var(--color-surface-dim); border-radius: var(--radius-lg);
+  margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;
+  border: 1px solid var(--color-outline-variant);
 }
+.assign-main { flex: 1; display: flex; justify-content: space-between; align-items: center; }
+.assign-info { display: flex; flex-direction: column; gap: 2px; }
+.assign-name { font-family: var(--font-display); font-size: 14px; font-weight: 600; color: var(--color-on-surface); }
+.assign-role { font-size: 11px; color: var(--color-on-surface-variant); text-transform: uppercase; letter-spacing: 0.02em; }
+.assign-stats { display: flex; gap: 24px; }
+.stat-item { display: flex; flex-direction: column; gap: 2px; }
+.stat-item label { font-size: 9px; text-transform: uppercase; color: var(--color-on-surface-variant); font-weight: 700; }
+.stat-val { font-family: var(--font-body); font-size: 13px; font-weight: 600; color: var(--color-on-surface); }
 .assign-form {
-  display: flex; gap: 12px; align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+  margin-top: 16px;
 }
 .assign-form select {
-  flex: 1; padding: 8px 12px; border: 1px solid var(--color-surface-container-high);
-  border-radius: var(--radius); font-family: var(--font-display); font-size: 13px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--color-surface-container-high);
+  border-radius: var(--radius);
+  font-family: var(--font-display);
+  font-size: 13px;
+}
+.assign-pay-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.assign-pay-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-on-surface-variant);
+}
+.assign-base-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--color-surface-container-high);
+  border-radius: var(--radius-lg);
+  font-size: 14px;
+}
+.assign-hourly-preview {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
 }
 .btn-assign {
+  align-self: flex-start;
   padding: 8px 16px; background: var(--color-primary); color: #fff; border: none;
   border-radius: var(--radius); font-family: var(--font-display); font-size: 13px;
   cursor: pointer; transition: background 0.15s;

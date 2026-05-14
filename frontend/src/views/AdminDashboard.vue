@@ -34,9 +34,9 @@
             <g v-for="(sale, idx) in monthlyChartData" :key="idx">
               <rect 
                 :x="65 + idx * 58" 
-                :y="260 - (sale.value / maxSalesValue * 235)" 
+                :y="260 - (Number(sale.value) / maxSalesValue * 235)" 
                 width="45" 
-                height="sale.value / maxSalesValue * 235" 
+                :height="Number(sale.value) / maxSalesValue * 235" 
                 fill="#4ade80" 
                 rx="4"
               />

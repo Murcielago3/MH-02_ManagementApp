@@ -14,12 +14,14 @@ class ClientCreate(BaseModel):
     email: str
     phone: str
     address: str
+    gstin: Optional[str] = None
 
 class ClientUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     address: Optional[str] = None
+    gstin: Optional[str] = None
 
 @router.get("/")
 async def list_clients(
@@ -52,7 +54,8 @@ async def create_client(
         name=data.name,
         email=data.email,
         phone=data.phone,
-        address=data.address
+        address=data.address,
+        gstin=data.gstin
     )
     db.add(client)
     await db.commit()

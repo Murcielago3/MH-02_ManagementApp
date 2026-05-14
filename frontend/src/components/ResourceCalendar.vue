@@ -6,6 +6,16 @@
         <button class="rc-btn rc-today" @click="goToday">Today</button>
         <button class="rc-btn" @click="next"><span class="material-symbols-outlined">chevron_right</span></button>
         <span class="rc-period">{{ periodLabel }}</span>
+        <div class="rc-divider"></div>
+        <button 
+          class="rc-tool-toggle" 
+          :class="{ active: isSplitMode }"
+          @click="isSplitMode = !isSplitMode"
+          title="Toggle Split/Cut Mode"
+        >
+          <span class="material-symbols-outlined">{{ isSplitMode ? 'close' : 'content_cut' }}</span>
+          {{ isSplitMode ? 'Exit Cut Mode' : 'Split Task' }}
+        </button>
       </div>
     </div>
 
@@ -60,14 +70,38 @@
                   :class="{ completed: rb.task.status === 'completed', delayed: isDelayed(rb.task) }"
                   :style="rbStyle(rb)"
                   @click.stop="$emit('ribbon-click', rb.task)"
+                  @dblclick.stop="onSplit($event, rb.task)"
                   @mousedown.stop
                 >
-                  <div class="rb-content">
+                  <div 
+                    class="rb-handle rb-handle-start" 
+                    @mousedown.stop.prevent="onHandleDown($event, rb.task, 'resize-start')"
+                  ></div>
+                  <div 
+                    class="rb-content" 
+                    @mousedown.stop.prevent="onRibbonDown($event, rb.task)"
+                    @mousemove="onRibbonHover($event, rb.task)"
+                    @mouseleave="hoverState.taskId = null"
+                    :class="{ 'cut-ready': isSplitMode && hoverState.taskId === rb.task.id }"
+                  >
                     <span class="rb-title">{{ rb.task.title }}</span>
                     <span v-if="rb.project" class="rb-project">{{ rb.project.name }}</span>
                   </div>
+                  <div 
+                    v-if="isSplitMode && hoverState.taskId === rb.task.id && canSplit(rb.task)"
+                    class="rb-tools"
+                    :style="{ left: hoverState.x + 'px' }"
+                  >
+                    <div class="rb-cut-line"></div>
+                    <div class="rb-cut-indicator">
+                      <span class="material-symbols-outlined">content_cut</span>
+                    </div>
+                  </div>
                   <span v-if="isDelayed(rb.task)" class="rb-delay">{{ taskDelay(rb.task) }}d</span>
-                  <div class="rb-handle" @mousedown.stop.prevent="onHandleDown($event, rb.task)"></div>
+                  <div 
+                    class="rb-handle rb-handle-end" 
+                    @mousedown.stop.prevent="onHandleDown($event, rb.task, 'resize-end')"
+                  ></div>
                 </div>
               </div>
             </div>
@@ -86,7 +120,12 @@
 
     <div v-if="drag.mode" class="rc-tooltip" :style="{ left: drag.mx + 16 + 'px', top: drag.my - 32 + 'px' }">
       <template v-if="drag.mode === 'create'">{{ fmtShort(drag.startDate) }} → {{ fmtShort(drag.currentDate) }} · {{ dragDays }} days</template>
-      <template v-if="drag.mode === 'extend'">Ends: {{ fmtShort(drag.currentDate) }}</template>
+      <template v-else-if="drag.mode === 'resize-end'">Ends: {{ fmtShort(drag.currentDate) }}</template>
+      <template v-else-if="drag.mode === 'resize-start'">Starts: {{ fmtShort(drag.currentDate) }}</template>
+      <template v-else-if="drag.mode === 'move' || drag.mode === 'clone'">
+        <span class="tooltip-mode">{{ drag.mode === 'clone' ? 'COPY' : 'MOVE' }}</span>
+        {{ fmtShort(drag.currentDate) }} · {{ userMap[drag.empId]?.name }}
+      </template>
     </div>
   </div>
 </template>
@@ -101,7 +140,7 @@ const props = defineProps({
   leaves: { type: Array, default: () => [] },
   filterEmployeeId: { type: Number, default: null },
 })
-const emit = defineEmits(['ribbon-click', 'cell-drag-create', 'ribbon-drag-extend'])
+const emit = defineEmits(['ribbon-click', 'cell-drag-create', 'ribbon-drag-extend', 'ribbon-move', 'ribbon-clone', 'ribbon-split'])
 
 const COL_W = 120
 const DAY_COUNT = 21 // 3 weeks
@@ -199,8 +238,27 @@ const legendItems = computed(() => {
 })
 
 // Drag
-const drag = reactive({ mode: null, taskId: null, empId: null, startDate: null, currentDate: null, origEnd: null, mx: 0, my: 0 })
+const drag = reactive({ 
+  mode: null, 
+  taskId: null, 
+  empId: null, 
+  startDate: null, 
+  currentDate: null, 
+  origEnd: null, 
+  origStart: null,
+  offsetDays: 0,
+  mx: 0, 
+  my: 0 
+})
 const dragDays = computed(() => (!drag.startDate || !drag.currentDate) ? 0 : Math.abs(daysBetween(drag.startDate, drag.currentDate)) + 1)
+
+const hoverState = reactive({ taskId: null, date: null, x: 0 })
+const isSplitMode = ref(false)
+
+function canSplit(task) {
+  const dur = daysBetween(task.date, task.end_date || task.date)
+  return dur >= 1 // Must be at least 2 days long to split
+}
 let scrollRAF = null
 
 function isDragHL(ds, eid) {
@@ -211,17 +269,95 @@ function isDragHL(ds, eid) {
 }
 
 function onCellDown(e, ds, eid) { drag.mode = 'create'; drag.empId = eid; drag.startDate = ds; drag.currentDate = ds; drag.mx = e.clientX; drag.my = e.clientY; document.body.style.userSelect = 'none'; startAutoScroll() }
-function onHandleDown(e, task) { drag.mode = 'extend'; drag.taskId = task.id; drag.origEnd = task.end_date || task.date; drag.currentDate = task.end_date || task.date; drag.mx = e.clientX; drag.my = e.clientY; document.body.style.userSelect = 'none'; startAutoScroll() }
+
+function onRibbonDown(e, task) {
+  if (isSplitMode.value) {
+    onSplit(e, task)
+    return
+  }
+  // Use elementsFromPoint to find the cell UNDER the ribbon
+  const elements = document.elementsFromPoint(e.clientX, e.clientY)
+  const cell = elements.find(el => el.dataset?.date)
+  const ds = cell?.dataset.date
+  
+  if (!ds) return
+  
+  drag.mode = e.shiftKey ? 'clone' : 'move'
+  drag.taskId = task.id
+  drag.empId = task.assigned_to
+  drag.startDate = task.date
+  drag.currentDate = ds
+  drag.origStart = task.date
+  drag.origEnd = task.end_date || task.date
+  drag.offsetDays = daysBetween(task.date, ds)
+  drag.mx = e.clientX
+  drag.my = e.clientY
+  document.body.style.userSelect = 'none'
+  startAutoScroll()
+}
+
+function onHandleDown(e, task, mode) { 
+  drag.mode = mode // 'resize-start' or 'resize-end'
+  drag.taskId = task.id
+  drag.empId = task.assigned_to
+  drag.origStart = task.date
+  drag.origEnd = task.end_date || task.date
+  drag.startDate = task.date
+  drag.currentDate = mode === 'resize-start' ? task.date : (task.end_date || task.date)
+  drag.mx = e.clientX
+  drag.my = e.clientY
+  document.body.style.userSelect = 'none'
+  startAutoScroll()
+}
+
+function onRibbonHover(e, task) {
+  if (drag.mode || !isSplitMode.value) { hoverState.taskId = null; return }
+  
+  const elements = document.elementsFromPoint(e.clientX, e.clientY)
+  const cell = elements.find(el => el.dataset?.date)
+  const ds = cell?.dataset.date
+  
+  if (ds && ds > task.date) {
+    const rect = e.currentTarget.getBoundingClientRect()
+    hoverState.taskId = task.id
+    hoverState.date = ds
+    // Position relative to ribbon start
+    const dayOffset = daysBetween(task.date, ds)
+    hoverState.x = dayOffset * COL_W
+  } else {
+    hoverState.taskId = null
+  }
+}
+
+function onSplit(e, task) {
+  const ds = hoverState.date
+  if (ds && ds > task.date && ds <= (task.end_date || task.date)) {
+    emit('ribbon-split', { taskId: task.id, splitDate: ds })
+    hoverState.taskId = null
+  }
+}
 
 function onMove(e) {
   if (!drag.mode) return
   drag.mx = e.clientX; drag.my = e.clientY
-  const el = document.elementFromPoint(e.clientX, e.clientY)
-  const cell = el?.closest?.('[data-date]')
+  
+  const elements = document.elementsFromPoint(e.clientX, e.clientY)
+  const cell = elements.find(el => el.dataset?.date)
+  
   if (cell) {
     const hd = cell.dataset.date
-    if (drag.mode === 'extend') { const task = props.tasks.find(t => t.id === drag.taskId); if (task && hd >= task.date) drag.currentDate = hd }
-    else drag.currentDate = hd
+    const eid = parseInt(cell.dataset.employee)
+    
+    if (drag.mode === 'resize-end') {
+      if (hd >= drag.origStart) drag.currentDate = hd
+    } else if (drag.mode === 'resize-start') {
+      if (hd <= drag.origEnd) drag.currentDate = hd
+    } else if (drag.mode === 'move' || drag.mode === 'clone') {
+      drag.currentDate = hd
+      drag.empId = eid
+    } else {
+      drag.currentDate = hd
+    }
   }
 }
 
@@ -241,14 +377,36 @@ function stopAutoScroll() { if (scrollRAF) { cancelAnimationFrame(scrollRAF); sc
 function onUp() {
   if (!drag.mode) return
   document.body.style.userSelect = ''; stopAutoScroll()
+  
   if (drag.mode === 'create' && drag.startDate && drag.currentDate) {
     const mn = drag.startDate < drag.currentDate ? drag.startDate : drag.currentDate
     const mx = drag.startDate > drag.currentDate ? drag.startDate : drag.currentDate
     emit('cell-drag-create', { startDate: mn, endDate: mx, employeeId: drag.empId })
-  }
-  if (drag.mode === 'extend' && drag.taskId && drag.currentDate && drag.currentDate !== drag.origEnd)
+  } else if (drag.mode === 'resize-end' && drag.currentDate !== drag.origEnd) {
     emit('ribbon-drag-extend', { taskId: drag.taskId, newEndDate: drag.currentDate })
-  Object.assign(drag, { mode: null, taskId: null, empId: null, startDate: null, currentDate: null, origEnd: null })
+  } else if (drag.mode === 'resize-start' && drag.currentDate !== drag.origStart) {
+    // Re-use extend event or emit new
+    emit('ribbon-move', { taskId: drag.taskId, newDate: drag.currentDate, newEndDate: drag.origEnd, newEmployeeId: drag.empId })
+  } else if ((drag.mode === 'move' || drag.mode === 'clone') && drag.currentDate) {
+    const task = props.tasks.find(t => t.id === drag.taskId)
+    if (task) {
+      const dur = daysBetween(task.date, task.end_date || task.date)
+      const d = new Date(drag.currentDate)
+      d.setDate(d.getDate() - drag.offsetDays)
+      const newStart = toStr(d)
+      const d2 = new Date(d)
+      d2.setDate(d2.getDate() + dur)
+      const newEnd = toStr(d2)
+      
+      if (drag.mode === 'move') {
+        emit('ribbon-move', { taskId: drag.taskId, newDate: newStart, newEndDate: newEnd, newEmployeeId: drag.empId })
+      } else {
+        emit('ribbon-clone', { taskId: drag.taskId, newDate: newStart, newEndDate: newEnd, newEmployeeId: drag.empId })
+      }
+    }
+  }
+  
+  Object.assign(drag, { mode: null, taskId: null, empId: null, startDate: null, currentDate: null, origEnd: null, origStart: null, offsetDays: 0 })
 }
 
 onMounted(() => { document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp) })
@@ -324,17 +482,38 @@ defineExpose({ anchorDate })
 .rc-ribbon.completed { text-decoration: line-through; }
 .rc-ribbon.delayed { border-left: 3px solid #dc2626; background-image: repeating-linear-gradient(-45deg, transparent, transparent 6px, rgba(220,38,38,.12) 6px, rgba(220,38,38,.12) 12px); animation: dl-pulse 2.5s ease-in-out infinite; }
 @keyframes dl-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); } 50% { box-shadow: 0 0 0 2px rgba(220,38,38,.2); } }
-.rb-content { display: flex; flex-direction: column; overflow: hidden; padding: 0 6px; line-height: 1.1; flex: 1; min-width: 0; }
+.rb-handle { width: 8px; height: 100%; position: absolute; top: 0; cursor: col-resize; background: rgba(255,255,255,.2); transition: background .15s; z-index: 2; }
+.rb-handle:hover { background: rgba(255,255,255,.5); }
+.rb-handle-start { left: 0; border-radius: 4px 0 0 4px; }
+.rb-handle-end { right: 0; border-radius: 0 4px 4px 0; }
+.rb-content { display: flex; flex-direction: column; overflow: hidden; padding: 0 10px; line-height: 1.1; flex: 1; min-width: 0; height: 100%; justify-content: center; z-index: 1; cursor: grab; }
+.rb-content:active { cursor: grabbing; }
+.rb-tools { position: absolute; top: 0; bottom: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; pointer-events: none; z-index: 10; }
+.rb-cut-line { width: 0; height: 100%; border-left: 2px dashed #ef4444; position: absolute; top: 0; pointer-events: none; opacity: 0.8; }
+.rb-cut-indicator { background: #ef4444; color: #fff; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; position: absolute; top: -11px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+.rb-cut-indicator .material-symbols-outlined { font-size: 14px; }
+.cut-ready { cursor: cell !important; }
+
+/* Tool Toggle Button */
+.rc-divider { width: 1px; height: 20px; background: var(--color-outline); margin: 0 4px; }
+.rc-tool-toggle {
+  display: flex; align-items: center; gap: 6px; padding: 6px 12px;
+  background: var(--color-surface); border: 1px solid var(--color-outline); border-radius: var(--radius-lg);
+  font-family: var(--font-display); font-size: 12px; font-weight: 600; color: var(--color-on-surface);
+  cursor: pointer; transition: all 0.2s;
+}
+.rc-tool-toggle:hover { background: var(--color-surface-container); }
+.rc-tool-toggle.active { background: #fee2e2; border-color: #ef4444; color: #ef4444; }
+.rc-tool-toggle .material-symbols-outlined { font-size: 18px; }
 .rb-title { font-weight: 700; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rb-project { font-size: 9px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rb-delay { flex-shrink: 0; font-size: 8px; font-weight: 700; background: #dc2626; color: #fff; padding: 1px 4px; border-radius: 3px; margin-right: 2px; }
-.rb-handle { width: 8px; height: 100%; position: absolute; right: 0; top: 0; cursor: col-resize; background: rgba(255,255,255,.2); border-radius: 0 4px 4px 0; transition: background .15s; }
-.rb-handle:hover { background: rgba(255,255,255,.5); }
+.rb-delay { flex-shrink: 0; font-size: 8px; font-weight: 700; background: #dc2626; color: #fff; padding: 1px 4px; border-radius: 3px; margin-right: 10px; z-index: 2; }
 
 .rc-legend { display: flex; flex-wrap: wrap; gap: 16px; padding: 4px 0; }
 .rc-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-on-surface-variant); font-weight: 500; }
 .rc-legend-dot { width: 10px; height: 10px; border-radius: 50%; }
 
-.rc-tooltip { position: fixed; background: var(--color-on-surface); color: #fff; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; white-space: nowrap; z-index: 9999; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+.rc-tooltip { position: fixed; background: var(--color-on-surface); color: #fff; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; white-space: nowrap; z-index: 9999; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,.2); display: flex; flex-direction: column; gap: 2px; }
+.tooltip-mode { font-size: 9px; font-weight: 900; color: var(--color-primary-container); letter-spacing: 0.05em; }
 .rc-empty { padding: 48px; text-align: center; color: var(--color-on-surface-variant); font-size: 14px; }
 </style>

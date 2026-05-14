@@ -334,11 +334,12 @@
                   <!-- Password -->
                   <div class="col-span-2 md:col-span-1">
                     <label class="text-xs font-bold text-on-surface-variant block mb-2 uppercase tracking-wide">
-                      Password
+                      Password *
                     </label>
                     <input
                       v-model="form.password"
                       type="password"
+                      required
                       placeholder="Enter password"
                       class="w-full bg-transparent border-b border-[#A2937E] focus:border-primary focus:ring-0 px-0 py-2 outline-none transition-colors"
                     />

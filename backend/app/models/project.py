@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Numeric, ForeignKey
+from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, Date
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -14,6 +14,8 @@ class Project(Base):
     year = Column(Integer, nullable=True)
     current_stage = Column(String, nullable=True)
     is_billed = Column(String, default="unbilled")
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
 
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=True)
     client = relationship("Client", back_populates="projects")
@@ -27,6 +29,8 @@ class Project(Base):
     project_remuneration = Column(Numeric(10, 2), nullable=True, default=0)
     total_assigned_hours = Column(Numeric(10, 2), nullable=True, default=0)
     partner_hourly_rate = Column(Numeric(10, 2), nullable=True, default=0)
+    employee_budget = Column(Numeric(12, 2), nullable=True, default=0)
+    partner_budget = Column(Numeric(12, 2), nullable=True, default=0)
     billed_amount = Column(Numeric(12, 2), nullable=True, default=0)
 
 

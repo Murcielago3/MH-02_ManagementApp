@@ -10,6 +10,7 @@ class Client(Base):
     email = Column(String, nullable=False)
     phone = Column(String, nullable=False)
     address = Column(String, nullable=False)
+    gstin = Column(String, nullable=True)
 
     projects = relationship("Project", back_populates="client")
     

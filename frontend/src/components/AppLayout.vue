@@ -19,7 +19,46 @@
 
       <nav class="sidebar-nav">
         <router-link
-          v-for="item in navItems"
+          v-for="item in navItemsTop"
+          :key="item.path"
+          :to="item.path"
+          :class="['nav-item', { active: isActive(item.path) }]"
+        >
+          <span
+            class="material-symbols-outlined"
+            :style="isActive(item.path) ? 'font-variation-settings: \'FILL\' 1;' : ''"
+          >{{ item.icon }}</span>
+          <span>{{ item.label }}</span>
+        </router-link>
+
+        <div class="nav-group" :class="{ 'nav-group--open': projectsExpanded }">
+          <button
+            type="button"
+            class="nav-group-header"
+            :class="{ active: isProjectsSectionActive }"
+            @click="toggleProjects"
+          >
+            <span
+              class="material-symbols-outlined"
+              :style="isProjectsSectionActive ? 'font-variation-settings: \'FILL\' 1;' : ''"
+            >architecture</span>
+            <span class="nav-group-label">Projects</span>
+            <span class="material-symbols-outlined nav-chevron">{{ subNavVisible ? 'expand_less' : 'expand_more' }}</span>
+          </button>
+          <div v-show="subNavVisible" class="nav-subitems">
+            <router-link
+              v-for="sub in projectSubNav"
+              :key="sub.path"
+              :to="sub.path"
+              :class="['nav-sub', { active: isSubActive(sub.path) }]"
+            >
+              <span>{{ sub.label }}</span>
+            </router-link>
+          </div>
+        </div>
+
+        <router-link
+          v-for="item in navItemsBottom"
           :key="item.path"
           :to="item.path"
           :class="['nav-item', { active: isActive(item.path) }]"
@@ -93,7 +132,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, onUnmounted } from 'vue'
+import { computed, onMounted, ref, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { usersAPI } from '../api/users'
@@ -151,11 +190,20 @@ const handleLogout = () => {
   router.push('/login')
 }
 
-const navItems = [
+const projectsExpanded = ref(false)
+
+const navItemsTop = [
   { path: '/admin/dashboard', icon: 'dashboard', label: 'Dashboard' },
-  { path: '/employee/dashboard', icon: 'badge', label: 'Employee Portal' },
   { path: '/admin/employees', icon: 'group', label: 'Employees' },
-  { path: '/admin/projects', icon: 'architecture', label: 'Projects' },
+]
+
+const projectSubNav = [
+  { path: '/admin/projects', label: 'All Projects' },
+  { path: '/admin/projects/summary', label: 'Summary' },
+  { path: '/admin/projects/billing', label: 'Billing' },
+]
+
+const navItemsBottom = [
   { path: '/admin/clients', icon: 'handshake', label: 'Clients' },
   { path: '/admin/tasks', icon: 'task', label: 'Tasks' },
   { path: '/admin/leaves', icon: 'event_busy', label: 'Leaves' },
@@ -164,10 +212,35 @@ const navItems = [
   { path: '/admin/invoices', icon: 'receipt_long', label: 'Invoices' },
   { path: '/admin/estimates', icon: 'calculate', label: 'Estimates' },
   { path: '/admin/reports', icon: 'analytics', label: 'Reports' },
+  { path: '/admin/settings/bank', icon: 'account_balance', label: 'Bank Accounts' },
 ]
+
+watch(
+  () => route.path,
+  (p) => {
+    if (p.startsWith('/admin/projects')) {
+      projectsExpanded.value = true
+    } else {
+      projectsExpanded.value = false
+    }
+  },
+  { immediate: true }
+)
+
+const isProjectsSectionActive = computed(() => route.path.startsWith('/admin/projects'))
+
+const subNavVisible = computed(() => projectsExpanded.value || isProjectsSectionActive.value)
 
 function isActive(path) {
   return route.path === path
+}
+
+function isSubActive(path) {
+  return route.path === path
+}
+
+function toggleProjects() {
+  projectsExpanded.value = !projectsExpanded.value
 }
 </script>
 
@@ -293,6 +366,84 @@ function isActive(path) {
 
 .nav-item .material-symbols-outlined {
   font-size: 20px;
+  width: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+/* ───────── Projects nav group ───────── */
+.nav-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-group-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 24px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  background: transparent;
+  border: none;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.nav-group-header:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+}
+
+.nav-group-header.active {
+  background: rgba(40, 116, 117, 0.15);
+  color: #ffffff;
+  border-left-color: var(--color-primary);
+}
+
+.nav-group-label {
+  flex: 1;
+}
+
+.nav-chevron {
+  font-size: 20px !important;
+  opacity: 0.85;
+  width: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.nav-subitems {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0 8px 0;
+}
+
+.nav-sub {
+  display: block;
+  padding: 10px 24px 10px 48px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.nav-sub:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+}
+
+.nav-sub.active {
+  background: rgba(40, 116, 117, 0.2);
+  color: #ffffff;
+  border-left-color: var(--color-primary);
+  font-weight: 600;
 }
 
 /* ───────── Main Area ───────── */
@@ -488,6 +639,9 @@ function isActive(path) {
 
 /* ───────── Material Symbols ───────── */
 .material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  user-select: none;
+  overflow: hidden;
 }
 </style>

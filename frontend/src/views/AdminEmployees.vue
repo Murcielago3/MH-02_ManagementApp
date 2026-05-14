@@ -213,9 +213,14 @@
                 <label>Studio Email *</label>
                 <input v-model="form.studio_email" type="email" required placeholder="user@studiomh02.com" />
               </div>
-              <div class="form-field" v-if="!isEditing">
-                <label>Password *</label>
-                <input v-model="form.password" type="password" required placeholder="••••••••" />
+              <div class="form-field">
+                <label>Password {{ isEditing ? '(Optional)' : '*' }}</label>
+                <input 
+                  v-model="form.password" 
+                  type="password" 
+                  :required="!isEditing" 
+                  :placeholder="isEditing ? 'Leave blank to keep current' : '••••••••'" 
+                />
               </div>
               <div class="form-field">
                 <label>Role</label>

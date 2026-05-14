@@ -96,6 +96,11 @@
                 <label>Address</label>
                 <textarea v-model="form.address" placeholder="Full address..." rows="3"></textarea>
               </div>
+              <!-- GSTIN -->
+              <div class="form-field span-2">
+                <label>GSTIN</label>
+                <input v-model="form.gstin" type="text" placeholder="e.g. 27AAAAA0000A1Z5" />
+              </div>
             </div>
 
             <div v-if="formError" class="form-error">
@@ -162,6 +167,7 @@ const form = reactive({
   email: '',
   phone: '',
   address: '',
+  gstin: '',
 })
 
 async function fetchClients() {
@@ -199,6 +205,7 @@ function resetForm() {
   form.email = ''
   form.phone = ''
   form.address = ''
+  form.gstin = ''
   formError.value = ''
 }
 
@@ -216,6 +223,7 @@ function openEditModal(c) {
   form.email = c.email || ''
   form.phone = c.phone || ''
   form.address = c.address || ''
+  form.gstin = c.gstin || ''
   formError.value = ''
   modalOpen.value = true
 }
@@ -231,6 +239,7 @@ async function handleSubmit() {
       email: form.email || null,
       phone: form.phone || null,
       address: form.address || null,
+      gstin: form.gstin || null,
     }
     if (isEditing.value) {
       await clientsAPI.updateClient(editingId.value, payload)

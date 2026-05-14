@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
-from typing import Optional
-from pydantic import BaseModel
+from typing import Optional, Union
+from pydantic import BaseModel, validator
+from datetime import date
 from app.database import get_db
 from app.models.project import Project, ProjectAssignment
 from app.models.user import User
@@ -12,6 +13,15 @@ from app.auth import require_admin, require_manager
 from sqlalchemy import text
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+def parse_date(v):
+    if not v:
+        return None
+    if isinstance(v, str):
+        if v.strip() == "":
+            return None
+        return date.fromisoformat(v)
+    return v
 
 class ProjectCreate(BaseModel):
     project_number: str
@@ -27,6 +37,15 @@ class ProjectCreate(BaseModel):
     project_remuneration: Optional[float] = None
     total_assigned_hours: Optional[float] = None
     color: Optional[str] = '#287475'
+    employee_budget: Optional[float] = None
+    partner_budget: Optional[float] = None
+    partner_hourly_rate: Optional[float] = None
+    start_date: Optional[Union[date, str]] = None
+    end_date: Optional[Union[date, str]] = None
+
+    @validator('start_date', 'end_date', pre=True)
+    def parse_dates(cls, v):
+        return parse_date(v)
 
 class ProjectUpdate(BaseModel):
     project_number: Optional[str] = None
@@ -42,6 +61,41 @@ class ProjectUpdate(BaseModel):
     project_remuneration: Optional[float] = None
     total_assigned_hours: Optional[float] = None
     color: Optional[str] = None
+    employee_budget: Optional[float] = None
+    partner_budget: Optional[float] = None
+    partner_hourly_rate: Optional[float] = None
+    start_date: Optional[Union[date, str]] = None
+    end_date: Optional[Union[date, str]] = None
+
+    @validator('start_date', 'end_date', pre=True)
+    def parse_dates(cls, v):
+        return parse_date(v)
+
+class AssignmentUpdate(BaseModel):
+    base_pay: Optional[float] = None
+    hourly_rate: Optional[float] = None
+
+@router.get("/next-number")
+async def get_next_project_number(
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_manager)
+):
+    result = await db.execute(select(Project.project_number))
+    numbers = result.scalars().all()
+    
+    max_num = 0
+    for sn in numbers:
+        if not sn: continue
+        try:
+            # Extract only digits from the whole string or after hyphen
+            num_part = ''.join(filter(str.isdigit, sn))
+            if num_part:
+                max_num = max(max_num, int(num_part))
+        except:
+            continue
+            
+    next_num = max_num + 1
+    return {"next_number": f"MH - {next_num:03d}"}
 
 @router.get("/")
 async def list_projects(
@@ -49,7 +103,7 @@ async def list_projects(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(require_manager)
 ):
-    query = select(Project)
+    query = select(Project).options(selectinload(Project.client))
     if year:
         query = query.where(Project.year == year)
     result = await db.execute(query)
@@ -64,24 +118,54 @@ async def get_project(
 ):
     result = await db.execute(
         select(Project)
-        .options(selectinload(Project.assignments).selectinload(ProjectAssignment.user))
+        .options(
+            selectinload(Project.assignments).selectinload(ProjectAssignment.user),
+            selectinload(Project.client)
+        )
         .where(Project.id == project_id)
     )
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
-    # Calculate worked hours from approved timesheets
-    worked_query = (
-        select(func.sum(WeeklyTimesheetEntry.hours))
-        .join(WeeklyTimesheet)
-        .where(
-            WeeklyTimesheetEntry.project_id == project_id,
-            WeeklyTimesheet.status == 'approved'
+    total_worked_hours = 0
+    total_employee_cost = 0.0
+
+    # Calculate for each assignment to get the correct cost
+    assignments_data = []
+    for assignment in project.assignments:
+        worked_query = (
+            select(func.sum(WeeklyTimesheetEntry.hours))
+            .join(WeeklyTimesheet)
+            .where(
+                WeeklyTimesheetEntry.project_id == project_id,
+                WeeklyTimesheet.employee_id == assignment.user_id,
+                WeeklyTimesheet.status == 'approved'
+            )
         )
-    )
-    worked_result = await db.execute(worked_query)
-    total_worked_hours = worked_result.scalar() or 0
+        worked_result = await db.execute(worked_query)
+        hours_worked = float(worked_result.scalar() or 0)
+        hourly_rate = float(assignment.hourly_rate or 0)
+
+        total_worked_hours += hours_worked
+        total_employee_cost += (hours_worked * hourly_rate)
+        
+        # Build assignment dict with extra info
+        assignments_data.append({
+            "id": assignment.id,
+            "user_id": assignment.user_id,
+            "user": {
+                "id": assignment.user.id,
+                "name": assignment.user.name,
+                "designation": assignment.user.designation
+            },
+            "base_pay": float(assignment.base_pay or 0),
+            "hourly_rate": float(assignment.hourly_rate or 0),
+            "hours_worked": hours_worked
+        })
+        
+    partner_hourly_rate = float(project.partner_hourly_rate or 0)
+    total_partner_cost = total_worked_hours * partner_hourly_rate
     
     # We can add this dynamically to the object or return a dict
     project_data = {
@@ -94,13 +178,18 @@ async def get_project(
         "current_stage": project.current_stage,
         "is_billed": project.is_billed,
         "client_id": project.client_id,
-        "partner_remuneration": project.partner_remuneration,
-        "employee_remuneration": project.employee_remuneration,
+        "start_date": project.start_date,
+        "end_date": project.end_date,
+        "employee_budget": float(project.employee_budget or 0),
+        "partner_budget": float(project.partner_budget or 0),
+        "partner_remuneration": float(total_partner_cost),
+        "employee_remuneration": float(total_employee_cost),
         "project_remuneration": project.project_remuneration,
         "total_assigned_hours": project.total_assigned_hours,
         "total_worked_hours": float(total_worked_hours),
+        "partner_hourly_rate": project.partner_hourly_rate,
         "color": project.color,
-        "assignments": project.assignments,
+        "assignments": assignments_data,
         "work_order_urls": project.work_order_urls
     }
     return project_data
@@ -111,6 +200,13 @@ async def create_project(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(require_manager)
 ):
+    # Check for duplicate project number
+    existing_project = await db.execute(
+        select(Project).where(Project.project_number == data.project_number)
+    )
+    if existing_project.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="A project with this project number already exists.")
+
     project = Project(
         project_number=data.project_number,
         name=data.name,
@@ -120,6 +216,10 @@ async def create_project(
         current_stage=data.current_stage,
         is_billed=data.is_billed,
         client_id=data.client_id,
+        start_date=data.start_date,
+        end_date=data.end_date,
+        employee_budget=data.employee_budget,
+        partner_budget=data.partner_budget,
         partner_remuneration=data.partner_remuneration,
         employee_remuneration=data.employee_remuneration,
         project_remuneration=data.project_remuneration,
@@ -202,6 +302,33 @@ async def assign_employee(
         "base_pay": data.base_pay,
         "hourly_rate": hourly_rate
     }
+
+@router.patch("/{project_id}/assignments/{assignment_id}")
+async def update_assignment(
+    project_id: int,
+    assignment_id: int,
+    data: AssignmentUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_manager)
+):
+    result = await db.execute(
+        select(ProjectAssignment).where(
+            ProjectAssignment.id == assignment_id,
+            ProjectAssignment.project_id == project_id
+        )
+    )
+    assignment = result.scalar_one_or_none()
+    if not assignment:
+        raise HTTPException(404, "Assignment not found")
+    
+    if data.base_pay is not None:
+        assignment.base_pay = data.base_pay
+    if data.hourly_rate is not None:
+        assignment.hourly_rate = data.hourly_rate
+        
+    await db.commit()
+    await db.refresh(assignment)
+    return assignment
 
 @router.get("/{project_id}/summary")
 async def get_project_summary(

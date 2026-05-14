@@ -28,6 +28,18 @@ const routes = [
     meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
+    path: '/admin/projects/summary',
+    name: 'AdminProjectSummary',
+    component: () => import('../views/AdminProjectSummaryView.vue'),
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
+    path: '/admin/projects/billing',
+    name: 'AdminProjectBilling',
+    component: () => import('../views/AdminProjectBillingView.vue'),
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
     path: '/admin/projects',
     name: 'AdminProjects',
     component: () => import('../views/AdminProjects.vue'),
@@ -72,7 +84,25 @@ const routes = [
   {
     path: '/admin/invoices',
     name: 'AdminInvoices',
-    component: () => import('../views/AdminDashboard.vue'), // placeholder
+    component: () => import('../views/InvoiceListView.vue'),
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
+    path: '/admin/invoices/new',
+    name: 'AdminInvoiceForm',
+    component: () => import('../views/InvoiceFormView.vue'),
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
+    path: '/admin/invoices/:id',
+    name: 'AdminInvoiceDetail',
+    component: () => import('../views/InvoiceDetailView.vue'),
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
+    path: '/admin/settings/bank',
+    name: 'AdminBankAccounts',
+    component: () => import('../views/BankAccountsView.vue'),
     meta: { requiresAuth: true, roles: ['admin'] },
   },
   {

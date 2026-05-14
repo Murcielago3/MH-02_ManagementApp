@@ -9,6 +9,10 @@ export const projectsAPI = {
   getProject: (projectId) => {
     return client.get(`/projects/${projectId}`)
   },
+  
+  getNextNumber: () => {
+    return client.get('/projects/next-number')
+  },
 
   createProject: (data) => {
     return client.post('/projects/', data)
@@ -22,7 +26,29 @@ export const projectsAPI = {
     return client.delete(`/projects/${projectId}`)
   },
 
-  assignUser: (projectId, userId) => {
-    return client.post(`/projects/${projectId}/assign`, { user_id: userId })
+  /** Body: { user_id, base_pay } — backend returns hourly_rate */
+  assignEmployee: (projectId, body) => {
+    return client.post(`/projects/${projectId}/assign`, body)
+  },
+
+  getProjectSummary: (projectId) => {
+    return client.get(`/projects/${projectId}/summary`)
+  },
+
+  getProjectBilling: (projectId) => {
+    return client.get(`/projects/${projectId}/billing`)
+  },
+
+  /**
+   * Query: billed_amount, partner_hourly_rate (optional).
+   * Backend may require billed_amount on every call — callers should always pass current billed_amount.
+   */
+  patchProjectBilling: (projectId, params) => {
+    return client.patch(`/projects/${projectId}/billing`, null, { params })
+  },
+
+  /** Body: { base_pay?, hourly_rate? } — updates assignment pay; backend may recalc totals */
+  updateAssignment: (projectId, assignmentId, body) => {
+    return client.patch(`/projects/${projectId}/assignments/${assignmentId}`, body)
   },
 }

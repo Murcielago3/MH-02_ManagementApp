@@ -25,6 +25,9 @@
       @ribbon-click="openDrawer"
       @cell-drag-create="onDragCreate"
       @ribbon-drag-extend="onDragExtend"
+      @ribbon-move="onMoveTask"
+      @ribbon-clone="onCloneTask"
+      @ribbon-split="onSplitTask"
     />
 
     <!-- Task Detail Drawer -->
@@ -379,6 +382,76 @@ async function doExtendTask(taskId, newEndDate, originalEnd) {
   } catch (err) {
     if (task) task.end_date = prevEnd
     showToast('Failed to extend task', 'error')
+  }
+}
+
+async function onMoveTask({ taskId, newDate, newEndDate, newEmployeeId }) {
+  try {
+    await tasksAPI.patchTask(taskId, { 
+      date: newDate, 
+      end_date: newEndDate, 
+      assigned_to: newEmployeeId 
+    })
+    showToast('Task moved successfully')
+    await fetchTasks()
+  } catch (err) {
+    showToast('Failed to move task', 'error')
+  }
+}
+
+async function onCloneTask({ taskId, newDate, newEndDate, newEmployeeId }) {
+  const original = tasks.value.find(t => t.id === taskId)
+  if (!original) return
+  
+  try {
+    const payload = {
+      title: original.title,
+      description: original.description,
+      date: newDate,
+      end_date: newEndDate,
+      duration_hours: original.duration_hours,
+      priority: original.priority,
+      project_id: original.project_id,
+      assigned_to: newEmployeeId
+    }
+    await tasksAPI.createTask(payload)
+    showToast('Task copied successfully')
+    await fetchTasks()
+  } catch (err) {
+    showToast('Failed to copy task', 'error')
+  }
+}
+
+async function onSplitTask({ taskId, splitDate }) {
+  const original = tasks.value.find(t => t.id === taskId)
+  if (!original) return
+
+  // End date for the first part (day before split)
+  const d = new Date(splitDate)
+  d.setDate(d.getDate() - 1)
+  const firstEnd = d.toISOString().split('T')[0]
+
+  try {
+    // 1. Update original task end date
+    await tasksAPI.patchTask(taskId, { end_date: firstEnd })
+    
+    // 2. Create second part
+    const payload = {
+      title: original.title + ' (Split)',
+      description: original.description,
+      date: splitDate,
+      end_date: original.end_date || original.date,
+      duration_hours: original.duration_hours,
+      priority: original.priority,
+      project_id: original.project_id,
+      assigned_to: original.assigned_to
+    }
+    await tasksAPI.createTask(payload)
+    
+    showToast('Task split into two')
+    await fetchTasks()
+  } catch (err) {
+    showToast('Failed to split task', 'error')
   }
 }
 </script>
