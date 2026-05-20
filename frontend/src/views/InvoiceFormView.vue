@@ -49,13 +49,13 @@
             </div>
           </div>
 
-          <!-- Section 3: Project & Client -->
+
+          <!-- Section 5: Project -->
           <div class="form-section">
-            <h3 class="section-title">Link to Project</h3>
             <div class="form-group">
-              <label>Select Project *</label>
+              <label>Project *</label>
               <select v-model="form.project_id" @change="onProjectSelect" required>
-                <option :value="null">— None —</option>
+                <option :value="null">— Select Project —</option>
                 <option v-for="p in projects" :key="p.id" :value="p.id">
                   {{ p.project_number }} - {{ p.name }}
                 </option>
@@ -112,14 +112,6 @@
                   <input v-model="form.ship_to_gstin" type="text" :disabled="sameAsBillTo" />
                 </div>
               </div>
-            </div>
-          </div>
-
-          <!-- Section 5: Subject -->
-          <div class="form-section">
-            <div class="form-group">
-              <label>Subject</label>
-              <input v-model="form.subject" type="text" placeholder="e.g. Architectural Design Services" />
             </div>
           </div>
 
@@ -244,7 +236,7 @@ const form = reactive({
   invoice_type: 'tax',
   invoice_number: '',
   invoice_date: new Date().toISOString().split('T')[0],
-  place_of_supply: '',
+  place_of_supply: 'Maharashtra',
   project_id: null,
   client_id: null,
   bill_to_name: '',
@@ -311,20 +303,28 @@ const onProjectSelect = () => {
   if (!form.project_id) {
     selectedClient.value = null
     form.client_id = null
+    form.subject = ''
     return
   }
   const proj = projects.value.find(p => p.id === form.project_id)
-  if (proj && proj.client) {
-    selectedClient.value = proj.client
-    form.client_id = proj.client.id
-    
-    // Auto populate Bill To
-    form.bill_to_name = proj.client.name
-    form.bill_to_address = proj.client.address || ''
-    form.bill_to_gstin = proj.client.gstin || ''
+  if (proj) {
+    form.subject = proj.name
+    if (proj.client) {
+      selectedClient.value = proj.client
+      form.client_id = proj.client.id
+      
+      // Auto populate Bill To
+      form.bill_to_name = proj.client.name
+      form.bill_to_address = proj.client.address || ''
+      form.bill_to_gstin = proj.client.gstin || ''
+    } else {
+      selectedClient.value = null
+      form.client_id = null
+    }
   } else {
     selectedClient.value = null
     form.client_id = null
+    form.subject = ''
   }
 }
 

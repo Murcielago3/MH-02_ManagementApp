@@ -175,6 +175,12 @@ const routes = [
     component: () => import('../views/employee/ReimbursementView.vue'),
     meta: { requiresAuth: true, roles: ['admin', 'project_manager', 'employee'] },
   },
+  {
+    path: '/employee/projects',
+    name: 'EmployeeProjects',
+    component: () => import('../views/employee/EmployeeProjectsView.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'project_manager', 'employee'] },
+  },
 
   // Legacy route
   {

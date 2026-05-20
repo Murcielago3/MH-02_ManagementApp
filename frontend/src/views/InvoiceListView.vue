@@ -16,7 +16,7 @@
             <th>Type</th>
             <th>Date</th>
             <th>Client</th>
-            <th>Subject</th>
+            <th>Project</th>
             <th class="text-right">Total</th>
             <th class="text-center">Actions</th>
           </tr>
@@ -37,7 +37,7 @@
             </td>
             <td>{{ formatDate(inv.invoice_date) }}</td>
             <td class="font-medium">{{ inv.bill_to_name || '—' }}</td>
-            <td class="text-muted">{{ inv.subject || '—' }}</td>
+            <td class="text-muted">{{ inv.project?.name || inv.subject || '—' }}</td>
             <td class="text-right font-mono font-medium">₹{{ formatAmount(inv.total) }}</td>
             <td class="actions-cell text-center">
               <router-link :to="`/admin/invoices/${inv.id}`" class="icon-btn" title="View">

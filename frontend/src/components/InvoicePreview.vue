@@ -2,7 +2,7 @@
   <div class="invoice-preview" v-if="invoice">
     <div class="header">
       <div class="logo-block">
-        <img src="http://localhost:8000/static/logo.jpg" class="logo-img" alt="Studio MH02 Logo" />
+        <img :src="logoUrl" class="logo-img" alt="Studio MH02 Logo" />
         <div class="firm-details">
           <div class="firm-name">Studio MH02 LLP</div>
           201, Prathamesh Apt, Mahant Road, Vile Parle East<br>
@@ -13,39 +13,36 @@
       </div>
       <div class="invoice-type-block">
         <div class="invoice-type">{{ invoice.invoice_type === 'tax' ? 'TAX INVOICE' : 'PROFORMA INVOICE' }}</div>
-        <div class="invoice-num" v-if="invoice.invoice_type === 'tax'">Invoice {{ invoice.invoice_number }}</div>
+        <div class="invoice-num">{{ formatInvoiceNumber(invoice) }}</div>
       </div>
     </div>
 
     <table class="meta-table">
       <tr>
         <td>
-          <div class="section-label">Invoice Date:</div>
-          <div>{{ formatDate(invoice.invoice_date) }}</div>
+          <span class="section-label" style="display:inline;">Invoice Date:</span> {{ formatDate(invoice.invoice_date) }}
         </td>
         <td>
-          <div class="section-label">Place of Supply:</div>
-          <div>{{ invoice.place_of_supply || '' }}</div>
+          <span class="section-label" style="display:inline;">Place of Supply:</span> {{ cleanPlaceOfSupply(invoice.place_of_supply) }}
         </td>
       </tr>
       <tr>
         <td>
           <div class="section-label">Bill To</div>
           <div class="section-value">{{ invoice.bill_to_name || '' }}</div>
-          <div>{{ invoice.bill_to_address || '' }}</div>
-          <div>GSTIN {{ invoice.bill_to_gstin || '' }}</div>
+          <div class="addr-text">{{ invoice.bill_to_address || '' }}</div>
+          <div class="addr-text">GSTIN {{ invoice.bill_to_gstin || '' }}</div>
         </td>
         <td>
           <div class="section-label">Ship To</div>
           <div class="section-value">{{ invoice.ship_to_name || '' }}</div>
-          <div>{{ invoice.ship_to_address || '' }}</div>
-          <div>GSTIN {{ invoice.ship_to_gstin || '' }}</div>
+          <div class="addr-text">{{ invoice.ship_to_address || '' }}</div>
+          <div class="addr-text">GSTIN {{ invoice.ship_to_gstin || '' }}</div>
         </td>
       </tr>
       <tr>
-        <td colspan="2">
-          <div class="section-label">Project:</div>
-          <div>{{ invoice.subject || '' }}</div>
+        <td colspan="2" style="vertical-align: middle;">
+          <span class="section-label" style="display: inline;">Project:</span> {{ invoice.project?.name || invoice.subject || '' }}
         </td>
       </tr>
     </table>
@@ -54,7 +51,7 @@
       <thead>
         <tr>
           <th>#</th>
-          <th>Item and Description</th>
+          <th>Service / Description</th>
           <th>HSN/SAC</th>
           <th class="amount-col">Amount</th>
         </tr>
@@ -66,19 +63,17 @@
           <td>{{ item.hsn_sac || '' }}</td>
           <td class="amount-col">₹{{ formatAmount(item.amount) }}</td>
         </tr>
-        <tr class="items-spacer">
-          <td colspan="4"></td>
+        <tr class="items-spacer" :style="{ height: spacerHeight + 'px' }">
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
         </tr>
       </tbody>
     </table>
 
     <div class="footer-section">
       <div class="footer-left">
-        <div class="total-words">
-          <strong>Total in Words</strong><br>
-          {{ numberToWords(invoice.total || 0) }}
-        </div>
-        <br>
         <table class="bank-table" v-if="invoice.bank_account">
           <tr><td>Bank Name</td><td>{{ invoice.bank_account.bank_name }}</td></tr>
           <tr><td>Account</td><td>Type {{ invoice.bank_account.account_type }}</td></tr>
@@ -113,6 +108,10 @@
             <td class="amount-col">₹{{ formatAmount(invoice.total) }}</td>
           </tr>
         </table>
+        <div class="total-words">
+          <strong>Total in Words</strong><br>
+          {{ numberToWords(invoice.total || 0) }}
+        </div>
       </div>
     </div>
 
@@ -124,18 +123,27 @@
     </div>
 
     <div class="signatory-section">
-      <div>
-        <div class="signatory-name">Srujan Gadgil</div>
-      </div>
-      <div>
-        <div class="signatory-label">Authorized Signatory</div>
-      </div>
+      <div class="auth-label">Authorized Signatory</div>
+      <div class="sig-name">Srujan Gadgil</div>
+      <div class="sig-role">Partner</div>
+      <div class="sig-role">Studio MH02 LLP</div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
+
+const logoUrl = computed(() => {
+  const envUrl = import.meta.env.VITE_API_URL
+  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    return `${envUrl}/static/logo.jpg`
+  }
+  if (typeof window !== 'undefined' && window.location) {
+    return `${window.location.protocol}//${window.location.hostname}:8000/static/logo.jpg`
+  }
+  return 'http://localhost:8000/static/logo.jpg'
+})
 
 const props = defineProps({
   invoice: {
@@ -152,6 +160,22 @@ const formatDate = (dateStr) => {
 
 const formatAmount = (val) => {
   return Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+const formatInvoiceNumber = (inv) => {
+  const numStr = inv.invoice_number
+  if (!numStr) {
+    return `AO - ${String(inv.id || 0).padStart(4, '0')}`
+  }
+  const digits = numStr.match(/\d+/g)
+  if (digits) {
+    const lastDigits = digits[digits.length - 1]
+    const numVal = parseInt(lastDigits, 10)
+    return `AO - ${String(numVal).padStart(4, '0')}`
+  } else {
+    const clean = numStr.replace('AO-', '').replace('AO -', '').trim()
+    return `AO - ${clean}`
+  }
 }
 
 function numberToWords(amount) {
@@ -187,6 +211,18 @@ function numberToWords(amount) {
 
   return 'Indian Rupee ' + parts.join(' ') + ' Only'
 }
+
+const cleanPlaceOfSupply = (val) => {
+  if (!val) return ''
+  return val.replace(/^\d+\s*-\s*|^\d+\s+|\s*\(\d+\)\s*$/g, '').trim()
+}
+
+const spacerHeight = computed(() => {
+  const itemsCount = props.invoice?.items?.length || 0
+  // Mirrors backend: empirically measured fixed sections consume most of the page.
+  // Available space for items spacer = total_preview_height - fixed_sections - thead - rows
+  return Math.max(40, 200 - (itemsCount * 30))
+})
 </script>
 
 <style scoped>
@@ -197,7 +233,7 @@ function numberToWords(amount) {
   margin: 0 auto;
   box-shadow: 0 4px 12px rgba(0,0,0,0.05);
   font-family: Arial, sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   color: #000;
 }
 
@@ -216,14 +252,14 @@ function numberToWords(amount) {
 }
 
 .logo-img {
-  width: 60px;
-  height: 60px;
+  width: 80px;
+  height: 80px;
   object-fit: contain;
 }
 
 .firm-details {
-  font-size: 10px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.4;
 }
 
 .firm-name {
@@ -261,7 +297,7 @@ function numberToWords(amount) {
 }
 
 .section-label {
-  font-size: 10px;
+  font-size: 12px;
   color: #555;
   margin-bottom: 2px;
 }
@@ -276,6 +312,7 @@ function numberToWords(amount) {
   border-collapse: collapse;
   border: 1px solid #000;
   border-top: none;
+  height: 330px;
 }
 
 .items-table th {
@@ -283,7 +320,7 @@ function numberToWords(amount) {
   border: 1px solid #000;
   padding: 8px;
   text-align: left;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .items-table td {
@@ -292,8 +329,13 @@ function numberToWords(amount) {
   vertical-align: top;
 }
 
+.addr-text { font-size: 15px; }
+
+.items-table tbody td { border-top: none; border-bottom: none; }
+.items-table tbody tr:not(:first-child):not(.items-spacer) td { border-top: 1px solid #000; }
+
 .items-table th:first-child, .items-table td:first-child { width: 40px; }
-.items-table th:nth-child(3), .items-table td:nth-child(3) { width: 80px; }
+.items-table th:nth-child(3), .items-table td:nth-child(3) { width: 100px; }
 .items-table th:last-child, .items-table td:last-child { width: 120px; }
 
 .amount-col {
@@ -301,8 +343,9 @@ function numberToWords(amount) {
 }
 
 .items-spacer td {
-  height: 80px;
   border: 1px solid #000;
+  border-top: none;
+  border-bottom: none;
 }
 
 .footer-section {
@@ -315,10 +358,17 @@ function numberToWords(amount) {
   width: 55%;
   padding: 12px;
   border-right: 1px solid #000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
 }
 
 .footer-right {
   width: 45%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
 }
 
 .totals-table {
@@ -328,29 +378,39 @@ function numberToWords(amount) {
 
 .totals-table td {
   padding: 6px 12px;
-  font-size: 11px;
+  font-size: 13px;
   border-bottom: 1px solid #eee;
 }
 
 .total-row td {
   font-weight: bold;
-  font-size: 13px;
+  font-size: 15px;
   border-top: 2px solid #000;
   border-bottom: none;
 }
 
 .total-words {
   font-style: italic;
-  font-size: 11px;
-  margin-top: 4px;
+  font-size: 13px;
+  margin-top: 10px;
+  text-align: left;
+  border-top: 1px solid #ddd;
+  padding: 8px 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.bank-table {
+  margin: 0;
+  border-collapse: collapse;
 }
 
 .bank-table td {
   padding: 2px 0;
-  font-size: 10px;
+  font-size: 12px;
 }
 .bank-table td:first-child {
-  width: 140px;
+  width: 160px;
   color: #555;
 }
 
@@ -362,12 +422,12 @@ function numberToWords(amount) {
 
 .tc-label {
   font-weight: bold;
-  font-size: 11px;
+  font-size: 13px;
   margin-bottom: 4px;
 }
 
 .tc-text {
-  font-size: 10px;
+  font-size: 12px;
   color: #333;
   line-height: 1.4;
 }
@@ -377,17 +437,25 @@ function numberToWords(amount) {
   border-top: none;
   padding: 16px 12px;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
 }
 
-.signatory-name {
-  font-weight: bold;
+.auth-label {
   font-size: 12px;
+  color: #555;
+  margin-bottom: 100px;
 }
 
-.signatory-label {
-  font-size: 10px;
-  color: #555;
+.sig-name {
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.sig-role {
+  font-size: 12px;
+  color: #444;
   margin-top: 2px;
 }
 </style>

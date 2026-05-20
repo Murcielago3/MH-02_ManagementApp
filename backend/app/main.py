@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
-from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices
+from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams
 
 
 security = HTTPBearer()
@@ -38,6 +38,7 @@ app.include_router(reimbursements.router)
 app.include_router(weekly_timesheets.router)
 app.include_router(bank_accounts.router)
 app.include_router(invoices.router)
+app.include_router(teams.router)
 
 
 @app.get("/health")

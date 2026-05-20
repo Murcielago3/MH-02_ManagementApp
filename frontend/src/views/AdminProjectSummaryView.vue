@@ -142,7 +142,21 @@
               <div class="partner-grid">
                 <div>
                   <span class="muted">Partner Rate</span>
-                  <div class="val">{{ formatInrPerHour(displayPartnerHourly) }}</div>
+                  <div v-if="!editingPartnerRate" class="val rate-cell">
+                    {{ partnerRateSet ? formatInrPerHour(displayPartnerHourly) : '—' }}
+                    <button type="button" class="btn-edit-rate" @click="startEditPartnerRate" title="Edit partner rate">
+                      <span class="material-symbols-outlined">edit</span>
+                    </button>
+                  </div>
+                  <div v-else class="inline-rate compact">
+                    <span class="rupee">₹</span>
+                    <input v-model.number="partnerRateInput" type="number" min="0" step="1" class="rate-inp" />
+                    <span class="per">/hr</span>
+                    <button type="button" class="btn-primary sm" :disabled="savingPartnerRate" @click="savePartnerRate">
+                      {{ savingPartnerRate ? '…' : 'Save' }}
+                    </button>
+                    <button type="button" class="btn-ghost sm" @click="editingPartnerRate = false">Cancel</button>
+                  </div>
                 </div>
                 <div>
                   <span class="muted">Total Hours (from table above)</span>
@@ -154,21 +168,9 @@
                 </div>
               </div>
 
-              <div v-if="!partnerRateSet" class="partner-warn">
+              <div v-if="!partnerRateSet && !editingPartnerRate" class="partner-warn">
                 <span class="material-symbols-outlined">warning</span>
                 Partner rate not set
-                <template v-if="!editingPartnerRate">
-                  <button type="button" class="btn-inline" @click="startEditPartnerRate">Set Rate</button>
-                </template>
-                <div v-else class="inline-rate">
-                  <span class="rupee">₹</span>
-                  <input v-model.number="partnerRateInput" type="number" min="0" step="1" class="rate-inp" />
-                  <span class="per">/hr</span>
-                  <button type="button" class="btn-primary sm" :disabled="savingPartnerRate" @click="savePartnerRate">
-                    {{ savingPartnerRate ? '…' : 'Save' }}
-                  </button>
-                  <button type="button" class="btn-ghost sm" @click="editingPartnerRate = false">Cancel</button>
-                </div>
               </div>
             </div>
 
@@ -977,6 +979,33 @@ async function savePartnerRate() {
   font-size: 16px;
   font-weight: 600;
   color: var(--color-on-surface);
+}
+.rate-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-edit-rate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--color-outline-variant);
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+}
+.btn-edit-rate:hover {
+  background: #f1f5f9;
+  color: var(--color-primary);
+}
+.btn-edit-rate .material-symbols-outlined {
+  font-size: 16px;
+}
+.inline-rate.compact {
+  margin-top: 0;
 }
 
 .partner-warn {

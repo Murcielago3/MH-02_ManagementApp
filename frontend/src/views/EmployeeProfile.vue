@@ -8,7 +8,7 @@
         </div>
         <div class="profile-details">
           <h1 class="profile-name">{{ employee.name || 'Loading...' }}</h1>
-          <p class="profile-role">{{ employee.designation || employee.role || '—' }}</p>
+          <p class="profile-role">{{ employee.designation || formatRole(employee.role) || '—' }}</p>
           <p class="profile-email">{{ employee.studio_email || '—' }}</p>
         </div>
       </div>
@@ -52,7 +52,7 @@
           </div>
           <div class="info-item">
             <label>Role</label>
-            <span>{{ employee.role }}</span>
+            <span>{{ formatRole(employee.role) }}</span>
           </div>
           <div class="info-item">
             <label>Designation</label>
@@ -433,6 +433,12 @@ function truncateDesc(desc) {
 function formatTimesheetStatus(s) {
   if (s === 'submitted') return 'Pending Review'
   return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function formatRole(role) {
+  if (!role) return ''
+  if (role === 'project_manager') return 'Project Manager'
+  return role.charAt(0).toUpperCase() + role.slice(1)
 }
 
 async function handleAction(tsId, status, reason = null) {

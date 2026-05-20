@@ -30,22 +30,21 @@
             <th>Stage</th>
             <th>Year</th>
             <th>Billing</th>
-            <th v-if="isAdmin" class="text-right">Remuneration (₹)</th>
             <th class="text-center col-actions">Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td :colspan="isAdmin ? 8 : 7" class="empty-cell"><div class="loading-text">Loading projects…</div></td>
+            <td :colspan="8" class="empty-cell"><div class="loading-text">Loading projects…</div></td>
           </tr>
           <tr v-else-if="paginated.length === 0">
-            <td :colspan="isAdmin ? 8 : 7" class="empty-cell">No projects found.</td>
+            <td :colspan="8" class="empty-cell">No projects found.</td>
           </tr>
           <tr v-for="p in paginated" :key="p.id" class="proj-row" @click="openDetailModal(p)">
             <td class="mono"><span class="proj-num">{{ p.project_number }}</span></td>
             <td>
               <span class="proj-name">
-                <span class="color-dot" :style="{ background: p.color || '#287475' }"></span>
+                <span class="color-dot" :style="{ background: p.color || '#B5EAD7' }"></span>
                 {{ p.name }}
               </span>
             </td>
@@ -62,7 +61,6 @@
                 {{ p.is_billed }}
               </span>
             </td>
-            <td v-if="isAdmin" class="text-right mono">{{ formatAmount(p.project_remuneration) }}</td>
             <td @click.stop>
               <div class="row-actions">
                 <button class="action-btn edit-btn" title="Edit" @click="openEditModal(p)">
@@ -166,47 +164,9 @@
                       @click="form.color = c"
                     ></button>
                   </div>
-                  <div class="custom-color-wrap">
-                    <input v-model="form.color" type="color" class="custom-color-input" />
-                    <span class="color-hex">{{ form.color }}</span>
-                  </div>
                 </div>
               </div>
-              <!-- Partner Hourly Rate -->
-              <div class="form-field" v-if="isAdmin">
-                <label>Partner Rate/hr (₹)</label>
-                <input
-                  v-model.number="form.partner_hourly_rate"
-                  type="number"
-                  min="0"
-                  step="100"
-                  placeholder="e.g. 1500"
-                />
-              </div>
-              <!-- Budgets -->
-              <div class="form-field" v-if="isAdmin">
-                <label>Employee Budget (₹)</label>
-                <CurrencyInput v-model="form.employee_budget" placeholder="e.g. 500000" />
-              </div>
-              <div class="form-field" v-if="isAdmin">
-                <label>Partner Budget (₹)</label>
-                <CurrencyInput v-model="form.partner_budget" placeholder="e.g. 200000" />
-              </div>
-              <!-- Partner Remuneration -->
-              <div class="form-field" v-if="isAdmin">
-                <label>Partner Remuneration (₹)</label>
-                <CurrencyInput v-model="form.partner_remuneration" placeholder="0" />
-              </div>
-              <!-- Employee Remuneration -->
-              <div class="form-field" v-if="isAdmin">
-                <label>Employee Remuneration (₹)</label>
-                <CurrencyInput v-model="form.employee_remuneration" placeholder="0" />
-              </div>
-              <!-- Project Remuneration -->
-              <div class="form-field span-2" v-if="isAdmin">
-                <label>Total Project Remuneration (₹)</label>
-                <CurrencyInput v-model="form.project_remuneration" placeholder="0" />
-              </div>
+
               <!-- Total Assigned Hours -->
               <div class="form-field span-2">
                 <label>Total Assigned Hours</label>
@@ -265,17 +225,7 @@
           </div>
 
           <div class="modal-body">
-            <!-- Budget Alerts -->
-            <div v-if="isAdmin && (employeeBudgetPercent >= 90 || partnerBudgetPercent >= 90)" class="budget-alerts mb-4">
-              <div v-if="employeeBudgetPercent >= 90" class="form-error" :style="{ background: employeeBudgetPercent > 100 ? '#ffdad6' : '#fef3c7', color: employeeBudgetPercent > 100 ? '#93000a' : '#92400e', marginTop: '0', marginBottom: '8px' }">
-                <span class="material-symbols-outlined">{{ employeeBudgetPercent > 100 ? 'error' : 'warning' }}</span>
-                Employee Budget is {{ employeeBudgetPercent }}% utilized. {{ employeeBudgetPercent > 100 ? 'Limit exceeded!' : 'Approaching limit.' }}
-              </div>
-              <div v-if="partnerBudgetPercent >= 90" class="form-error" :style="{ background: partnerBudgetPercent > 100 ? '#ffdad6' : '#fef3c7', color: partnerBudgetPercent > 100 ? '#93000a' : '#92400e', marginTop: '0', marginBottom: '8px' }">
-                <span class="material-symbols-outlined">{{ partnerBudgetPercent > 100 ? 'error' : 'warning' }}</span>
-                Partner Budget is {{ partnerBudgetPercent }}% utilized. {{ partnerBudgetPercent > 100 ? 'Limit exceeded!' : 'Approaching limit.' }}
-              </div>
-            </div>
+
 
             <div class="detail-grid">
               <!-- Project Info -->
@@ -336,161 +286,20 @@
                   </div>
                 </div>
 
-                <div class="info-grid mt-4" v-if="isAdmin">
-                  <div class="info-item">
-                    <label>Partner Rate/hr</label>
-                    <input v-model.number="detailProject.partner_hourly_rate" type="number" />
-                  </div>
-                  <div class="info-item">
-                    <label>Partner Remuneration</label>
-                    <CurrencyInput v-model="detailProject.partner_remuneration" />
-                  </div>
-                  <div class="info-item">
-                    <label>Employee Remuneration</label>
-                    <CurrencyInput v-model="detailProject.employee_remuneration" />
-                  </div>
-                  <div class="info-item">
-                    <label>Total Remuneration</label>
-                    <CurrencyInput v-model="detailProject.project_remuneration" />
-                  </div>
-                  <div class="info-item">
-                    <label>Employee Budget</label>
-                    <CurrencyInput v-model="detailProject.employee_budget" />
-                  </div>
-                  <div class="info-item">
-                    <label>Partner Budget</label>
-                    <CurrencyInput v-model="detailProject.partner_budget" />
-                  </div>
-                </div>
+
               </div>
 
-              <!-- Budget Tracking -->
-              <div class="detail-section highlight-section" v-if="isAdmin">
-                <h4 class="section-title">Budget Tracking</h4>
-                <!-- Employee Budget -->
-                <div class="budget-block">
-                  <div class="hours-track-grid">
-                    <div class="track-item">
-                      <label>Employee Budget</label>
-                      <div class="track-val">₹{{ formatAmount(detailProject?.employee_budget || 0) }}</div>
-                    </div>
-                    <div class="track-item">
-                      <label>Employee Cost</label>
-                      <div class="track-val text-primary">₹{{ formatAmount(detailProject?.employee_remuneration || 0) }}</div>
-                    </div>
-                    <div class="track-item">
-                      <label>Remaining</label>
-                      <div class="track-val" :class="(detailProject?.employee_budget || 0) - (detailProject?.employee_remuneration || 0) < 0 ? 'text-danger' : 'text-success'">
-                        ₹{{ formatAmount((detailProject?.employee_budget || 0) - (detailProject?.employee_remuneration || 0)) }}
-                      </div>
-                    </div>
-                  </div>
-                  <div class="progress-container">
-                    <div class="progress-bar">
-                      <div 
-                        class="progress-fill" 
-                        :style="{ width: Math.min(100, employeeBudgetPercent) + '%', background: employeeBudgetPercent > 100 ? '#dc2626' : (employeeBudgetPercent >= 90 ? '#f59e0b' : 'var(--color-primary)') }"
-                      ></div>
-                    </div>
-                    <div class="progress-labels">
-                      <span>{{ employeeBudgetPercent }}% Utilized</span>
-                      <span v-if="employeeBudgetPercent >= 90" :style="{ color: employeeBudgetPercent > 100 ? '#ba1a1a' : '#f59e0b', fontWeight: '700' }">
-                        {{ employeeBudgetPercent > 100 ? 'Budget Exceeded!' : 'Nearing Budget Limit!' }}
-                      </span>
-                    </div>
-                  </div>
-                </div>
 
-                <!-- Partner Budget -->
-                <div class="budget-block" style="margin-top: 24px;">
-                  <div class="hours-track-grid">
-                    <div class="track-item">
-                      <label>Partner Budget</label>
-                      <div class="track-val">₹{{ formatAmount(detailProject?.partner_budget || 0) }}</div>
-                    </div>
-                    <div class="track-item">
-                      <label>Partner Cost</label>
-                      <div class="track-val text-primary">₹{{ formatAmount(detailProject?.partner_remuneration || 0) }}</div>
-                    </div>
-                    <div class="track-item">
-                      <label>Remaining</label>
-                      <div class="track-val" :class="(detailProject?.partner_budget || 0) - (detailProject?.partner_remuneration || 0) < 0 ? 'text-danger' : 'text-success'">
-                        ₹{{ formatAmount((detailProject?.partner_budget || 0) - (detailProject?.partner_remuneration || 0)) }}
-                      </div>
-                    </div>
-                  </div>
-                  <div class="progress-container">
-                    <div class="progress-bar">
-                      <div 
-                        class="progress-fill" 
-                        :style="{ width: Math.min(100, partnerBudgetPercent) + '%', background: partnerBudgetPercent > 100 ? '#dc2626' : (partnerBudgetPercent >= 90 ? '#f59e0b' : 'var(--color-primary)') }"
-                      ></div>
-                    </div>
-                    <div class="progress-labels">
-                      <span>{{ partnerBudgetPercent }}% Utilized</span>
-                      <span v-if="partnerBudgetPercent >= 90" :style="{ color: partnerBudgetPercent > 100 ? '#ba1a1a' : '#f59e0b', fontWeight: '700' }">
-                        {{ partnerBudgetPercent > 100 ? 'Budget Exceeded!' : 'Nearing Budget Limit!' }}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
 
-              <!-- Assigned Employees -->
-              <div class="detail-section">
-                <h4 class="section-title">Assigned Employees</h4>
-                <div v-if="detailProject?.assignments?.length" class="assignments-list">
-                  <div v-for="a in detailProject.assignments" :key="a.id" class="assignment-item">
-                    <div class="assign-main">
-                      <div class="assign-info">
-                        <span class="assign-name">{{ a.user?.name }}</span>
-                        <span class="assign-role">{{ a.user?.designation }}</span>
-                      </div>
-                      <div class="assign-stats">
-                        <div class="stat-item">
-                          <label>Hours Spent</label>
-                          <span class="stat-val">{{ a.hours_worked || 0 }}h</span>
-                        </div>
-                        <div class="stat-item">
-                          <label>Base Pay</label>
-                          <span class="stat-val">₹{{ formatAmount(a.base_pay) }}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div v-else class="empty-state">No employees assigned yet.</div>
 
-                <!-- Assign Employee -->
-                <div class="assign-form">
-                  <select v-model="assignUserId">
-                    <option :value="null">— Select Employee —</option>
-                    <option v-for="u in assignableUsers" :key="u.id" :value="u.id">
-                      {{ u.name }} ({{ u.designation }})
-                    </option>
-                  </select>
-                  <div class="assign-pay-block">
-                    <label class="assign-pay-label">Base Pay (₹/month)</label>
-                    <input
-                      v-model.number="assignBasePay"
-                      type="number"
-                      min="0"
-                      step="100"
-                      class="assign-base-input"
-                      placeholder="e.g. 80000"
-                    />
-                    <p v-if="assignPreviewHourly != null" class="assign-hourly-preview">
-                      Hourly Rate: {{ formatInrPerHour(assignPreviewHourly) }}
-                    </p>
-                  </div>
-                  <button
-                    class="btn-assign"
-                    :disabled="!assignUserId || assignBasePay == null || assignBasePay === '' || Number(assignBasePay) <= 0 || assignSubmitting"
-                    @click="assignUser"
-                  >
-                    {{ assignSubmitting ? 'Assigning…' : 'Assign' }}
-                  </button>
-                </div>
+
+              <!-- Teams -->
+              <div class="detail-section" v-if="isAdmin && detailProject?.id">
+                <ProjectTeamsPanel
+                  :project-id="detailProject.id"
+                  :all-users="users"
+                  @error="(m) => toast(m, 'error')"
+                />
               </div>
 
               <!-- Work Orders -->
@@ -538,11 +347,12 @@ import AppLayout from '../components/AppLayout.vue'
 import EmployeeLayout from '../components/EmployeeLayout.vue'
 import CurrencyInput from '../components/CurrencyInput.vue'
 import ToastNotification from '../components/ToastNotification.vue'
+import ProjectTeamsPanel from '../components/projects/ProjectTeamsPanel.vue'
 import { useAuthStore } from '../stores/auth'
 import { projectsAPI } from '../api/projects'
 import { clientsAPI } from '../api/clients'
 import { usersAPI } from '../api/users'
-import { formatInrPerHour, previewHourlyFromBasePay } from '../utils/currency'
+
 
 const authStore = useAuthStore()
 
@@ -570,9 +380,6 @@ const deleteTarget = ref(null)
 
 const detailModalOpen = ref(false)
 const detailProject = ref(null)
-const assignUserId = ref(null)
-const assignBasePay = ref(null)
-const assignSubmitting = ref(false)
 const uploadFile = ref(null)
 const uploadSubmitting = ref(false)
 const uploadInput = ref(null)
@@ -585,15 +392,7 @@ function toast(msg, type = 'success') {
   toastMsg.value = msg
 }
 
-const assignableUsers = computed(() => {
-  const assignments = detailProject.value?.assignments || []
-  const taken = new Set(
-    assignments.map((a) => a.user_id ?? a.user?.id).filter((id) => id != null)
-  )
-  return users.value.filter((u) => !taken.has(u.id))
-})
 
-const assignPreviewHourly = computed(() => previewHourlyFromBasePay(assignBasePay.value))
 
 const stages = [
   'In Progress', 'Incomplete Beyond Deadline', 'Halted', 'Completed'
@@ -608,19 +407,24 @@ const form = reactive({
   current_stage: '',
   is_billed: 'unbilled',
   client_id: null,
-  partner_remuneration: null,
-  employee_remuneration: null,
-  project_remuneration: null,
   total_assigned_hours: null,
-  color: '#287475',
-  partner_hourly_rate: null,
-  employee_budget: null,
-  partner_budget: null,
+  color: '#B5EAD7',
 })
 
+// Pastel-only palette — admins can only assign soft/pastel colors to projects.
 const projectPresets = [
-  '#287475', '#1e5d5e', '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b',
-  '#10b981', '#06b6d4', '#3b82f6', '#475569', '#1e293b'
+  '#FADADD', // pastel pink
+  '#FFD8B1', // pastel peach
+  '#FFF1B6', // pastel yellow
+  '#D4F0C0', // pastel mint
+  '#B5EAD7', // pastel teal
+  '#C7E9F1', // pastel sky
+  '#B8D8F8', // pastel blue
+  '#D7C4F2', // pastel lavender
+  '#E8C7E8', // pastel mauve
+  '#F4C2C2', // pastel rose
+  '#E2D5C7', // pastel sand
+  '#CDE7BE', // pastel sage
 ]
 
 async function fetchAll() {
@@ -687,14 +491,8 @@ function resetForm() {
   form.current_stage = ''
   form.is_billed = 'unbilled'
   form.client_id = null
-  form.partner_remuneration = null
-  form.employee_remuneration = null
-  form.project_remuneration = null
   form.total_assigned_hours = null
-  form.color = '#287475'
-  form.partner_hourly_rate = null
-  form.employee_budget = null
-  form.partner_budget = null
+  form.color = '#B5EAD7'
   formError.value = ''
 }
 
@@ -725,43 +523,18 @@ function openEditModal(p) {
   form.current_stage = p.current_stage || ''
   form.is_billed = p.is_billed || 'unbilled'
   form.client_id = p.client_id || null
-  form.partner_remuneration = p.partner_remuneration ? Number(p.partner_remuneration) : null
-  form.employee_remuneration = p.employee_remuneration ? Number(p.employee_remuneration) : null
-  form.project_remuneration = p.project_remuneration ? Number(p.project_remuneration) : null
   form.total_assigned_hours = p.total_assigned_hours ? Number(p.total_assigned_hours) : null
-  form.color = p.color || '#287475'
-  form.partner_hourly_rate =
-    p.partner_hourly_rate != null && p.partner_hourly_rate !== ''
-      ? Number(p.partner_hourly_rate)
-      : null
-  form.employee_budget = p.employee_budget ? Number(p.employee_budget) : null
-  form.partner_budget = p.partner_budget ? Number(p.partner_budget) : null
+  form.color = p.color || '#B5EAD7'
   formError.value = ''
   modalOpen.value = true
 }
 
 function closeModal() { modalOpen.value = false }
 
-// Automatic Calculations in Detail Modal
-watch(() => detailProject.value?.partner_hourly_rate, (newVal) => {
-  if (!detailProject.value || newVal === null || newVal === undefined) return
-  const hrs = Number(detailProject.value.total_worked_hours) || 0
-  detailProject.value.partner_remuneration = Number(newVal) * hrs
-})
-
-watch([() => detailProject.value?.partner_remuneration, () => detailProject.value?.employee_remuneration], ([newP, newE]) => {
-  if (!detailProject.value) return
-  const pRem = Number(newP) || 0
-  const eRem = Number(newE) || 0
-  detailProject.value.project_remuneration = pRem + eRem
-})
-
 async function openDetailModal(p) {
   try {
     const res = await projectsAPI.getProject(p.id)
     detailProject.value = res.data
-    assignUserId.value = null
-    assignBasePay.value = null
     detailModalOpen.value = true
   } catch (e) {
     toast(e.response?.data?.detail || 'Could not load project.', 'error')
@@ -771,31 +544,6 @@ async function openDetailModal(p) {
 
 function closeDetailModal() {
   detailModalOpen.value = false
-  assignUserId.value = null
-  assignBasePay.value = null
-}
-
-async function assignUser() {
-  if (!assignUserId.value || assignBasePay.value == null || assignBasePay.value === '') return
-  const bp = Number(assignBasePay.value)
-  if (bp <= 0) return
-  assignSubmitting.value = true
-  try {
-    await projectsAPI.assignEmployee(detailProject.value.id, {
-      user_id: assignUserId.value,
-      base_pay: bp,
-    })
-    assignUserId.value = null
-    assignBasePay.value = null
-    toast('Employee assigned.')
-    const res = await projectsAPI.getProject(detailProject.value.id)
-    detailProject.value = res.data
-  } catch (e) {
-    toast(e.response?.data?.detail || 'Assignment failed.', 'error')
-    console.error(e)
-  } finally {
-    assignSubmitting.value = false
-  }
 }
 
 async function saveDetailChanges() {
@@ -813,11 +561,7 @@ async function saveDetailChanges() {
       client_id: detailProject.value.client_id || null,
       start_date: detailProject.value.start_date || null,
       end_date: detailProject.value.end_date || null,
-      employee_budget: detailProject.value.employee_budget,
-      partner_budget: detailProject.value.partner_budget,
-      project_remuneration: detailProject.value.project_remuneration,
       color: detailProject.value.color,
-      partner_hourly_rate: detailProject.value.partner_hourly_rate,
     }
     await projectsAPI.updateProject(detailProject.value.id, payload)
     toast('Project details saved.')
@@ -867,14 +611,8 @@ async function handleSubmit() {
       current_stage: form.current_stage || null,
       is_billed: form.is_billed,
       client_id: form.client_id || null,
-      partner_remuneration: form.partner_remuneration,
-      employee_remuneration: form.employee_remuneration,
-      project_remuneration: form.project_remuneration,
       total_assigned_hours: form.total_assigned_hours,
       color: form.color,
-      partner_hourly_rate: form.partner_hourly_rate,
-      employee_budget: form.employee_budget,
-      partner_budget: form.partner_budget,
     }
     if (isEditing.value) {
       await projectsAPI.updateProject(editingId.value, payload)
@@ -940,19 +678,7 @@ const progressPercent = computed(() => {
   const worked = Number(detailProject.value?.total_worked_hours) || 0
   return Math.round((worked / assigned) * 100)
 })
-const employeeBudgetPercent = computed(() => {
-  const budget = Number(detailProject.value?.employee_budget) || 0
-  if (budget <= 0) return 0
-  const cost = Number(detailProject.value?.employee_remuneration) || 0
-  return Math.round((cost / budget) * 100)
-})
 
-const partnerBudgetPercent = computed(() => {
-  const budget = Number(detailProject.value?.partner_budget) || 0
-  if (budget <= 0) return 0
-  const cost = Number(detailProject.value?.partner_remuneration) || 0
-  return Math.round((cost / budget) * 100)
-})
 </script>
 
 <style scoped>

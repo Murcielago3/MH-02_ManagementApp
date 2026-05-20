@@ -63,7 +63,7 @@
             </td>
             <td>{{ emp.designation }}</td>
             <td>
-              <span class="role-badge">{{ emp.role }}</span>
+              <span class="role-badge">{{ formatRole(emp.role) }}</span>
             </td>
             <td class="mono muted">{{ formatDate(emp.joining_date) }}</td>
             <td v-if="isAdmin" class="text-right mono">{{ formatSalary(emp.salary_month) }}</td>
@@ -284,7 +284,18 @@ import { useAuthStore } from '../stores/auth'
 import { usersAPI } from '../api/users'
 import CurrencyInput from '../components/CurrencyInput.vue'
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const getApiBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL
+  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    return envUrl
+  }
+  if (typeof window !== 'undefined' && window.location) {
+    return `${window.location.protocol}//${window.location.hostname}:8000`
+  }
+  return 'http://localhost:8000'
+}
+
+const API_BASE = getApiBaseUrl()
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -554,6 +565,12 @@ function formatDate(d) {
 
 function formatSalary(val) {
   return (Number(val) || 0).toLocaleString('en-IN')
+}
+
+function formatRole(role) {
+  if (!role) return '—'
+  if (role === 'project_manager') return 'Project Manager'
+  return role.charAt(0).toUpperCase() + role.slice(1)
 }
 </script>
 

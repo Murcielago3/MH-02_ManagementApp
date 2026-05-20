@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/app/routers/invoices.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/app/routers/teams.py', encoding='utf-8'\\).read\\(\\)\\); ast.parse\\(open\\('backend/app/models/team.py', encoding='utf-8'\\).read\\(\\)\\); ast.parse\\(open\\('backend/alembic/versions/e1b4f2a8c911_add_teams_and_team_members.py', encoding='utf-8'\\).read\\(\\)\\); ast.parse\\(open\\('backend/app/main.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")"
+    ]
+  }
+}

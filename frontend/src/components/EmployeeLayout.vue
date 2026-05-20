@@ -166,12 +166,10 @@ const navItems = computed(() => {
     { path: '/employee/leaves', icon: 'event_busy', label: 'Leaves' },
     { path: '/employee/salary', icon: 'payments', label: 'Salary' },
     { path: '/employee/reimbursements', icon: 'receipt_long', label: 'Reimbursements' },
+    { path: '/employee/projects', icon: 'architecture', label: 'Projects' },
   ]
   
-  if (authStore.role === 'project_manager') {
-    items.push({ path: '/pm/employees', icon: 'group', label: 'Team Members' })
-    items.push({ path: '/pm/projects', icon: 'architecture', label: 'Projects' })
-  }
+  // Team members are project-scoped now — open via the Projects page → click a project.
   
   if (authStore.role === 'admin') {
     items.push({ path: '/admin/dashboard', icon: 'admin_panel_settings', label: 'Admin Portal' })
