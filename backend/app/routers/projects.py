@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
@@ -10,9 +10,72 @@ from app.models.project import Project, ProjectAssignment
 from app.models.user import User
 from app.models.weekly_timesheet import WeeklyTimesheet, WeeklyTimesheetEntry
 from app.auth import require_admin, require_manager
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
+from app.utils.cache import TTLCache
+
+# Reserve-status is an org-wide aggregation (every project, every approved
+# timesheet entry, every invoice). The ProjectSelector loads it on every page
+# mount, so the same admin can trigger it many times in quick succession.
+# Cache it briefly; mutating endpoints below (project, assignment, invoice
+# creation) invalidate it explicitly.
+_reserve_cache = TTLCache(ttl_seconds=15)
+_RESERVE_KEY = "all"
+
+
+def _invalidate_reserve():
+    """Drop the reserve cache AND the dashboard cache — both are derived from
+    the same underlying data (projects, invoices, timesheets, salaries)."""
+    _reserve_cache.invalidate(_RESERVE_KEY)
+    try:
+        from app.routers.dashboard import _invalidate_dashboard
+        _invalidate_dashboard()
+    except Exception:
+        pass  # dashboard module not yet imported on first call
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+def user_rates(user, salary_months_per_year: float = 13.0, working_hours_per_month: float = 160.0) -> tuple[float, float]:
+    """
+    Single source of truth for per-employee pay used across all project views
+    (summary, totals, billing, projected cost). Salaries live on the User
+    profile — assignments are pure many-to-many links and don't carry their
+    own salary anymore (Estimates is the only place where per-row overrides
+    are allowed, and that runs through its own store).
+
+    The salary_months_per_year and working_hours_per_month parameters come from
+    admin Settings (see settings router); callers should fetch them via
+    get_or_create_settings() once per request. Defaults match the historical
+    13/12/160 formula so this remains safe if no settings exist.
+
+    Returns: (base_pay_monthly, hourly_rate)
+      - base_pay = user.salary_month
+      - hourly_rate = user.salary_hour if set,
+                      else (base_pay * salary_months_per_year / 12) / working_hours_per_month
+    """
+    if user is None:
+        return 0.0, 0.0
+    base_pay = float(user.salary_month or 0)
+    if user.salary_hour:
+        hourly_rate = float(user.salary_hour)
+    elif base_pay > 0 and working_hours_per_month > 0:
+        hourly_rate = round((base_pay * salary_months_per_year / 12) / working_hours_per_month, 2)
+    else:
+        hourly_rate = 0.0
+    return base_pay, hourly_rate
+
+
+async def _rate_params(db) -> tuple[float, float]:
+    """Tiny helper: returns (salary_months_per_year, working_hours_per_month)
+    from settings. Reads through the cached settings snapshot — invalidated
+    automatically whenever an admin saves the Settings page."""
+    from app.routers.settings import get_settings_snapshot
+    s = await get_settings_snapshot(db)
+    return (
+        float(s["salary_months_per_year"] or 13),
+        float(s["working_hours_per_month"] or 160),
+    )
+
 
 def parse_date(v):
     if not v:
@@ -40,6 +103,7 @@ class ProjectCreate(BaseModel):
     employee_budget: Optional[float] = None
     partner_budget: Optional[float] = None
     partner_hourly_rate: Optional[float] = None
+    advance_amount: Optional[float] = None
     start_date: Optional[Union[date, str]] = None
     end_date: Optional[Union[date, str]] = None
 
@@ -64,6 +128,7 @@ class ProjectUpdate(BaseModel):
     employee_budget: Optional[float] = None
     partner_budget: Optional[float] = None
     partner_hourly_rate: Optional[float] = None
+    advance_amount: Optional[float] = None
     start_date: Optional[Union[date, str]] = None
     end_date: Optional[Union[date, str]] = None
 
@@ -82,7 +147,7 @@ async def get_next_project_number(
 ):
     result = await db.execute(select(Project.project_number))
     numbers = result.scalars().all()
-    
+
     max_num = 0
     for sn in numbers:
         if not sn: continue
@@ -93,9 +158,101 @@ async def get_next_project_number(
                 max_num = max(max_num, int(num_part))
         except:
             continue
-            
+
     next_num = max_num + 1
     return {"next_number": f"MH - {next_num:03d}"}
+
+
+@router.get("/reserve-status")
+async def get_reserve_status(
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_manager)
+):
+    """
+    Returns reserve balance for every project in a single optimised SQL query.
+    Formula: advance_amount + SUM(invoices.total) - employee_spend - partner_cost
+
+    Employee hourly rate is computed live from user.salary_month using the
+    admin-configurable settings (same source of truth as /summary). This keeps
+    the sidebar's depleted-reserve badge consistent with the per-project views.
+    Must be registered BEFORE /{project_id} routes to avoid path conflict.
+
+    Result is cached for 15s and invalidated whenever projects, assignments,
+    or invoices are created/updated/deleted. Browser also gets a short
+    Cache-Control window so rapid back-and-forth navigation hits the cache.
+    """
+    response.headers["Cache-Control"] = "private, max-age=5"
+
+    cached = _reserve_cache.get(_RESERVE_KEY)
+    if cached is not None:
+        return cached
+
+    smpy, whpm = await _rate_params(db)
+    sql = text("""
+        WITH inv_cte AS (
+            SELECT project_id, COALESCE(SUM(total), 0) AS total_invoiced
+            FROM invoices
+            WHERE project_id IS NOT NULL
+            GROUP BY project_id
+        ),
+        rated_entries AS (
+            SELECT wte.project_id,
+                   wte.hours,
+                   COALESCE(
+                       u.salary_hour,
+                       CASE WHEN COALESCE(u.salary_month, 0) > 0
+                            THEN (u.salary_month * :smpy / 12.0) / :whpm
+                            ELSE 0 END
+                   ) AS hourly_rate
+            FROM weekly_timesheet_entries wte
+            JOIN weekly_timesheets wt ON wt.id = wte.timesheet_id AND wt.status = 'approved'
+            JOIN users u ON u.id = wt.employee_id
+            JOIN project_assignments pa
+                 ON pa.project_id = wte.project_id AND pa.user_id = wt.employee_id
+        ),
+        emp_cte AS (
+            SELECT project_id,
+                   COALESCE(SUM(hours * hourly_rate), 0) AS emp_cost,
+                   COALESCE(SUM(hours), 0) AS total_hours
+            FROM rated_entries
+            GROUP BY project_id
+        )
+        SELECT
+            p.id AS project_id,
+            COALESCE(p.advance_amount, 0) AS advance_amount,
+            COALESCE(inv.total_invoiced, 0) AS total_invoiced,
+            COALESCE(ec.emp_cost, 0) AS emp_cost,
+            COALESCE(ec.total_hours, 0) * COALESCE(p.partner_hourly_rate, 0) AS partner_cost,
+            (
+                COALESCE(p.advance_amount, 0)
+                + COALESCE(inv.total_invoiced, 0)
+                - COALESCE(ec.emp_cost, 0)
+                - COALESCE(ec.total_hours, 0) * COALESCE(p.partner_hourly_rate, 0)
+            ) AS reserve_balance
+        FROM projects p
+        LEFT JOIN inv_cte inv ON inv.project_id = p.id
+        LEFT JOIN emp_cte ec ON ec.project_id = p.id
+    """)
+    result = await db.execute(sql, {"smpy": smpy, "whpm": whpm})
+    rows = result.fetchall()
+    payload = [
+        {
+            "project_id": row.project_id,
+            "advance_amount": float(row.advance_amount),
+            "total_invoiced": float(row.total_invoiced),
+            "reserve_balance": round(float(row.reserve_balance), 2),
+            "reserve_depleted": (
+                (float(row.advance_amount) > 0 or float(row.total_invoiced) > 0)
+                and float(row.reserve_balance) < 0
+            ),
+            "has_reserve": float(row.advance_amount) > 0 or float(row.total_invoiced) > 0,
+        }
+        for row in rows
+    ]
+    _reserve_cache.set(_RESERVE_KEY, payload)
+    return payload
+
 
 @router.get("/")
 async def list_projects(
@@ -127,30 +284,35 @@ async def get_project(
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    
+
+    smpy, whpm = await _rate_params(db)
     total_worked_hours = 0
     total_employee_cost = 0.0
 
-    # Calculate for each assignment to get the correct cost
-    assignments_data = []
-    for assignment in project.assignments:
-        worked_query = (
-            select(func.sum(WeeklyTimesheetEntry.hours))
-            .join(WeeklyTimesheet)
+    # ── Batch approved-hours per employee in one GROUP BY (was N+1) ──
+    hours_by_uid = {}
+    if project.assignments:
+        uids = [a.user_id for a in project.assignments]
+        hours_q = await db.execute(
+            select(WeeklyTimesheet.employee_id, func.sum(WeeklyTimesheetEntry.hours))
+            .join(WeeklyTimesheetEntry, WeeklyTimesheetEntry.timesheet_id == WeeklyTimesheet.id)
             .where(
                 WeeklyTimesheetEntry.project_id == project_id,
-                WeeklyTimesheet.employee_id == assignment.user_id,
-                WeeklyTimesheet.status == 'approved'
+                WeeklyTimesheet.status == 'approved',
+                WeeklyTimesheet.employee_id.in_(uids),
             )
+            .group_by(WeeklyTimesheet.employee_id)
         )
-        worked_result = await db.execute(worked_query)
-        hours_worked = float(worked_result.scalar() or 0)
-        hourly_rate = float(assignment.hourly_rate or 0)
+        hours_by_uid = {row[0]: float(row[1] or 0) for row in hours_q.all()}
+
+    assignments_data = []
+    for assignment in project.assignments:
+        hours_worked = hours_by_uid.get(assignment.user_id, 0.0)
+        base_pay, hourly_rate = user_rates(assignment.user, smpy, whpm)
 
         total_worked_hours += hours_worked
         total_employee_cost += (hours_worked * hourly_rate)
-        
-        # Build assignment dict with extra info
+
         assignments_data.append({
             "id": assignment.id,
             "user_id": assignment.user_id,
@@ -159,8 +321,8 @@ async def get_project(
                 "name": assignment.user.name,
                 "designation": assignment.user.designation
             },
-            "base_pay": float(assignment.base_pay or 0),
-            "hourly_rate": float(assignment.hourly_rate or 0),
+            "base_pay": base_pay,
+            "hourly_rate": hourly_rate,
             "hours_worked": hours_worked
         })
         
@@ -190,7 +352,8 @@ async def get_project(
         "partner_hourly_rate": project.partner_hourly_rate,
         "color": project.color,
         "assignments": assignments_data,
-        "work_order_urls": project.work_order_urls
+        "work_order_urls": project.work_order_urls,
+        "advance_amount": float(project.advance_amount or 0),
     }
     return project_data
 
@@ -224,11 +387,13 @@ async def create_project(
         employee_remuneration=data.employee_remuneration,
         project_remuneration=data.project_remuneration,
         total_assigned_hours=data.total_assigned_hours,
-        color=data.color
+        color=data.color,
+        advance_amount=data.advance_amount or 0,
     )
     db.add(project)
     await db.commit()
     await db.refresh(project)
+    _invalidate_reserve()
     return project
 
 @router.patch("/{project_id}")
@@ -242,12 +407,13 @@ async def update_project(
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    
+
     for field, value in data.dict(exclude_unset=True).items():
         setattr(project, field, value)
-    
+
     await db.commit()
     await db.refresh(project)
+    _invalidate_reserve()
     return project
 
 @router.delete("/{project_id}")
@@ -262,6 +428,7 @@ async def delete_project(
         raise HTTPException(status_code=404, detail="Project not found")
     await db.delete(project)
     await db.commit()
+    _invalidate_reserve()
     return {"detail": "Project deleted successfully"}
 
 class AssignUserBody(BaseModel):
@@ -269,11 +436,13 @@ class AssignUserBody(BaseModel):
 
 class AssignEmployee(BaseModel):
     user_id: int
-    base_pay: float
+    # base_pay accepted for backward compat but ignored — salary is pulled from
+    # the User profile (single source of truth).
+    base_pay: Optional[float] = None
 
 @router.post("/{project_id}/assign", status_code=201)
 async def assign_employee(
-    project_id:int,
+    project_id: int,
     data: AssignEmployee,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(require_manager)
@@ -286,49 +455,35 @@ async def assign_employee(
     )
     if existing.scalar_one_or_none():
         raise HTTPException(400, "Employee already assigned to this project")
-    hourly_rate = round((data.base_pay * 13 / 12) / 160, 2)
 
+    user_result = await db.execute(select(User).where(User.id == data.user_id))
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(404, "Employee not found")
+
+    smpy, whpm = await _rate_params(db)
+    base_pay, hourly_rate = user_rates(user, smpy, whpm)
+    # We still snapshot these on the assignment row so older queries / DB
+    # inspections see the values that were live at assignment time, but every
+    # read path now recomputes from the user profile via user_rates().
     assignment = ProjectAssignment(
         user_id=data.user_id,
         project_id=project_id,
-        base_pay=data.base_pay,
-        hourly_rate=hourly_rate
+        base_pay=base_pay,
+        hourly_rate=hourly_rate,
     )
     db.add(assignment)
     await db.commit()
+    _invalidate_reserve()
     return {
         "message": "Employee assigned",
         "user_id": data.user_id,
-        "base_pay": data.base_pay,
-        "hourly_rate": hourly_rate
+        "base_pay": base_pay,
+        "hourly_rate": hourly_rate,
     }
 
-@router.patch("/{project_id}/assignments/{assignment_id}")
-async def update_assignment(
-    project_id: int,
-    assignment_id: int,
-    data: AssignmentUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user = Depends(require_manager)
-):
-    result = await db.execute(
-        select(ProjectAssignment).where(
-            ProjectAssignment.id == assignment_id,
-            ProjectAssignment.project_id == project_id
-        )
-    )
-    assignment = result.scalar_one_or_none()
-    if not assignment:
-        raise HTTPException(404, "Assignment not found")
-    
-    if data.base_pay is not None:
-        assignment.base_pay = data.base_pay
-    if data.hourly_rate is not None:
-        assignment.hourly_rate = data.hourly_rate
-        
-    await db.commit()
-    await db.refresh(assignment)
-    return assignment
+# Per-assignment salary override removed — salaries live on the User profile.
+# Estimates remain the only place where per-row manipulation is supported.
 
 @router.get("/{project_id}/summary")
 async def get_project_summary(
@@ -356,52 +511,74 @@ async def get_project_summary(
     )
     assignments = assign_result.scalars().all()
 
-    employee_rows = []
-    total_hours_all = 0
-    total_spent_all = 0
+    # ── Batch-fetch users (was N+1) ──
+    user_ids = [a.user_id for a in assignments]
+    users_by_id = {}
+    if user_ids:
+        users_result = await db.execute(select(User).where(User.id.in_(user_ids)))
+        users_by_id = {u.id: u for u in users_result.scalars().all()}
 
-    for assignment in assignments:
-        # Get employee name
-        user_result = await db.execute(
-            select(User).where(User.id == assignment.user_id)
-        )
-        user = user_result.scalar_one_or_none()
-        if not user:
-            continue
-
-        # Sum approved timesheet hours for this employee on this project
-        # Using weekly_timesheet_entries table
-        hours_result = await db.execute(
+    # ── Batch-fetch approved-hours per employee in one GROUP BY (was N+1) ──
+    hours_by_uid = {}
+    if user_ids:
+        hours_q = await db.execute(
             text("""
-                SELECT COALESCE(SUM(wte.hours), 0)
+                SELECT wt.employee_id AS uid, COALESCE(SUM(wte.hours), 0) AS hours
                 FROM weekly_timesheet_entries wte
                 JOIN weekly_timesheets wt ON wte.timesheet_id = wt.id
                 WHERE wte.project_id = :project_id
-                AND wt.employee_id = :employee_id
-                AND wt.status = 'approved'
-            """),
-            {"project_id": project_id, "employee_id": assignment.user_id}
+                  AND wt.status = 'approved'
+                  AND wt.employee_id IN :uids
+                GROUP BY wt.employee_id
+            """).bindparams(
+                bindparam("uids", expanding=True)
+            ),
+            {"project_id": project_id, "uids": user_ids},
         )
-        hours_worked = float(hours_result.scalar() or 0)
-        hourly_rate = float(assignment.hourly_rate or 0)
+        hours_by_uid = {row.uid: float(row.hours or 0) for row in hours_q}
+
+    employee_rows = []
+    total_hours_all = 0
+    total_spent_all = 0
+    smpy, whpm = await _rate_params(db)
+
+    for assignment in assignments:
+        user = users_by_id.get(assignment.user_id)
+        if not user:
+            continue
+        hours_worked = hours_by_uid.get(assignment.user_id, 0.0)
+        base_pay, hourly_rate = user_rates(user, smpy, whpm)
         total_spent = round(hours_worked * hourly_rate, 2)
 
         total_hours_all += hours_worked
         total_spent_all += total_spent
 
         employee_rows.append({
+            "assignment_id": assignment.id,
             "employee_id": assignment.user_id,
             "name": user.name,
             "designation": user.designation,
-            "base_pay": float(assignment.base_pay or 0),
+            "base_pay": base_pay,
             "hourly_rate": hourly_rate,
             "hours_worked": hours_worked,
-            "total_spent": total_spent
+            "total_spent": total_spent,
         })
 
     # Partner remuneration
     partner_hourly_rate = float(project.partner_hourly_rate or 0)
     partner_cost = round(partner_hourly_rate * total_hours_all, 2)
+    grand_total = total_spent_all + partner_cost
+
+    # Reserve balance: advance + all invoices billed to this project - actual spend
+    from app.models.invoice import Invoice
+    inv_result = await db.execute(
+        select(func.coalesce(func.sum(Invoice.total), 0))
+        .where(Invoice.project_id == project_id)
+    )
+    total_invoiced = float(inv_result.scalar() or 0)
+    advance = float(project.advance_amount or 0)
+    reserve_balance = round(advance + total_invoiced - grand_total, 2)
+    has_reserve = advance > 0 or total_invoiced > 0
 
     return {
         "project_id": project_id,
@@ -418,7 +595,13 @@ async def get_project_summary(
             "partner_cost": partner_cost,
             "type": "profit"
         },
-        "grand_total": total_spent_all + partner_cost
+        "grand_total": grand_total,
+        # Reserve fields
+        "advance_amount": advance,
+        "total_invoiced": total_invoiced,
+        "reserve_balance": reserve_balance,
+        "reserve_depleted": has_reserve and reserve_balance < 0,
+        "has_reserve": has_reserve,
     }
 
 
@@ -476,4 +659,131 @@ async def update_billing(
 
     await db.commit()
     await db.refresh(project)
+    _invalidate_reserve()  # partner_hourly_rate affects partner_cost in reserve
     return {"message": "Billing updated", "billed_amount": billed_amount}
+
+
+@router.get("/{project_id}/projected-cost")
+async def get_projected_cost(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_manager)
+):
+    """
+    Calculates projected cost based on tasks scheduled for this project.
+    Uses duration_hours when set, otherwise (end_date - date + 1) * 8 hours.
+    Includes all task statuses.
+    """
+    from app.models.task import Task
+
+    # Get project for partner rate
+    proj_result = await db.execute(select(Project).where(Project.id == project_id))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    partner_hourly_rate = float(project.partner_hourly_rate or 0)
+
+    # Get all tasks for this project
+    tasks_result = await db.execute(
+        select(Task).where(Task.project_id == project_id)
+    )
+    tasks = tasks_result.scalars().all()
+
+    # Get user ids from tasks
+    task_user_ids = list(set([t.assigned_to for t in tasks]))
+
+    # Fetch approved leaves
+    from app.models.leave import LeaveRequest
+    user_leaves = {}
+    if task_user_ids:
+        leaves_result = await db.execute(
+            select(LeaveRequest).where(
+                LeaveRequest.employee_id.in_(task_user_ids),
+                LeaveRequest.status == 'approved'
+            )
+        )
+        all_leaves = leaves_result.scalars().all()
+        for l in all_leaves:
+            user_leaves.setdefault(l.employee_id, []).append((l.start_date, l.end_date))
+
+    import datetime
+    def count_working_days(uid, start, end):
+        days = (end - start).days + 1
+        leaves = user_leaves.get(uid, [])
+        overlap_days = 0
+        for i in range(days):
+            current = start + datetime.timedelta(days=i)
+            for l_start, l_end in leaves:
+                if l_start <= current <= l_end:
+                    overlap_days += 1
+                    break
+        return max(days - overlap_days, 0)
+
+    from datetime import date as date_type
+    emp_hours: dict = {}
+    for task in tasks:
+        uid = task.assigned_to
+        task_end = task.end_date or task.date
+        working_days = count_working_days(uid, task.date, task_end)
+        
+        if working_days == 0:
+            hours = 0.0
+        else:
+            hrs_per_day = float(task.duration_hours) if task.duration_hours is not None else 8.0
+            hours = working_days * hrs_per_day
+            
+        emp_hours[uid] = emp_hours.get(uid, 0) + hours
+
+    if not emp_hours:
+        return {
+            "project_id": project_id,
+            "rows": [],
+            "total_employee_projected": 0,
+            "total_projected_hours": 0,
+            "partner_projected_cost": 0,
+            "grand_projected": 0,
+        }
+
+    # Fetch users — salary is the single source of truth (no assignment override)
+    from app.models.user import User
+    user_ids = list(emp_hours.keys())
+    users_result = await db.execute(select(User).where(User.id.in_(user_ids)))
+    users = {u.id: u for u in users_result.scalars().all()}
+
+    smpy, whpm = await _rate_params(db)
+    rows = []
+    total_emp_projected = 0.0
+    total_proj_hours = 0.0
+
+    for uid, proj_hours in emp_hours.items():
+        user = users.get(uid)
+        name = user.name if user else f"Employee #{uid}"
+        designation = (user.designation if user else None) or "—"
+        _, hourly_rate = user_rates(user, smpy, whpm)
+
+        projected_cost = round(proj_hours * hourly_rate, 2)
+        total_emp_projected += projected_cost
+        total_proj_hours += proj_hours
+
+        rows.append({
+            "employee_id": uid,
+            "name": name,
+            "designation": designation,
+            "projected_hours": round(proj_hours, 1),
+            "hourly_rate": hourly_rate,
+            "projected_cost": projected_cost,
+        })
+
+    rows.sort(key=lambda r: r["name"])
+    partner_projected = round(total_proj_hours * partner_hourly_rate, 2)
+    grand_projected = round(total_emp_projected + partner_projected, 2)
+
+    return {
+        "project_id": project_id,
+        "rows": rows,
+        "total_employee_projected": round(total_emp_projected, 2),
+        "total_projected_hours": round(total_proj_hours, 1),
+        "partner_projected_cost": partner_projected,
+        "grand_projected": grand_projected,
+    }

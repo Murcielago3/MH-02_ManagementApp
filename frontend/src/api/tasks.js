@@ -9,9 +9,22 @@ export const tasksAPI = {
     return client.get('/tasks/my', { params })
   },
 
-  getCalendarTasks: (year, month, employeeId) => {
-    const params = { year, month }
-    if (employeeId) params.employee_id = employeeId
+  /**
+   * Fetch calendar tasks. Pass either a date range (preferred) or year+month.
+   * - opts.startDate / opts.endDate: 'YYYY-MM-DD' strings
+   * - opts.year / opts.month: legacy fallback
+   * - opts.employeeId: optional filter
+   */
+  getCalendarTasks: (opts = {}) => {
+    const params = {}
+    if (opts.startDate && opts.endDate) {
+      params.start_date = opts.startDate
+      params.end_date = opts.endDate
+    } else if (opts.year && opts.month) {
+      params.year = opts.year
+      params.month = opts.month
+    }
+    if (opts.employeeId) params.employee_id = opts.employeeId
     return client.get('/tasks/calendar', { params })
   },
 

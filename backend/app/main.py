@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
-from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams
+from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router
 
 
 security = HTTPBearer()
@@ -39,6 +39,7 @@ app.include_router(weekly_timesheets.router)
 app.include_router(bank_accounts.router)
 app.include_router(invoices.router)
 app.include_router(teams.router)
+app.include_router(settings_router.router)
 
 
 @app.get("/health")
@@ -47,13 +48,54 @@ async def health():
 
 @app.on_event("startup")
 async def run_migrations():
-    """Add any missing columns to existing tables."""
+    """Add any missing columns to existing tables.
+
+    Each ALTER runs in its own transaction so a failure on one (e.g. column
+    already exists in Postgres) doesn't abort the rest. Works on both Postgres
+    and SQLite.
+    """
     from app.database import engine
     from sqlalchemy import text
-    async with engine.begin() as conn:
-        # Add color column to projects if missing
+
+    # Columns to ensure exist on the projects table: (column_name, sql_definition)
+    project_columns = [
+        ("partner_remuneration", "NUMERIC(10, 2) DEFAULT 0"),
+        ("employee_remuneration", "NUMERIC(10, 2) DEFAULT 0"),
+        ("project_remuneration", "NUMERIC(10, 2) DEFAULT 0"),
+        ("total_assigned_hours", "NUMERIC(10, 2) DEFAULT 0"),
+        ("partner_hourly_rate", "NUMERIC(10, 2) DEFAULT 0"),
+        ("billed_amount", "NUMERIC(12, 2) DEFAULT 0"),
+        ("color", "VARCHAR DEFAULT '#287475'"),
+        ("work_order_urls", "VARCHAR"),
+        ("advance_amount", "NUMERIC(12, 2) DEFAULT 0"),
+    ]
+
+    for col_name, col_def in project_columns:
         try:
-            await conn.execute(text("ALTER TABLE projects ADD COLUMN IF NOT EXISTS color VARCHAR DEFAULT '#287475'"))
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text(f"ALTER TABLE projects ADD COLUMN {col_name} {col_def}")
+                )
         except Exception:
-            pass  # Column already exists or DB doesn't support IF NOT EXISTS
+            pass  # Column already exists in this DB — skip and continue
+
+    # Create the settings table (singleton) if missing — covers both Postgres and SQLite.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS settings (
+                    id INTEGER PRIMARY KEY,
+                    company_name VARCHAR,
+                    company_address VARCHAR,
+                    company_gstin VARCHAR,
+                    company_phone VARCHAR,
+                    company_email VARCHAR,
+                    company_signatory_name VARCHAR,
+                    company_signatory_role VARCHAR,
+                    working_hours_per_month NUMERIC(6, 2),
+                    salary_months_per_year NUMERIC(4, 2)
+                )
+            """))
+    except Exception:
+        pass
 

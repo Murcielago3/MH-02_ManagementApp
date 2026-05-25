@@ -4,12 +4,7 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <div class="logo-box">
-          <div class="logo-grid">
-            <div class="logo-cell logo-full"></div>
-            <div class="logo-cell logo-light"></div>
-            <div class="logo-cell logo-mid"></div>
-            <div class="logo-cell logo-full"></div>
-          </div>
+          <img :src="logoUrl" alt="Studio MH02 Logo" class="sidebar-logo-img" />
         </div>
         <h1 class="brand-title">{{ brandName }}</h1>
       </div>
@@ -88,6 +83,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useTimesheetStore } from '../stores/timesheet'
 import { usersAPI } from '../api/users'
+import { getAppLogoUrl } from '../utils/logo'
 
 const route = useRoute()
 const router = useRouter()
@@ -95,6 +91,7 @@ const authStore = useAuthStore()
 const timesheetStore = useTimesheetStore()
 const currentUser = ref(null)
 const showProfileMenu = ref(false)
+const logoUrl = getAppLogoUrl()
 
 const closeProfileMenu = (e) => {
   if (!e.target.closest('.avatar-wrapper')) {
@@ -222,20 +219,20 @@ const currentPageTitle = computed(() => {
   width: 32px;
   height: 32px;
   margin-right: 12px;
+  overflow: hidden;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
 }
 
-.logo-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 4px;
+.sidebar-logo-img {
   width: 100%;
   height: 100%;
+  object-fit: cover;
+  display: block;
 }
-
-.logo-cell { border-radius: 2px; }
-.logo-full { background: var(--color-primary); }
-.logo-light { background: var(--color-primary); opacity: 0.3; }
-.logo-mid { background: var(--color-primary); opacity: 0.6; }
 
 .brand-title {
   font-family: var(--font-display);

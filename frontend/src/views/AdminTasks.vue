@@ -28,6 +28,7 @@
       @ribbon-move="onMoveTask"
       @ribbon-clone="onCloneTask"
       @ribbon-split="onSplitTask"
+      @range-change="onCalRangeChange"
     />
 
     <!-- Task Detail Drawer -->
@@ -201,12 +202,36 @@ async function fetchAll() {
   }
 }
 
+function toIsoDate(d) {
+  // Local-time YYYY-MM-DD (avoids UTC offset issues from toISOString)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+// Current calendar range — fed by the ResourceCalendar `range-change` event
+// (infinite-scroll model). Falls back to ±90 days around today before first emit.
+const calRange = ref({
+  startDate: toIsoDate(new Date(Date.now() - 90 * 86400000)),
+  endDate: toIsoDate(new Date(Date.now() + 90 * 86400000)),
+})
+
+function onCalRangeChange({ startDate, endDate }) {
+  // Only refetch if the range actually widens; ignore micro-changes that don't add data.
+  if (calRange.value.startDate !== startDate || calRange.value.endDate !== endDate) {
+    calRange.value = { startDate, endDate }
+    fetchTasks()
+  }
+}
+
 async function fetchTasks() {
   try {
-    const anchor = calGrid.value?.anchorDate || new Date()
-    const year = anchor.getFullYear()
-    const month = anchor.getMonth() + 1
-    const res = await tasksAPI.getCalendarTasks(year, month, filterEmployee.value)
+    const res = await tasksAPI.getCalendarTasks({
+      startDate: calRange.value.startDate,
+      endDate: calRange.value.endDate,
+      employeeId: filterEmployee.value,
+    })
     tasks.value = res.data
   } catch (e) {
     console.error('Failed to fetch tasks', e)
@@ -218,11 +243,8 @@ onMounted(async () => {
   await fetchTasks()
 })
 
-// Re-fetch on calendar navigation or filter change
+// Re-fetch on filter change
 watch(filterEmployee, fetchTasks)
-// Watch for calendar anchor changes
-watch(() => calGrid.value?.anchorDate, fetchTasks)
-watch(() => calGrid.value?.viewMode, fetchTasks)
 
 // ── Drawer ──
 function openDrawer(task) {

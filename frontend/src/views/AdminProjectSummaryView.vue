@@ -42,17 +42,6 @@
                   </span>
                 </div>
               </div>
-              <button type="button" class="btn-primary" @click="openAddModal">Add Employee to Project</button>
-            </div>
-
-            <div v-if="showTimesheetHint" class="info-banner">
-              <span class="material-symbols-outlined">info</span>
-              Hours come from approved weekly timesheets only. They will appear here once timesheets are approved.
-            </div>
-
-            <div v-if="timesheetHoursNote" class="info-banner subtle">
-              <span class="material-symbols-outlined">schedule</span>
-              {{ timesheetHoursNote }}
             </div>
 
             <div class="table-card">
@@ -65,55 +54,19 @@
                     <th class="num">Rate/hr</th>
                     <th class="num">Hours Worked</th>
                     <th class="num">Total Spent</th>
-                    <th class="actions-col">Pay</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="!shownRows.length">
-                    <td colspan="7" class="empty-row">No approved timesheet hours on this project yet.</td>
+                    <td colspan="6" class="empty-row">No approved timesheet hours on this project yet.</td>
                   </tr>
                   <tr v-for="row in shownRows" :key="row.employee_id">
                     <td>{{ row.name }}</td>
                     <td>{{ row.designation || '—' }}</td>
-                    <td class="num tab">
-                      <template v-if="row.assignment_id && drafts[row.assignment_id]">
-                        <input
-                          v-model.number="drafts[row.assignment_id].base_pay"
-                          @input="onBasePayInput(row.assignment_id)"
-                          type="number"
-                          min="0"
-                          step="100"
-                          class="cell-input"
-                        />
-                      </template>
-                      <template v-else>{{ formatInr(row.base_pay, 0) }}</template>
-                    </td>
-                    <td class="num tab">
-                      <template v-if="row.assignment_id && drafts[row.assignment_id]">
-                        <input
-                          v-model.number="drafts[row.assignment_id].hourly_rate"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          class="cell-input narrow"
-                        />
-                      </template>
-                      <template v-else>{{ formatInrPerHour(row.hourly_rate) }}</template>
-                    </td>
+                    <td class="num tab">{{ formatInr(row.base_pay, 0) }}</td>
+                    <td class="num tab">{{ formatInrPerHour(row.hourly_rate) }}</td>
                     <td class="num tab">{{ formatHours(row.hours_worked) }}</td>
                     <td class="num tab">{{ formatInr(row.display_spent, 0) }}</td>
-                    <td class="actions-col">
-                      <button
-                        v-if="row.assignment_id"
-                        type="button"
-                        class="btn-row-save"
-                        :disabled="savingAssignmentId === row.assignment_id"
-                        @click="saveAssignmentRow(row)"
-                      >
-                        {{ savingAssignmentId === row.assignment_id ? '…' : 'Save' }}
-                      </button>
-                      <span v-else class="muted-xs">Assign in Projects to edit pay</span>
-                    </td>
                   </tr>
                 </tbody>
                 <tfoot>
@@ -123,7 +76,6 @@
                     <td class="num">—</td>
                     <td class="num tab"><strong>{{ formatHours(displayTotals.total_hours) }}</strong></td>
                     <td class="num tab"><strong>{{ formatInr(displayTotals.total_spent, 0) }}</strong></td>
-                    <td></td>
                   </tr>
                 </tfoot>
               </table>
@@ -183,55 +135,112 @@
               <p class="grand-note">Employee Spend + Partner Remuneration</p>
               <div class="grand-line" />
             </div>
+
+            <!-- ── PROJECT RESERVES ───────────────────────────── -->
+            <div v-if="showReserveSection" class="reserve-card" :class="{ 'reserve-card--depleted': reserveDepleted }">
+              <div class="reserve-head">
+                <span class="material-symbols-outlined reserve-icon">account_balance_wallet</span>
+                <span class="reserve-title">Project Reserves</span>
+                <span v-if="reserveDepleted" class="reserve-badge-warn">
+                  <span class="material-symbols-outlined">warning</span>
+                  Reserve Depleted
+                </span>
+              </div>
+              <div class="reserve-rows">
+                <div class="reserve-row">
+                  <span class="reserve-label">Billed Till Date</span>
+                  <span class="reserve-val">{{ formatInr(apiSummary.advance_amount, 0) }}</span>
+                </div>
+                <div class="reserve-row">
+                  <span class="reserve-label">
+                    <span class="reserve-op">+</span> Invoices Generated
+                  </span>
+                  <span class="reserve-val">{{ formatInr(apiSummary.total_invoiced, 0) }}</span>
+                </div>
+                <div class="reserve-row">
+                  <span class="reserve-label">
+                    <span class="reserve-op">−</span> Total Spend
+                  </span>
+                  <span class="reserve-val">{{ formatInr(displayGrandTotal, 0) }}</span>
+                </div>
+                <div class="reserve-divider" />
+                <div class="reserve-row reserve-balance-row" :class="{ negative: reserveDepleted }">
+                  <span class="reserve-label reserve-label--bold">Reserve Balance</span>
+                  <strong class="reserve-balance-val">
+                    {{ reserveDepleted ? '−' : '' }}{{ formatInr(Math.abs(reserveBalance), 0) }}
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── PROJECTED COST ─────────────────────────────── -->
+            <div class="projected-card">
+              <div class="projected-head">
+                <span class="material-symbols-outlined projected-icon">trending_up</span>
+                <span class="projected-title">Projected Cost</span>
+                <span class="projected-sub">Based on tasks scheduled in calendar</span>
+              </div>
+
+              <div v-if="projectedLoading" class="projected-loading">Loading…</div>
+              <div v-else-if="projectedData && projectedData.rows && projectedData.rows.length">
+                <div class="table-card">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Employee</th>
+                        <th>Designation</th>
+                        <th class="num">Proj. Hours</th>
+                        <th class="num">Rate/hr</th>
+                        <th class="num">Projected Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="row in projectedData.rows" :key="row.employee_id">
+                        <td>{{ row.name }}</td>
+                        <td>{{ row.designation }}</td>
+                        <td class="num tab">{{ row.projected_hours }} hrs</td>
+                        <td class="num tab">{{ formatInrPerHour(row.hourly_rate) }}</td>
+                        <td class="num tab">{{ formatInr(row.projected_cost, 0) }}</td>
+                      </tr>
+                    </tbody>
+                    <tfoot>
+                      <tr class="total-row">
+                        <td colspan="2"><strong>Employee Total</strong></td>
+                        <td class="num tab"><strong>{{ projectedData.total_projected_hours }} hrs</strong></td>
+                        <td></td>
+                        <td class="num tab"><strong>{{ formatInr(projectedData.total_employee_projected, 0) }}</strong></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                <div class="projected-summary">
+                  <div class="projected-sum-row">
+                    <span>Total Employee Projected</span>
+                    <span>{{ formatInr(projectedData.total_employee_projected, 0) }}</span>
+                  </div>
+                  <div class="projected-sum-row">
+                    <span>Partner Projected</span>
+                    <span>{{ formatInr(projectedData.partner_projected_cost, 0) }}</span>
+                  </div>
+                  <div class="projected-divider" />
+                  <div class="projected-sum-row projected-grand">
+                    <span><strong>Total Projected Cost</strong></span>
+                    <strong>{{ formatInr(projectedData.grand_projected, 0) }}</strong>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="projected-empty">
+                <span class="material-symbols-outlined" style="font-size:32px;opacity:0.3;">calendar_today</span>
+                <p>No tasks scheduled for this project yet.</p>
+              </div>
+            </div>
           </div>
         </transition>
       </section>
     </div>
 
-    <!-- Add employee modal -->
-    <Teleport to="body">
-      <div v-if="addModalOpen" class="modal-backdrop" @click.self="addModalOpen = false">
-        <div class="modal">
-          <div class="modal-header">
-            <h3 class="modal-title">Add employee to project</h3>
-            <button type="button" class="modal-close" @click="addModalOpen = false">
-              <span class="material-symbols-outlined">close</span>
-            </button>
-          </div>
-          <form class="modal-body" @submit.prevent="submitAddEmployee">
-            <div class="form-field">
-              <label>Employee</label>
-              <input v-model="empSearch" type="text" class="field-input" placeholder="Search name or designation…" />
-              <div class="dropdown-list">
-                <button
-                  v-for="u in filteredUsersForAdd"
-                  :key="u.id"
-                  type="button"
-                  class="dd-item"
-                  :class="{ picked: addForm.user_id === u.id }"
-                  @click="addForm.user_id = u.id"
-                >
-                  <span class="strong">{{ u.name }}</span>
-                  <span class="sub">{{ u.designation || '—' }}</span>
-                </button>
-                <div v-if="filteredUsersForAdd.length === 0" class="dd-empty">No employees available</div>
-              </div>
-            </div>
-            <div class="form-field">
-              <label>Base Pay (₹/mo)</label>
-              <input v-model.number="addForm.base_pay" type="number" min="0" step="100" class="field-input" required />
-              <p v-if="addPreviewHourly != null" class="preview">Hourly Rate: {{ formatInrPerHour(addPreviewHourly) }}</p>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn-ghost" @click="addModalOpen = false">Cancel</button>
-              <button type="submit" class="btn-primary" :disabled="addSubmitting || !addForm.user_id">
-                {{ addSubmitting ? 'Saving…' : 'Assign' }}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </Teleport>
+
 
     <ToastNotification
       v-if="toastMsg"
@@ -243,7 +252,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, reactive } from 'vue'
+import { ref, computed, watch } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import ProjectSelector from '../components/projects/ProjectSelector.vue'
 import ToastNotification from '../components/ToastNotification.vue'
@@ -251,6 +260,23 @@ import { projectsAPI } from '../api/projects'
 import { usersAPI } from '../api/users'
 import { weeklyTimesheetsAPI } from '../api/weekly_timesheets'
 import { formatInr, formatInrPerHour, previewHourlyFromBasePay } from '../utils/currency'
+
+// ── Projected cost ───────────────────────────────────────────────────────────
+const projectedData = ref(null)
+const projectedLoading = ref(false)
+
+async function loadProjectedCost(id) {
+  projectedLoading.value = true
+  projectedData.value = null
+  try {
+    const res = await projectsAPI.getProjectedCost(id)
+    projectedData.value = res.data
+  } catch (e) {
+    console.error('Projected cost load failed', e)
+  } finally {
+    projectedLoading.value = false
+  }
+}
 
 const selectedProjectId = ref(null)
 
@@ -261,6 +287,11 @@ const apiSummary = ref({
   totals: { total_hours: 0, total_spent: 0, type: 'expense' },
   partner: { hourly_rate: 0, total_hours: 0, partner_cost: 0, type: 'profit' },
   grand_total: 0,
+  advance_amount: 0,
+  total_invoiced: 0,
+  reserve_balance: 0,
+  reserve_depleted: false,
+  has_reserve: false,
 })
 const summaryProjectMeta = ref(null)
 const projectDetail = ref(null)
@@ -269,17 +300,11 @@ const summaryLoading = ref(false)
 const summaryError = ref('')
 
 const allUsers = ref([])
-const addModalOpen = ref(false)
-const empSearch = ref('')
-const addForm = reactive({ user_id: null, base_pay: null })
-const addSubmitting = ref(false)
+
 
 const editingPartnerRate = ref(false)
 const partnerRateInput = ref(0)
 const savingPartnerRate = ref(false)
-
-const drafts = reactive({})
-const savingAssignmentId = ref(null)
 
 const toastMsg = ref('')
 const toastType = ref('success')
@@ -370,32 +395,11 @@ const employeeBaseRows = computed(() => {
   })
 })
 
-watch(
-  () => [selectedProjectId.value, employeeBaseRows.value.map((r) => r.employee_id).join(',')],
-  () => {
-    for (const k of Object.keys(drafts)) delete drafts[k]
-    for (const r of employeeBaseRows.value) {
-      if (r.assignment_id) {
-        drafts[r.assignment_id] = {
-          base_pay: r.base_pay,
-          hourly_rate: r.hourly_rate,
-        }
-      }
-    }
-  },
-  { flush: 'post' }
-)
-
 const shownRows = computed(() =>
   employeeBaseRows.value.map((r) => {
-    const d = r.assignment_id ? drafts[r.assignment_id] : null
-    const bp = Number(d?.base_pay ?? r.base_pay) || 0
-    let hr = Number(d?.hourly_rate ?? r.hourly_rate)
-    if (Number.isNaN(hr) || hr < 0) hr = 0
-    if (hr === 0 && bp > 0) hr = previewHourlyFromBasePay(bp) || 0
     const hw = Number(r.hours_worked) || 0
-    const display_spent = hr * hw
-    return { ...r, display_spent }
+    const hr = Number(r.hourly_rate) || 0
+    return { ...r, display_spent: hr * hw }
   })
 )
 
@@ -413,42 +417,20 @@ const displayPartnerCost = computed(() => {
 
 const displayGrandTotal = computed(() => displayTotals.value.total_spent + displayPartnerCost.value)
 
-const showTimesheetHint = computed(() => {
-  if (!selectedProjectId.value) return false
-  return shownRows.value.length === 0
+// ── Reserve Balance computed ─────────────────────────────────────────────────
+const reserveBalance = computed(() => {
+  const adv = Number(apiSummary.value.advance_amount) || 0
+  const inv = Number(apiSummary.value.total_invoiced) || 0
+  return adv + inv - displayGrandTotal.value
 })
+const reserveDepleted = computed(() => reserveBalance.value < 0)
+const showReserveSection = computed(
+  () =>
+    (Number(apiSummary.value.advance_amount) || 0) > 0 ||
+    (Number(apiSummary.value.total_invoiced) || 0) > 0
+)
 
-const timesheetHoursNote = computed(() => {
-  if (!selectedProjectId.value || !approvedTimesheets.value.length) return ''
-  const H = hoursFromTimesheets.value
-  if (H.size === 0 && approvedTimesheets.value.some((t) => t.status === 'approved')) {
-    return 'Approved timesheets loaded; no hours logged against this project yet.'
-  }
-  return ''
-})
 
-const assignedUserIds = computed(() => {
-  const ids = new Set()
-  for (const a of projectDetail.value?.assignments || []) {
-    const id = a.user_id ?? a.user?.id
-    if (id != null) ids.add(id)
-  }
-  return ids
-})
-
-const filteredUsersForAdd = computed(() => {
-  const q = empSearch.value.trim().toLowerCase()
-  return allUsers.value.filter((u) => {
-    if (assignedUserIds.value.has(u.id)) return false
-    if (!q) return true
-    return (
-      (u.name || '').toLowerCase().includes(q) ||
-      (u.designation || '').toLowerCase().includes(q)
-    )
-  })
-})
-
-const addPreviewHourly = computed(() => previewHourlyFromBasePay(addForm.base_pay))
 
 async function ensureTimesheetEntries(timesheets) {
   const list = [...(timesheets || [])]
@@ -485,6 +467,8 @@ async function loadAllForProject(id) {
     let tsList = tsRes.data || []
     tsList = await ensureTimesheetEntries(tsList)
     approvedTimesheets.value = tsList
+    // Load projected cost in parallel (non-blocking)
+    loadProjectedCost(id)
   } catch (e) {
     summaryError.value = apiErr(e) || 'Could not load summary.'
     console.error(e)
@@ -502,26 +486,19 @@ watch(selectedProjectId, (id) => {
       totals: { total_hours: 0, total_spent: 0, type: 'expense' },
       partner: { hourly_rate: 0, total_hours: 0, partner_cost: 0, type: 'profit' },
       grand_total: 0,
+      advance_amount: 0,
+      total_invoiced: 0,
+      reserve_balance: 0,
+      reserve_depleted: false,
+      has_reserve: false,
     }
     summaryProjectMeta.value = null
     projectDetail.value = null
     approvedTimesheets.value = []
+    projectedData.value = null
     return
   }
   loadAllForProject(id)
-})
-
-watch(addModalOpen, async (open) => {
-  if (!open) return
-  empSearch.value = ''
-  addForm.user_id = null
-  addForm.base_pay = null
-  try {
-    const res = await usersAPI.getUsers()
-    allUsers.value = res.data || []
-  } catch (e) {
-    console.error(e)
-  }
 })
 
 function formatHours(h) {
@@ -534,58 +511,6 @@ function stageClass(stage) {
   if (stage === 'Completed') return 'stage-done'
   if (stage === 'Incomplete Beyond Deadline' || stage === 'Halted') return 'stage-warn'
   return 'stage-active'
-}
-
-function openAddModal() {
-  if (!selectedProjectId.value) return
-  addModalOpen.value = true
-}
-
-async function submitAddEmployee() {
-  if (!selectedProjectId.value || !addForm.user_id) return
-  addSubmitting.value = true
-  try {
-    await projectsAPI.assignEmployee(selectedProjectId.value, {
-      user_id: addForm.user_id,
-      base_pay: Number(addForm.base_pay) || 0,
-    })
-    addModalOpen.value = false
-    toast('Employee assigned.')
-    await loadAllForProject(selectedProjectId.value)
-  } catch (e) {
-    toast(apiErr(e), 'error')
-  } finally {
-    addSubmitting.value = false
-  }
-}
-
-async function saveAssignmentRow(row) {
-  if (!selectedProjectId.value || !row.assignment_id) return
-  const d = drafts[row.assignment_id]
-  if (!d) return
-  savingAssignmentId.value = row.assignment_id
-  try {
-    await projectsAPI.updateAssignment(selectedProjectId.value, row.assignment_id, {
-      base_pay: Number(d.base_pay) || 0,
-      hourly_rate: Number(d.hourly_rate) || 0,
-    })
-    toast('Assignment pay updated.')
-    await loadAllForProject(selectedProjectId.value)
-  } catch (e) {
-    toast(apiErr(e), 'error')
-  } finally {
-    savingAssignmentId.value = null
-  }
-}
-
-function onBasePayInput(aid) {
-  const d = drafts[aid]
-  if (d && d.base_pay) {
-    const hr = previewHourlyFromBasePay(d.base_pay)
-    if (hr != null) {
-      d.hourly_rate = hr
-    }
-  }
 }
 
 function startEditPartnerRate() {
@@ -820,59 +745,10 @@ async function savePartnerRate() {
   color: var(--color-on-surface-variant);
 }
 
-.cell-input {
-  width: 100%;
-  max-width: 140px;
-  height: 36px;
-  padding: 0 8px;
-  border: 1px solid var(--color-outline);
-  border-radius: var(--radius-lg);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.cell-input.narrow {
-  max-width: 100px;
-}
-
-.cell-input:focus {
-  border-color: var(--color-primary);
-  outline: none;
-  box-shadow: 0 0 0 1px var(--color-primary);
-}
-
-.actions-col {
-  width: 140px;
-  text-align: right;
-  vertical-align: middle;
-}
-
-.btn-row-save {
-  padding: 6px 12px;
-  border: none;
-  border-radius: var(--radius-lg);
-  background: var(--color-primary);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btn-row-save:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
 .empty-row {
   text-align: center;
   color: var(--color-on-surface-variant);
   padding: 24px !important;
-}
-
-.muted-xs {
-  font-size: 11px;
-  color: var(--color-on-surface-variant);
 }
 
 .table-card {
@@ -1164,9 +1040,17 @@ async function savePartnerRate() {
   background: #fff;
   cursor: pointer;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   border-bottom: 1px solid #f1f5f9;
+}
+.dd-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dd-rate {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .dd-item:hover {
   background: #f8fafc;
@@ -1210,5 +1094,209 @@ async function savePartnerRate() {
   .partner-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── Project Reserves card ─────────────────────────────────────────────────── */
+.reserve-card {
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 24px;
+  background: #fafafa;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.reserve-card--depleted {
+  border-color: #fca5a5;
+  background: #fff5f5;
+}
+
+.reserve-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.reserve-icon {
+  font-size: 20px;
+  color: var(--color-primary);
+}
+
+.reserve-card--depleted .reserve-icon {
+  color: #ef4444;
+}
+
+.reserve-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-on-surface);
+  letter-spacing: 0.02em;
+}
+
+.reserve-badge-warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #b91c1c;
+  letter-spacing: 0.04em;
+  margin-left: auto;
+}
+
+.reserve-badge-warn .material-symbols-outlined {
+  font-size: 14px;
+}
+
+.reserve-rows {
+  max-width: 480px;
+}
+
+.reserve-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 14px;
+  color: var(--color-on-surface-variant);
+}
+
+.reserve-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reserve-op {
+  display: inline-block;
+  width: 14px;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+  font-size: 16px;
+}
+
+.reserve-val {
+  font-variant-numeric: tabular-nums;
+}
+
+.reserve-divider {
+  height: 1px;
+  background: var(--color-outline-variant);
+  margin: 8px 0;
+}
+
+.reserve-card--depleted .reserve-divider {
+  background: #fca5a5;
+}
+
+.reserve-balance-row {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  padding: 8px 0;
+}
+
+.reserve-label--bold {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.reserve-balance-val {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.reserve-balance-row.negative .reserve-balance-val,
+.reserve-balance-row.negative .reserve-label--bold {
+  color: #b91c1c;
+}
+
+/* ── Projected Cost card ────────────────────────────────────────────────────── */
+.projected-card {
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 24px;
+  background: #fafafa;
+}
+
+.projected-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.projected-icon {
+  font-size: 20px;
+  color: var(--color-primary);
+}
+
+.projected-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-on-surface);
+  letter-spacing: 0.02em;
+}
+
+.projected-sub {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  margin-left: 4px;
+}
+
+.projected-loading {
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  padding: 16px 0;
+}
+
+.projected-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  color: var(--color-on-surface-variant);
+  font-size: 13px;
+  gap: 8px;
+}
+
+.projected-summary {
+  margin-top: 16px;
+  max-width: 420px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+}
+
+.projected-sum-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  color: var(--color-on-surface-variant);
+  padding: 4px 0;
+}
+
+.projected-divider {
+  height: 1px;
+  background: var(--color-outline-variant);
+  margin: 8px 0;
+}
+
+.projected-grand {
+  font-size: 15px;
+  color: var(--color-on-surface);
+  padding-top: 4px;
 }
 </style>

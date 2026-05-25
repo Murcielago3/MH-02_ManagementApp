@@ -26,7 +26,7 @@ export const projectsAPI = {
     return client.delete(`/projects/${projectId}`)
   },
 
-  /** Body: { user_id, base_pay } — backend returns hourly_rate */
+  /** Body: { user_id } — salary is pulled from the User profile by the backend */
   assignEmployee: (projectId, body) => {
     return client.post(`/projects/${projectId}/assign`, body)
   },
@@ -47,8 +47,13 @@ export const projectsAPI = {
     return client.patch(`/projects/${projectId}/billing`, null, { params })
   },
 
-  /** Body: { base_pay?, hourly_rate? } — updates assignment pay; backend may recalc totals */
-  updateAssignment: (projectId, assignmentId, body) => {
-    return client.patch(`/projects/${projectId}/assignments/${assignmentId}`, body)
+  /** Returns reserve balance for all projects (accurate full calculation) */
+  getReserveStatus: () => {
+    return client.get('/projects/reserve-status')
+  },
+
+  /** Returns task-based projected cost breakdown for a project */
+  getProjectedCost: (projectId) => {
+    return client.get(`/projects/${projectId}/projected-cost`)
   },
 }

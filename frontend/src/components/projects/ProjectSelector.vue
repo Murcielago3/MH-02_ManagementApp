@@ -26,16 +26,22 @@
         :key="p.id"
         role="option"
         :aria-selected="p.id === selectedProjectId"
-        :class="['proj-item', { selected: p.id === selectedProjectId }]"
+        :class="['proj-item', { selected: p.id === selectedProjectId, 'reserve-depleted': isReserveDepleted(p.id) }]"
         @click="select(p.id)"
       >
-        <span class="dot" :style="{ background: p.color || '#287475' }" />
+        <div class="dot-wrap">
+          <span class="dot" :style="{ background: p.color || '#287475' }" />
+          <span v-if="isReserveDepleted(p.id)" class="reserve-warn-dot" title="Reserve depleted" />
+        </div>
         <div class="proj-text">
           <span class="proj-line">
             <span class="proj-num">{{ p.project_number }}</span>
             <span class="proj-name">{{ p.name }}</span>
           </span>
-          <span class="stage-badge" :class="stageClass(p.current_stage)">{{ p.current_stage || 'N/A' }}</span>
+          <div class="proj-meta-row">
+            <span class="stage-badge" :class="stageClass(p.current_stage)">{{ p.current_stage || 'N/A' }}</span>
+            <span v-if="isReserveDepleted(p.id)" class="reserve-label-warn">Low Reserve</span>
+          </div>
         </div>
       </li>
     </ul>
@@ -56,11 +62,22 @@ const projects = ref([])
 const loading = ref(true)
 const search = ref('')
 
+// Reserve status map: project_id → { reserve_depleted, reserve_balance }
+const reserveMap = ref(new Map())
+
 onMounted(async () => {
   loading.value = true
   try {
-    const res = await projectsAPI.getProjects()
-    projects.value = res.data || []
+    const [projRes, reserveRes] = await Promise.all([
+      projectsAPI.getProjects(),
+      projectsAPI.getReserveStatus().catch(() => ({ data: [] })),
+    ])
+    projects.value = projRes.data || []
+    const map = new Map()
+    for (const r of (reserveRes.data || [])) {
+      map.set(r.project_id, r)
+    }
+    reserveMap.value = map
   } catch (e) {
     console.error(e)
     projects.value = []
@@ -68,6 +85,10 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+function isReserveDepleted(projectId) {
+  return reserveMap.value.get(projectId)?.reserve_depleted === true
+}
 
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
@@ -172,12 +193,8 @@ function stageClass(stage) {
 }
 
 @keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .empty-msg {
@@ -216,12 +233,44 @@ function stageClass(stage) {
   border-color: var(--color-primary);
 }
 
+.proj-item.reserve-depleted {
+  border-color: #fca5a5;
+  background: #fff8f8;
+}
+
+.proj-item.reserve-depleted:hover {
+  background: #fff0f0;
+}
+
+.proj-item.reserve-depleted.selected {
+  border-color: #ef4444;
+  background: #fff0f0;
+}
+
+/* Dot wrapper to position the warning badge */
+.dot-wrap {
+  position: relative;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
 .dot {
+  display: block;
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  flex-shrink: 0;
-  margin-top: 4px;
+}
+
+.reserve-warn-dot {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 1.5px solid #fff;
+  display: block;
 }
 
 .proj-text {
@@ -255,6 +304,13 @@ function stageClass(stage) {
   word-break: break-word;
 }
 
+.proj-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .stage-badge {
   display: inline-block;
   align-self: flex-start;
@@ -265,21 +321,20 @@ function stageClass(stage) {
   text-transform: capitalize;
 }
 
-.stage-active {
-  background: #d4edee;
-  color: #113b3c;
-}
-.stage-done {
-  background: #dcfce7;
-  color: #166534;
-}
-.stage-warn {
-  background: #fef3c7;
-  color: #92400e;
-}
-.stage-na {
-  background: #f1f5f9;
-  color: #64748b;
+.stage-active { background: #d4edee; color: #113b3c; }
+.stage-done   { background: #dcfce7; color: #166534; }
+.stage-warn   { background: #fef3c7; color: #92400e; }
+.stage-na     { background: #f1f5f9; color: #64748b; }
+
+.reserve-label-warn {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #b91c1c;
+  background: #fee2e2;
+  padding: 1px 6px;
+  border-radius: 2px;
 }
 
 .material-symbols-outlined {

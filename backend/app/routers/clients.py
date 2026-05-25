@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional
@@ -25,9 +25,12 @@ class ClientUpdate(BaseModel):
 
 @router.get("/")
 async def list_clients(
+    response: Response,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(require_manager)
 ):
+    # Clients change rarely; browser can cache for 30s.
+    response.headers["Cache-Control"] = "private, max-age=30"
     result = await db.execute(select(Client))
     clients = result.scalars().all()
     return clients

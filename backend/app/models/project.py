@@ -32,6 +32,7 @@ class Project(Base):
     employee_budget = Column(Numeric(12, 2), nullable=True, default=0)
     partner_budget = Column(Numeric(12, 2), nullable=True, default=0)
     billed_amount = Column(Numeric(12, 2), nullable=True, default=0)
+    advance_amount = Column(Numeric(12, 2), nullable=True, default=0)
 
 
 

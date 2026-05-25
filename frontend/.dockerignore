@@ -1,0 +1,8 @@
+node_modules
+dist
+.env
+.env.production
+.vscode
+references/
+scripts/
+redesign.cjs

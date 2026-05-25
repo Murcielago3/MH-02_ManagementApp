@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -71,17 +71,24 @@ class UserUpdate(BaseModel):
 
 @router.get("/")
 async def list_users(
+    response: Response,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db)
 ):
+    # The employee roster is read by many views; salary/profile changes
+    # propagate within 20s. Trade-off for fewer round-trips.
+    response.headers["Cache-Control"] = "private, max-age=20"
     result = await db.execute(select(User).where(User.is_active == True))
     users = result.scalars().all()
     return users
 
 @router.get("/me")
 async def get_my_profile(
+    response: Response,
     current_user: User = Depends(get_current_user)
 ):
+    # AppLayout calls this on every page mount — short cache covers session navigation
+    response.headers["Cache-Control"] = "private, max-age=60"
     return current_user
 
 @router.get("/{user_id}")
@@ -165,14 +172,21 @@ async def update_user(
             if field in update_data:
                 del update_data[field]
 
+    salary_changed = ("salary_month" in update_data) or ("salary_hour" in update_data)
+
     for field, value in update_data.items():
         if field == "password" and value:
             setattr(user, "hashed_password", hash_password(value))
         else:
             setattr(user, field, value)
-    
+
     await db.commit()
     await db.refresh(user)
+
+    # A salary change ripples into every project's reserve balance.
+    if salary_changed:
+        from app.routers.projects import _invalidate_reserve
+        _invalidate_reserve()
     return user
     
 @router.delete("/{user_id}", status_code=204)

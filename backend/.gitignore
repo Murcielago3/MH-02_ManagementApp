@@ -1,2 +1,25 @@
-# Created by venv; see https://docs.python.org/3/library/venv.html
-*
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Venv (if created inside backend/)
+Include/
+Lib/
+Scripts/
+share/
+pyvenv.cfg
+
+# Local env
+.env
+
+# Test/debug artifacts
+test.db
+*.html
+*.pdf
+tmp_*.py
+check_*.py
+debug_*.py
+test_*.py
+add_*.py
+create_tables.py

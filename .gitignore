@@ -1,24 +1,65 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# ── Dependencies ──
+node_modules/
+.venv/
+__pycache__/
+*.pyc
 
-node_modules
-dist
-dist-ssr
-*.local
+# ── Build output ──
+dist/
+dist-ssr/
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# ── Environment (secrets) ──
+.env
+.env.production
+backend/.env
+
+# ── Database files ──
+*.db
+*.sqlite3
+
+# ── OS / Editor ──
 .DS_Store
+.vscode/
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+Thumbs.db
+
+# ── Logs ──
+logs/
+*.log
+npm-debug.log*
+
+# ── Python venv artifacts ──
+backend/Include/
+backend/Lib/
+backend/Scripts/
+backend/share/
+backend/pyvenv.cfg
+
+# ── Test / debug files ──
+backend/test.db
+backend/invoice_test.html
+backend/invoice_debug.html
+backend/invoice_test.pdf
+backend/xhtml2pdf_test.pdf
+backend/tmp_*.py
+backend/check_*.py
+backend/debug_*.py
+backend/test_*.py
+backend/add_*.py
+backend/create_tables.py
+invoice_test.pdf
+app.db
+notes.txt
+
+# ── Misc ──
+*.local
+package-lock.json
+frontend/redesign.cjs
+frontend/references/
+frontend/scripts/
+.claude/

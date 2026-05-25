@@ -2,13 +2,15 @@
   <div class="resource-calendar">
     <div class="rc-controls">
       <div class="rc-controls-left">
-        <button class="rc-btn" @click="prev"><span class="material-symbols-outlined">chevron_left</span></button>
-        <button class="rc-btn rc-today" @click="goToday">Today</button>
-        <button class="rc-btn" @click="next"><span class="material-symbols-outlined">chevron_right</span></button>
+        <button class="rc-btn rc-today" @click="goToday" title="Scroll back to today (T)">
+          <span class="material-symbols-outlined">today</span>
+          Today
+        </button>
         <span class="rc-period">{{ periodLabel }}</span>
+        <span class="rc-hint">Scroll horizontally or roll the mouse wheel to navigate · Today is highlighted</span>
         <div class="rc-divider"></div>
-        <button 
-          class="rc-tool-toggle" 
+        <button
+          class="rc-tool-toggle"
           :class="{ active: isSplitMode }"
           @click="isSplitMode = !isSplitMode"
           title="Toggle Split/Cut Mode"
@@ -19,8 +21,8 @@
       </div>
     </div>
 
-    <div class="rc-container" ref="containerRef" :class="{ dragging: drag.mode }">
-      <div class="rc-scroll" :style="{ width: scrollWidth + 'px' }">
+    <div class="rc-container" ref="containerRef" :class="{ dragging: drag.mode }" @wheel="onWheel">
+      <div class="rc-scroll" :style="{ width: scrollWidth + 'px', minWidth: scrollWidth + 'px' }">
         <!-- Header -->
         <div class="rc-header">
           <div class="rc-corner">Team</div>
@@ -28,9 +30,10 @@
             v-for="day in visibleDays"
             :key="day.dateStr"
             class="rc-day-header"
-            :class="{ today: day.isToday, weekend: day.isWeekend, 'week-start': day.isMonday }"
+            :class="{ today: day.isToday, weekend: day.isWeekend, 'week-start': day.isMonday, 'month-start': day.isFirstOfMonth }"
             :style="{ width: COL_W + 'px' }"
           >
+            <span v-if="day.isFirstOfMonth" class="dh-month">{{ new Date(day.dateStr).toLocaleDateString('en-GB', { month: 'short' }) }}</span>
             <span class="dh-name">{{ day.label }}</span>
             <span class="dh-num">{{ day.num }}</span>
           </div>
@@ -55,7 +58,7 @@
                 v-for="day in visibleDays"
                 :key="day.dateStr"
                 class="rc-cell"
-                :class="{ today: day.isToday && !day.isWeekend, weekend: day.isWeekend, 'is-leave': isEmpLeave(emp.id, day.dateStr), 'drag-hl': isDragHL(day.dateStr, emp.id), 'week-start': day.isMonday }"
+                :class="{ today: day.isToday && !day.isWeekend, weekend: day.isWeekend, 'is-leave': isEmpLeave(emp.id, day.dateStr), 'drag-hl': isDragHL(day.dateStr, emp.id), 'week-start': day.isMonday, 'month-start': day.isFirstOfMonth }"
                 :data-date="day.dateStr"
                 :data-employee="emp.id"
                 @mousedown.prevent="!day.isWeekend && onCellDown($event, day.dateStr, emp.id)"
@@ -104,6 +107,11 @@
                   ></div>
                 </div>
               </div>
+              <div class="rc-leave-overlay-layer" :style="{ gridTemplateColumns: `repeat(${visibleDays.length}, ${COL_W}px)` }">
+                <div v-for="(day, idx) in visibleDays" :key="'lo-'+day.dateStr" :style="{ gridColumn: idx + 1 }">
+                  <div v-if="isEmpLeave(emp.id, day.dateStr)" class="leave-darken"></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -140,57 +148,224 @@ const props = defineProps({
   leaves: { type: Array, default: () => [] },
   filterEmployeeId: { type: Number, default: null },
 })
-const emit = defineEmits(['ribbon-click', 'cell-drag-create', 'ribbon-drag-extend', 'ribbon-move', 'ribbon-clone', 'ribbon-split'])
+const emit = defineEmits(['ribbon-click', 'cell-drag-create', 'ribbon-drag-extend', 'ribbon-move', 'ribbon-clone', 'ribbon-split', 'range-change'])
 
 const COL_W = 120
-const DAY_COUNT = 21 // 3 weeks
 const EMP_W = 200
+// Infinite scroll: render a wide window, extend dynamically on edge approach.
+const INITIAL_PAD_DAYS = 90      // days rendered on each side of today at first
+const EXTEND_BY = 60             // how many days to add when an edge is reached
+const EDGE_THRESHOLD_PX = 600    // start extending when within this many px of an edge
+
 const containerRef = ref(null)
+const todayStr = (() => {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+})()
+
+// Range refs: rangeStart is the leftmost day rendered; rangeEnd is the rightmost.
+function makeDate(offset = 0) {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + offset)
+  return d
+}
+const rangeStart = ref(makeDate(-INITIAL_PAD_DAYS))
+const rangeEnd = ref(makeDate(INITIAL_PAD_DAYS))
+
+// "anchorDate" kept for backward compat with parent that reads it.
+// Now exposed as the date currently in the centre of the viewport.
 const anchorDate = ref(new Date())
-const todayStr = new Date().toISOString().split('T')[0]
 
-// Nav
-function getMon(d) { d = new Date(d); const w = d.getDay(); d.setDate(d.getDate() - w + (w === 0 ? -6 : 1)); return d }
-const prev = () => { const d = new Date(anchorDate.value); d.setDate(d.getDate() - 7); anchorDate.value = d }
-const next = () => { const d = new Date(anchorDate.value); d.setDate(d.getDate() + 7); anchorDate.value = d }
-const goToday = () => { anchorDate.value = new Date() }
-
-const periodLabel = computed(() => {
-  const mon = getMon(anchorDate.value)
-  const sun = new Date(mon); sun.setDate(sun.getDate() + 6)
-  return `${fmtShort(toStr(mon))} – ${fmtShort(toStr(sun))}`
-})
-
-const scrollWidth = computed(() => EMP_W + DAY_COUNT * COL_W)
-
-// Days: 1 week before anchor + anchor week + 1 week after
 const visibleDays = computed(() => {
-  const mon = getMon(anchorDate.value)
-  const start = new Date(mon); start.setDate(start.getDate() - 7)
   const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const days = []
-  for (let i = 0; i < DAY_COUNT; i++) {
-    const d = new Date(start); d.setDate(d.getDate() + i)
-    const ds = toStr(d), dow = d.getDay()
-    days.push({ label: labels[dow], num: d.getDate(), dateStr: ds, isToday: ds === todayStr, isWeekend: dow === 0 || dow === 6, isMonday: dow === 1 })
+  const total = daysBetween(toStr(rangeStart.value), toStr(rangeEnd.value)) + 1
+  for (let i = 0; i < total; i++) {
+    const d = new Date(rangeStart.value)
+    d.setDate(d.getDate() + i)
+    const ds = toStr(d)
+    const dow = d.getDay()
+    days.push({
+      label: labels[dow],
+      num: d.getDate(),
+      dateStr: ds,
+      isToday: ds === todayStr,
+      isWeekend: dow === 0 || dow === 6,
+      isMonday: dow === 1,
+      isFirstOfMonth: d.getDate() === 1,
+    })
   }
   return days
 })
 
-// Scroll to anchor week on mount / nav
-function scrollToAnchor() {
-  nextTick(() => { if (containerRef.value) containerRef.value.scrollLeft = 7 * COL_W })
+const scrollWidth = computed(() => EMP_W + visibleDays.value.length * COL_W)
+
+// Month label shown in the toolbar, based on whatever date sits at the viewport centre.
+const periodLabel = computed(() => {
+  const a = anchorDate.value
+  return a.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+})
+
+// ───────── Scroll behaviour ─────────
+// Centers `today` in the viewport accounting for the sticky employee column
+// on the left. We want today's column-center to land at the centre of the
+// visible *day* area (i.e. the viewport minus the sticky emp column).
+let initialCenterDone = false
+let centerObserver = null
+function computeCenterScrollLeft(c) {
+  const days = visibleDays.value
+  const todayIdx = days.findIndex(d => d.isToday)
+  if (todayIdx < 0) return null
+  const todayCenter = EMP_W + todayIdx * COL_W + COL_W / 2
+  // Centre of the day-area in scroll coords:
+  //   scrollLeft + EMP_W + (clientWidth - EMP_W) / 2
+  // Solve for scrollLeft so todayCenter sits there.
+  return todayCenter - EMP_W - (c.clientWidth - EMP_W) / 2
 }
-onMounted(scrollToAnchor)
-watch(anchorDate, scrollToAnchor)
+function tryCenterToday() {
+  const c = containerRef.value
+  if (!c) return false
+  if (c.clientWidth === 0) return false
+  const target = computeCenterScrollLeft(c)
+  if (target == null) return false
+  // Use the JS-computed scrollWidth as the source of truth (the DOM may not have
+  // applied the inline width yet, but we know what it *will* be).
+  const effectiveScrollWidth = Math.max(c.scrollWidth, scrollWidth.value)
+  const max = Math.max(0, effectiveScrollWidth - c.clientWidth)
+  suppressEdgeChecks = true
+  c.scrollLeft = Math.max(0, Math.min(target, max))
+  initialCenterDone = true
+  requestAnimationFrame(() => { suppressEdgeChecks = false })
+  return true
+}
+function scrollToToday() {
+  if (tryCenterToday()) return
+  // Container not laid out yet — observe size changes and center the first time
+  // we get a real width. Cleaner than polling RAF for fixed N attempts.
+  if (centerObserver) return
+  centerObserver = new ResizeObserver(() => {
+    if (tryCenterToday()) {
+      centerObserver.disconnect()
+      centerObserver = null
+    }
+  })
+  if (containerRef.value) centerObserver.observe(containerRef.value)
+}
+
+const goToday = () => {
+  const today = makeDate(0)
+  if (today < rangeStart.value || today > rangeEnd.value) {
+    rangeStart.value = makeDate(-INITIAL_PAD_DAYS)
+    rangeEnd.value = makeDate(INITIAL_PAD_DAYS)
+  }
+  initialCenterDone = false
+  nextTick(() => scrollToToday())
+}
+
+// Mouse-wheel → horizontal scroll. Bound from the template via @wheel
+// (Vue 3 default is non-passive, so preventDefault works).
+const WHEEL_MAX = COL_W * 1.5  // 180 px per event max
+function onWheel(e) {
+  const c = containerRef.value
+  if (!c) return
+  const dx = e.deltaX
+  const dy = e.deltaY
+  // Pure horizontal trackpad swipes: let them through natively
+  if (Math.abs(dx) > Math.abs(dy)) return
+  if (dy === 0) return
+  // Always claim the event — calendar always has overflow, so vertical wheel = horizontal calendar scroll
+  e.preventDefault()
+  let delta = dy
+  if (e.deltaMode === 1) delta = dy * 16
+  else if (e.deltaMode === 2) delta = dy * c.clientHeight
+  if (delta > WHEEL_MAX) delta = WHEEL_MAX
+  else if (delta < -WHEEL_MAX) delta = -WHEEL_MAX
+  c.scrollLeft += delta
+}
+
+function updateAnchorFromScroll() {
+  const c = containerRef.value
+  if (!c) return
+  // The date in the centre of the visible day-area
+  const centerX = c.scrollLeft + EMP_W + (c.clientWidth - EMP_W) / 2
+  const idx = Math.max(0, Math.floor((centerX - EMP_W) / COL_W))
+  const days = visibleDays.value
+  if (days[idx]) {
+    const d = new Date(days[idx].dateStr)
+    if (toStr(d) !== toStr(anchorDate.value)) anchorDate.value = d
+  }
+}
+
+let extending = false
+let suppressEdgeChecks = true   // True until initial centring completes
+function onScroll() {
+  const c = containerRef.value
+  if (!c) return
+  updateAnchorFromScroll()
+  if (extending || suppressEdgeChecks || !initialCenterDone) return
+
+  if (c.scrollLeft < EDGE_THRESHOLD_PX) {
+    extending = true
+    const prev = new Date(rangeStart.value)
+    prev.setDate(prev.getDate() - EXTEND_BY)
+    rangeStart.value = prev
+    nextTick(() => {
+      if (containerRef.value) containerRef.value.scrollLeft += EXTEND_BY * COL_W
+      requestAnimationFrame(() => { extending = false })
+      emit('range-change', { startDate: toStr(rangeStart.value), endDate: toStr(rangeEnd.value) })
+    })
+    return
+  }
+  const remaining = c.scrollWidth - (c.scrollLeft + c.clientWidth)
+  if (remaining < EDGE_THRESHOLD_PX) {
+    extending = true
+    const nxt = new Date(rangeEnd.value)
+    nxt.setDate(nxt.getDate() + EXTEND_BY)
+    rangeEnd.value = nxt
+    nextTick(() => {
+      requestAnimationFrame(() => { extending = false })
+      emit('range-change', { startDate: toStr(rangeStart.value), endDate: toStr(rangeEnd.value) })
+    })
+  }
+}
+
+onMounted(async () => {
+  if (containerRef.value) {
+    containerRef.value.addEventListener('scroll', onScroll, { passive: true })
+  }
+  // Wait for the DOM to flush so the .rc-scroll inline width is applied
+  await nextTick()
+  scrollToToday()
+  emit('range-change', { startDate: toStr(rangeStart.value), endDate: toStr(rangeEnd.value) })
+})
+onUnmounted(() => {
+  if (centerObserver) { centerObserver.disconnect(); centerObserver = null }
+  if (containerRef.value) {
+    containerRef.value.removeEventListener('scroll', onScroll)
+  }
+})
 
 // Employees
 const displayEmployees = computed(() => props.filterEmployeeId ? props.employees.filter(e => e.id === props.filterEmployeeId) : props.employees)
 
 // Hours
 function getAssignedHours(eid) {
+  if (isEmpLeave(eid, todayStr)) return 0
   let h = 0
-  for (const t of props.tasks) { if (t.assigned_to === eid) { const e = t.end_date || t.date; if (t.date <= todayStr && e >= todayStr) h += (t.duration_hours || 0) } }
+  for (const t of props.tasks) { 
+    if (t.assigned_to === eid) { 
+      const e = t.end_date || t.date; 
+      if (t.date <= todayStr && e >= todayStr) {
+        const spanDays = daysBetween(t.date, e) + 1;
+        const dailyHrs = t.duration_hours != null ? (t.duration_hours / spanDays) : 8;
+        h += dailyHrs;
+      }
+    } 
+  }
   return h
 }
 function getRemaining(eid) { return Math.max(0, 8 - getAssignedHours(eid)) }
@@ -413,26 +588,38 @@ onMounted(() => { document.addEventListener('mousemove', onMove); document.addEv
 onUnmounted(() => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); stopAutoScroll() })
 
 // Helpers
-function toStr(d) { return d.toISOString().split('T')[0] }
+function toStr(d) {
+  // Local-time YYYY-MM-DD (avoids UTC offset off-by-one)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 function daysBetween(a, b) { return Math.round((new Date(b) - new Date(a)) / 864e5) }
 function fmtShort(s) { if (!s) return ''; return new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) }
 const ap = ['#287475', '#6366f1', '#ec4899', '#f59e0b', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6']
 function avatarColor(n) { let h = 0; for (let i = 0; i < n.length; i++) h = n.charCodeAt(i) + ((h << 5) - h); return ap[Math.abs(h) % ap.length] }
 function initials(n) { return n.split(' ').map(x => x[0]).join('').toUpperCase().slice(0, 2) }
 
-defineExpose({ anchorDate })
+defineExpose({ anchorDate, rangeStart, rangeEnd, scrollToToday: goToday })
 </script>
 
 <style scoped>
-.resource-calendar { display: flex; flex-direction: column; gap: 16px; }
+/* min-width: 0 + width: 100% so this flex item doesn't expand to its content's (21920px) width.
+   Without this, the whole page becomes 21920px wide, the inner container never overflows,
+   and wheel events fall through to vertical page scroll. */
+.resource-calendar { display: flex; flex-direction: column; gap: 16px; min-width: 0; width: 100%; max-width: 100%; }
 .rc-controls { display: flex; justify-content: space-between; align-items: center; }
 .rc-controls-left { display: flex; align-items: center; gap: 4px; }
 .rc-btn { height: 32px; padding: 0 12px; border: 1px solid var(--color-outline-variant); border-radius: 4px; background: var(--color-surface); font-family: var(--font-body); font-size: 12px; font-weight: 600; color: var(--color-on-surface-variant); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
 .rc-btn:hover { background: var(--color-surface-container); }
 .rc-btn .material-symbols-outlined { font-size: 18px; }
-.rc-period { font-family: 'Integral CF', sans-serif; font-size: 16px; font-weight: 600; color: var(--color-on-surface); margin-left: 12px; }
+.rc-period { font-family: 'Integral CF', sans-serif; font-size: 16px; font-weight: 600; color: var(--color-on-surface); margin-left: 12px; min-width: 140px; }
+.rc-hint { font-size: 11px; color: var(--color-on-surface-variant); margin-left: 16px; font-style: italic; }
+.rc-today { display: inline-flex; gap: 4px; }
+.rc-today .material-symbols-outlined { font-size: 16px; }
 
-.rc-container { background: var(--color-surface); border: 1px solid var(--color-outline-variant); border-radius: 8px; overflow-x: auto; overflow-y: visible; }
+.rc-container { background: var(--color-surface); border: 1px solid var(--color-outline-variant); border-radius: 8px; overflow-x: auto; overflow-y: visible; width: 100%; max-width: 100%; min-width: 0; }
 .rc-scroll { min-width: 100%; }
 
 .rc-header { display: flex; border-bottom: 2px solid var(--color-outline-variant); background: var(--color-surface-container-lowest, #fafafa); }
@@ -445,7 +632,11 @@ defineExpose({ anchorDate })
 .rc-day-header.week-start { border-left: 2px solid var(--color-outline-variant); }
 .dh-name { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--color-on-surface-variant); }
 .dh-num { font-size: 16px; font-weight: 700; color: var(--color-on-surface); }
+.dh-month { position: absolute; top: 2px; left: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; color: var(--color-primary); letter-spacing: .06em; }
+.rc-day-header { position: relative; }
+.rc-day-header.month-start { border-left: 2px solid var(--color-primary); }
 .rc-day-header.today .dh-num { color: var(--color-primary); }
+.rc-cell.month-start { border-left: 2px solid var(--color-primary); }
 
 .rc-body { }
 .rc-row { display: flex; border-bottom: 1px solid var(--color-outline-variant); position: relative; }
@@ -476,6 +667,8 @@ defineExpose({ anchorDate })
 .leave-tag { position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #9ca3af; }
 
 .rc-ribbon-layer { position: absolute; inset: 0; pointer-events: none; }
+.rc-leave-overlay-layer { position: absolute; inset: 0; pointer-events: none; z-index: 6; display: grid; }
+.leave-darken { width: 100%; height: 100%; background: rgba(0, 0, 0, 0.25); backdrop-filter: grayscale(80%); }
 .rc-ribbon { position: absolute; display: flex; align-items: center; color: #fff; font-size: 11px; cursor: pointer; pointer-events: auto; overflow: hidden; z-index: 5; transition: opacity .12s; }
 .rc-ribbon:hover { opacity: 1 !important; z-index: 10; filter: brightness(1.1); }
 .rc-container.dragging .rc-ribbon { pointer-events: none; }

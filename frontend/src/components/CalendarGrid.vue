@@ -90,6 +90,13 @@
               ></div>
             </div>
           </div>
+
+          <!-- Leave overlay layer -->
+          <div class="leave-overlay-layer">
+            <div v-for="(day, idx) in week" :key="'lo-'+day.dateStr" :style="{ gridColumn: idx + 1 }">
+              <div v-if="isLeaveDay(day.dateStr)" class="leave-darken"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -598,6 +605,22 @@ defineExpose({ viewMode, anchorDate })
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+.leave-overlay-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.leave-darken {
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: grayscale(80%);
 }
 
 .task-ribbon {

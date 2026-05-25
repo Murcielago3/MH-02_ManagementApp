@@ -10,12 +10,7 @@
       <div class="branding-content">
         <div class="branding-top">
           <div class="logo-block">
-            <div class="logo-grid">
-              <div class="logo-cell logo-full"></div>
-              <div class="logo-cell logo-light"></div>
-              <div class="logo-cell logo-mid"></div>
-              <div class="logo-cell logo-full"></div>
-            </div>
+            <img :src="logoUrl" alt="Studio MH02 Logo" class="login-logo-img" />
           </div>
           <h2 class="brand-title">Studio<br />MH 02</h2>
           <div class="brand-divider"></div>
@@ -46,12 +41,7 @@
         <!-- Mobile Logo -->
         <div class="mobile-logo">
           <div class="mobile-logo-block">
-            <div class="mobile-logo-grid">
-              <div class="logo-cell-sm logo-full"></div>
-              <div class="logo-cell-sm logo-light"></div>
-              <div class="logo-cell-sm logo-mid"></div>
-              <div class="logo-cell-sm logo-full"></div>
-            </div>
+            <img :src="logoUrl" alt="Studio MH02 Logo" class="login-logo-img mobile-logo-img" />
           </div>
           <h1 class="mobile-brand-title">Studio MH02</h1>
         </div>
@@ -174,6 +164,7 @@ import { ref, reactive } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { authAPI } from "../api/auth";
+import { getAppLogoUrl } from "../utils/logo";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -188,6 +179,7 @@ const showPassword = ref(false);
 const loading = ref(false);
 const emailFocused = ref(false);
 const passwordFocused = ref(false);
+const logoUrl = getAppLogoUrl();
 
 const errors = reactive({
   email: "",
@@ -347,6 +339,17 @@ const handleLogin = async () => {
 
 .logo-block:hover {
   transform: translateY(-2px);
+}
+
+.login-logo-img {
+  width: 80px;
+  max-width: 100px;
+  height: auto;
+  display: block;
+}
+
+.mobile-logo-img {
+  width: 72px;
 }
 
 .logo-grid {

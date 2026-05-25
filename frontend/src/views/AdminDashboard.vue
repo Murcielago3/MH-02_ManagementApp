@@ -7,123 +7,132 @@
         <p class="page-subtitle">Studio MH02 Financial Overview</p>
       </div>
       <div class="header-actions">
-        <button class="btn-outline">Export Report</button>
-        <button class="btn-primary">New Project</button>
+        <button class="btn-outline" @click="$router.push('/admin/projects')">All Projects</button>
+        <button class="btn-primary" @click="$router.push('/admin/projects')">New Project</button>
+      </div>
+    </div>
+
+    <!-- Top metric strip -->
+    <div class="metric-strip">
+      <div class="metric-tile">
+        <span class="m-label">Total Turnover (FY)</span>
+        <span class="m-val">{{ formatCurrency(stats.total_fy_turnover) }}</span>
+        <span class="m-sub">Invoices + advance for {{ currentYear }}</span>
+      </div>
+      <div class="metric-tile">
+        <span class="m-label">Billed (All Time)</span>
+        <span class="m-val text-green">{{ formatCurrency(stats.total_billed) }}</span>
+        <span class="m-sub">Advance + invoices generated</span>
+      </div>
+      <div class="metric-tile">
+        <span class="m-label">Unbilled Deficit</span>
+        <span class="m-val" :class="stats.total_unbilled > 0 ? 'text-red' : 'text-grey'">
+          {{ formatCurrency(stats.total_unbilled) }}
+        </span>
+        <span class="m-sub">Sum of negative reserves</span>
+      </div>
+      <div class="metric-tile">
+        <span class="m-label">Profit Reserve</span>
+        <span class="m-val text-teal">{{ formatCurrency(stats.total_profit) }}</span>
+        <span class="m-sub">Sum of positive reserves</span>
       </div>
     </div>
 
     <!-- Dashboard Grid 2x2 -->
     <div class="dashboard-grid">
-      <!-- Top Left: Monthly Sales Chart -->
+      <!-- (1,1) Monthly Sales (Bar) -->
       <div class="dashboard-card">
-        <h3 class="card-title">Monthly Sales</h3>
-        <div class="chart-content">
-          <svg viewBox="0 0 800 300" class="bar-chart">
-            <!-- Y-axis labels and gridlines -->
-            <line x1="60" y1="20" x2="60" y2="260" stroke="#ddd" stroke-width="2" />
-            <line x1="60" y1="260" x2="780" y2="260" stroke="#ddd" stroke-width="2" />
-            
-            <!-- Grid lines and labels -->
-            <text x="45" y="265" font-size="12" text-anchor="end" fill="#999">0</text>
-            <line x1="55" y1="260" x2="780" y2="260" stroke="#f0f0f0" stroke-width="1" stroke-dasharray="4" />
-            
-            <text x="45" y="195" font-size="12" text-anchor="end" fill="#999">{{ maxSalesValue }}</text>
-            <line x1="55" y1="190" x2="780" y2="190" stroke="#f0f0f0" stroke-width="1" stroke-dasharray="4" />
-
-            <!-- Bars -->
-            <g v-for="(sale, idx) in monthlyChartData" :key="idx">
-              <rect 
-                :x="65 + idx * 58" 
-                :y="260 - (Number(sale.value) / maxSalesValue * 235)" 
-                width="45" 
-                :height="Number(sale.value) / maxSalesValue * 235" 
-                fill="#4ade80" 
-                rx="4"
-              />
-              <text 
-                :x="65 + idx * 58 + 22.5" 
-                y="280" 
-                font-size="11" 
-                text-anchor="middle" 
-                fill="#666"
-              >
-                {{ sale.month }}
-              </text>
-            </g>
-          </svg>
-        </div>
-      </div>
-
-      <!-- Top Right: Total Turnover -->
-      <div class="dashboard-card metric-card">
-        <h3 class="card-title">Total Turnover (Current FY)</h3>
-        <div class="metric-value">{{ formatCurrency(stats.total_fy_turnover) }}</div>
-        <div class="metric-note">Financial Year Total</div>
-      </div>
-
-      <!-- Bottom Left: Billed/Unbilled -->
-      <div class="dashboard-card">
-        <h3 class="card-title">Project Status</h3>
-        <div class="status-info">
-          <div class="status-item">
-            <div class="status-label">Unbilled Total</div>
-            <div class="status-value unbilled">{{ formatCurrency(stats.total_unbilled) }}</div>
+        <header class="card-head">
+          <h3 class="card-title">Monthly Sales · {{ currentYear }}</h3>
+          <p class="card-sub">Sum of invoice totals by month</p>
+        </header>
+        <div class="chart-body">
+          <div v-if="loading" class="chart-empty">Loading…</div>
+          <div v-else-if="!hasMonthlyData" class="chart-empty">
+            <span class="material-symbols-outlined">bar_chart</span>
+            No invoices for {{ currentYear }} yet
           </div>
-          <div class="status-item">
-            <div class="status-label">Billed Total</div>
-            <div class="status-value billed">{{ formatCurrency(stats.total_billed) }}</div>
+          <div v-else class="chart-canvas-bar">
+            <canvas ref="salesChartRef" width="520" height="240" />
           </div>
         </div>
       </div>
 
-      <!-- Bottom Right: Expenses Pie Chart -->
+      <!-- (1,2) Billed vs Unbilled (Pie) -->
       <div class="dashboard-card">
-        <h3 class="card-title">Expenses (Current FY)</h3>
-        <div class="pie-chart-container">
-          <div class="pie-chart-wrapper">
-            <svg viewBox="0 0 200 200" class="pie-chart">
-              <!-- Pie slices -->
-              <g v-for="(slice, idx) in pieSlices" :key="idx">
-                <path 
-                  :d="slice.path" 
-                  :fill="slice.color"
-                  opacity="0.9"
-                />
-              </g>
-              <!-- Border circle -->
-              <circle cx="100" cy="100" r="80" fill="none" stroke="#e5e1e3" stroke-width="1" />
-            </svg>
+        <header class="card-head">
+          <h3 class="card-title">Project Status</h3>
+          <p class="card-sub">Billed total vs deficit across all projects</p>
+        </header>
+        <div class="chart-body">
+          <div v-if="loading" class="chart-empty">Loading…</div>
+          <div v-else-if="!hasBillingData" class="chart-empty">
+            <span class="material-symbols-outlined">payments</span>
+            No billing data yet
           </div>
-          <div class="pie-legend">
-            <div class="legend-item">
-              <div class="legend-color" style="background-color: #0ea5e9;"></div>
-              <div class="legend-text">
-                <div class="legend-label">Salary</div>
-                <div class="legend-value">{{ formatCurrency(stats.fy_expenses?.salary || 0) }}</div>
-              </div>
-            </div>
-            <div class="legend-item">
-              <div class="legend-color" style="background-color: #f97316;"></div>
-              <div class="legend-text">
-                <div class="legend-label">Office Rent</div>
-                <div class="legend-value">{{ formatCurrency(stats.fy_expenses?.office_rent || 0) }}</div>
-              </div>
-            </div>
-            <div class="legend-item">
-              <div class="legend-color" style="background-color: #a855f7;"></div>
-              <div class="legend-text">
-                <div class="legend-label">Electricity</div>
-                <div class="legend-value">{{ formatCurrency(stats.fy_expenses?.electricity_bills || 0) }}</div>
-              </div>
-            </div>
-            <div class="legend-item">
-              <div class="legend-color" style="background-color: #06b6d4;"></div>
-              <div class="legend-text">
-                <div class="legend-label">Software</div>
-                <div class="legend-value">{{ formatCurrency(stats.fy_expenses?.software_licenses || 0) }}</div>
-              </div>
-            </div>
+          <template v-else>
+            <canvas ref="billingChartRef" width="220" height="220" />
+            <ul class="legend">
+              <li v-for="row in billingLegend" :key="row.label" class="legend-row">
+                <span class="swatch" :style="{ background: row.color }" />
+                <span class="leg-label">{{ row.label }}</span>
+                <span class="leg-val">{{ formatCurrency(row.value) }}</span>
+                <span class="leg-pct">{{ row.pct }}%</span>
+              </li>
+            </ul>
+          </template>
+        </div>
+      </div>
+
+      <!-- (2,1) Distribution: Employee / Partner / Profit -->
+      <div class="dashboard-card">
+        <header class="card-head">
+          <h3 class="card-title">Remuneration &amp; Profit</h3>
+          <p class="card-sub">Where the reserve gets distributed across projects</p>
+        </header>
+        <div class="chart-body">
+          <div v-if="loading" class="chart-empty">Loading…</div>
+          <div v-else-if="!hasDistData" class="chart-empty">
+            <span class="material-symbols-outlined">donut_small</span>
+            No remuneration computed yet
           </div>
+          <template v-else>
+            <canvas ref="distChartRef" width="220" height="220" />
+            <ul class="legend">
+              <li v-for="row in distLegend" :key="row.label" class="legend-row">
+                <span class="swatch" :style="{ background: row.color }" />
+                <span class="leg-label">{{ row.label }}</span>
+                <span class="leg-val">{{ formatCurrency(row.value) }}</span>
+                <span class="leg-pct">{{ row.pct }}%</span>
+              </li>
+            </ul>
+          </template>
+        </div>
+      </div>
+
+      <!-- (2,2) Operating Expenses pie -->
+      <div class="dashboard-card">
+        <header class="card-head">
+          <h3 class="card-title">Operating Expenses · {{ currentYear }}</h3>
+          <p class="card-sub">From the expenses ledger, with annualised payroll</p>
+        </header>
+        <div class="chart-body">
+          <div v-if="loading" class="chart-empty">Loading…</div>
+          <div v-else-if="!hasExpenseData" class="chart-empty">
+            <span class="material-symbols-outlined">receipt_long</span>
+            No expenses recorded
+          </div>
+          <template v-else>
+            <canvas ref="expChartRef" width="220" height="220" />
+            <ul class="legend">
+              <li v-for="row in expenseLegend" :key="row.label" class="legend-row">
+                <span class="swatch" :style="{ background: row.color }" />
+                <span class="leg-label">{{ row.label }}</span>
+                <span class="leg-val">{{ formatCurrency(row.value) }}</span>
+                <span class="leg-pct">{{ row.pct }}%</span>
+              </li>
+            </ul>
+          </template>
         </div>
       </div>
     </div>
@@ -160,7 +169,7 @@
               <td class="mono">{{ formatCurrency(p.project_remuneration) }}</td>
               <td><span class="status-badge" :class="p.is_billed">{{ p.is_billed || '—' }}</span></td>
               <td class="text-right">
-                <button class="more-btn">
+                <button class="more-btn" @click="$router.push('/admin/projects/summary')">
                   <span class="material-symbols-outlined">more_vert</span>
                 </button>
               </td>
@@ -173,24 +182,45 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { Chart, registerables } from 'chart.js'
 import AppLayout from '../components/AppLayout.vue'
 import { dashboardAPI } from '../api/dashboard'
 import { projectsAPI } from '../api/projects'
 import { clientsAPI } from '../api/clients'
 
+Chart.register(...registerables)
+
+// Palette — mirrors the reports view for consistency
+const TEAL = '#287475'
+const RED = '#ef4444'
+const GREEN = '#22c55e'
+const INDIGO = '#6366f1'
+const AMBER = '#f59e0b'
+const SKY = '#0ea5e9'
+const PURPLE = '#a855f7'
+const CYAN = '#06b6d4'
+const SLATE = '#94a3b8'
+
 const loading = ref(true)
+const currentYear = new Date().getFullYear()
 
 const stats = ref({
   total_fy_turnover: 0,
   total_billed: 0,
   total_unbilled: 0,
+  total_profit: 0,
+  total_employee_remuneration: 0,
+  total_partner_remuneration: 0,
   fy_expenses: {
     salary: 0,
     office_rent: 0,
     electricity_bills: 0,
     software_licenses: 0,
-    total: 0
+    misc: 0,
+    total: 0,
+    employee_remuneration: 0,
+    partner_remuneration: 0,
   },
   monthly_sales: {},
 })
@@ -198,7 +228,15 @@ const stats = ref({
 const projects = ref([])
 const clients = ref([])
 
-// ── Fetch data ──
+const salesChartRef = ref(null)
+const billingChartRef = ref(null)
+const distChartRef = ref(null)
+const expChartRef = ref(null)
+let salesChart = null
+let billingChart = null
+let distChart = null
+let expChart = null
+
 async function fetchAll() {
   loading.value = true
   try {
@@ -214,728 +252,352 @@ async function fetchAll() {
     console.error('Dashboard fetch error:', err)
   } finally {
     loading.value = false
+    queueRender()
   }
 }
 
 onMounted(fetchAll)
 
-// ── Computed: Monthly Sales Chart ──
+// ── Computeds ──
 const monthlyChartData = computed(() => {
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const fullNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
   const sales = stats.value.monthly_sales || {}
-  return monthNames.map(month => ({
-    month,
-    value: Number(sales[month.replace('Jan', 'January').replace('Feb', 'February').replace('Mar', 'March').replace('Apr', 'April').replace('May', 'May').replace('Jun', 'June').replace('Jul', 'July').replace('Aug', 'August').replace('Sep', 'September').replace('Oct', 'October').replace('Nov', 'November').replace('Dec', 'December')] || 0)
+  return monthNames.map((m, i) => ({
+    month: m,
+    value: Number(sales[fullNames[i]] || 0),
   }))
 })
+const hasMonthlyData = computed(() => monthlyChartData.value.some((d) => d.value > 0))
 
-const maxSalesValue = computed(() => {
-  const values = monthlyChartData.value.map(d => d.value)
-  const max = Math.max(...values)
-  if (max === 0) return 1
-  return Math.ceil(max / 100000) * 100000
+const billingLegend = computed(() => {
+  const billed = Number(stats.value.total_billed) || 0
+  const unbilled = Number(stats.value.total_unbilled) || 0
+  const rows = [
+    { label: 'Billed', value: billed, color: TEAL },
+    { label: 'Unbilled (deficit)', value: unbilled, color: RED },
+  ].filter((r) => r.value > 0)
+  const total = rows.reduce((s, r) => s + r.value, 0)
+  return rows.map((r) => ({ ...r, pct: total > 0 ? ((r.value / total) * 100).toFixed(1) : '0.0' }))
 })
+const hasBillingData = computed(() => billingLegend.value.length > 0)
 
-// ── Computed: Pie Chart Slices ──
-const totalExpenses = computed(() => {
-  const fy = stats.value.fy_expenses || {}
-  return fy.total || 0
+const distLegend = computed(() => {
+  const emp = Number(stats.value.total_employee_remuneration) || 0
+  const partner = Number(stats.value.total_partner_remuneration) || 0
+  const profit = Number(stats.value.total_profit) || 0
+  const rows = [
+    { label: 'Employee Remuneration', value: emp, color: RED },
+    { label: 'Partner Remuneration', value: partner, color: INDIGO },
+    { label: 'Profit', value: profit, color: GREEN },
+  ].filter((r) => r.value > 0)
+  const total = rows.reduce((s, r) => s + r.value, 0)
+  return rows.map((r) => ({ ...r, pct: total > 0 ? ((r.value / total) * 100).toFixed(1) : '0.0' }))
 })
+const hasDistData = computed(() => distLegend.value.length > 0)
 
-const expenseData = computed(() => [
-  { name: 'Salary', value: stats.value.fy_expenses?.salary || 0, color: '#0ea5e9' },
-  { name: 'Office Rent', value: stats.value.fy_expenses?.office_rent || 0, color: '#f97316' },
-  { name: 'Electricity', value: stats.value.fy_expenses?.electricity_bills || 0, color: '#a855f7' },
-  { name: 'Software', value: stats.value.fy_expenses?.software_licenses || 0, color: '#06b6d4' }
-])
+const expenseLegend = computed(() => {
+  const e = stats.value.fy_expenses || {}
+  const rows = [
+    { label: 'Salary (annualised)', value: Number(e.salary) || 0, color: SKY },
+    { label: 'Office Rent', value: Number(e.office_rent) || 0, color: AMBER },
+    { label: 'Electricity', value: Number(e.electricity_bills) || 0, color: PURPLE },
+    { label: 'Software', value: Number(e.software_licenses) || 0, color: CYAN },
+    { label: 'Misc', value: Number(e.misc) || 0, color: SLATE },
+  ].filter((r) => r.value > 0)
+  const total = rows.reduce((s, r) => s + r.value, 0)
+  return rows.map((r) => ({ ...r, pct: total > 0 ? ((r.value / total) * 100).toFixed(1) : '0.0' }))
+})
+const hasExpenseData = computed(() => expenseLegend.value.length > 0)
 
-const pieSlices = computed(() => {
-  if (totalExpenses.value === 0) return []
-  
-  const slices = []
-  const centerX = 100
-  const centerY = 100
-  const radius = 80
-  let currentAngle = -Math.PI / 2 // Start at top
+const recentProjects = computed(() => projects.value.slice(0, 5))
 
-  for (const item of expenseData.value) {
-    const sliceAngle = (item.value / totalExpenses.value) * 2 * Math.PI
-    const startAngle = currentAngle
-    const endAngle = currentAngle + sliceAngle
-    
-    // Calculate start and end points on the circle
-    const x1 = centerX + radius * Math.cos(startAngle)
-    const y1 = centerY + radius * Math.sin(startAngle)
-    const x2 = centerX + radius * Math.cos(endAngle)
-    const y2 = centerY + radius * Math.sin(endAngle)
-    
-    // Determine if we need the large arc flag (if angle > PI)
-    const largeArc = sliceAngle > Math.PI ? 1 : 0
-    
-    // Create the SVG path
-    const path = `M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`
-    
-    slices.push({
-      name: item.name,
-      path,
-      color: item.color,
-      value: item.value,
-      percent: ((item.value / totalExpenses.value) * 100).toFixed(1)
-    })
-    
-    currentAngle = endAngle
+// ── Chart render ──
+function destroyAll() {
+  if (salesChart) { salesChart.destroy(); salesChart = null }
+  if (billingChart) { billingChart.destroy(); billingChart = null }
+  if (distChart) { distChart.destroy(); distChart = null }
+  if (expChart) { expChart.destroy(); expChart = null }
+}
+
+function renderSales() {
+  if (salesChart) { salesChart.destroy(); salesChart = null }
+  if (!hasMonthlyData.value || !salesChartRef.value) return
+  const data = monthlyChartData.value
+  salesChart = new Chart(salesChartRef.value, {
+    type: 'bar',
+    data: {
+      labels: data.map((d) => d.month),
+      datasets: [{
+        label: 'Sales',
+        data: data.map((d) => d.value),
+        backgroundColor: GREEN,
+        borderRadius: 4,
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      responsive: false,
+      animation: { duration: 350 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `Sales: ${formatCurrency(ctx.parsed.y)}`,
+          },
+        },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: {
+          ticks: { font: { size: 10 }, callback: (v) => formatCurrency(v) },
+          grid: { color: 'rgba(148,163,184,0.18)' },
+        },
+      },
+    },
+  })
+}
+
+function renderPie(chartRef, rows, target) {
+  if (target.chart) { target.chart.destroy(); target.chart = null }
+  if (!rows.length || !chartRef.value) return
+  target.chart = new Chart(chartRef.value, {
+    type: 'doughnut',
+    data: {
+      labels: rows.map((r) => r.label),
+      datasets: [{
+        data: rows.map((r) => r.value),
+        backgroundColor: rows.map((r) => r.color),
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      responsive: false,
+      cutout: '55%',
+      animation: { duration: 350 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label(ctx) {
+              const v = ctx.parsed
+              const total = rows.reduce((s, r) => s + r.value, 0)
+              const pct = total > 0 ? ((v / total) * 100).toFixed(1) : '0.0'
+              return `${ctx.label}: ${formatCurrency(v)} (${pct}%)`
+            },
+          },
+        },
+      },
+    },
+  })
+}
+
+// Poll until canvases are ready, then render all four. Mirrors the pattern
+// used in AdminProjectReportsView.vue.
+function queueRender() {
+  let attempts = 0
+  const tryOnce = () => {
+    attempts++
+    const ready = (
+      (!hasMonthlyData.value || salesChartRef.value) &&
+      (!hasBillingData.value || billingChartRef.value) &&
+      (!hasDistData.value || distChartRef.value) &&
+      (!hasExpenseData.value || expChartRef.value)
+    )
+    if (ready) {
+      renderSales()
+      const billingTarget = { chart: billingChart }
+      renderPie(billingChartRef, billingLegend.value, billingTarget)
+      billingChart = billingTarget.chart
+      const distTarget = { chart: distChart }
+      renderPie(distChartRef, distLegend.value, distTarget)
+      distChart = distTarget.chart
+      const expTarget = { chart: expChart }
+      renderPie(expChartRef, expenseLegend.value, expTarget)
+      expChart = expTarget.chart
+      return
+    }
+    if (attempts < 60) requestAnimationFrame(tryOnce)
   }
-  
-  return slices
-})
+  requestAnimationFrame(tryOnce)
+}
 
-// ── Computed: Recent projects (last 3) ──
-const recentProjects = computed(() => {
-  return projects.value.slice(0, 3)
-})
+watch(
+  () => [stats.value, hasMonthlyData.value, hasBillingData.value, hasDistData.value, hasExpenseData.value],
+  () => queueRender(),
+  { flush: 'post' },
+)
+
+onBeforeUnmount(destroyAll)
 
 // ── Helpers ──
 function getClientName(clientId) {
   if (!clientId) return '—'
-  const c = clients.value.find(cl => cl.id === clientId)
+  const c = clients.value.find((cl) => cl.id === clientId)
   return c ? c.name : `Client #${clientId}`
 }
 
 function formatCurrency(val) {
   const n = Number(val) || 0
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)}Cr`
+  if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`
   if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`
   return `₹${n.toLocaleString('en-IN')}`
 }
 </script>
 
 <style scoped>
-/* ───────── Page header ───────── */
 .page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
+  display: flex; justify-content: space-between; align-items: flex-end;
+  margin-bottom: 24px;
 }
-
 .page-title {
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 24px;
-  letter-spacing: -0.01em;
+  font-family: var(--font-display);
+  font-size: 28px; font-weight: 700;
   color: var(--color-on-surface);
-  margin: 0;
+  margin: 0 0 4px; letter-spacing: -0.02em;
 }
+.page-subtitle { margin: 0; font-size: 14px; color: var(--color-on-surface-variant); }
+.header-actions { display: flex; gap: 8px; }
 
-.page-subtitle {
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--color-on-surface-variant);
-  margin: 4px 0 0;
+.btn-primary, .btn-outline {
+  padding: 10px 18px; border-radius: var(--radius-lg);
+  font-family: var(--font-body); font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: opacity .15s;
 }
+.btn-primary { border: none; background: var(--color-primary); color: #fff; }
+.btn-primary:hover { opacity: .92; }
+.btn-outline { background: #fff; border: 1px solid var(--color-outline); color: var(--color-on-surface); }
+.btn-outline:hover { background: #f8fafc; }
 
-.header-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.btn-outline {
-  background: #ffffff;
-  border: 1px solid var(--color-outline);
-  color: var(--color-on-surface);
-  padding: 8px 16px;
-  border-radius: var(--radius);
-  font-size: 13px;
-  line-height: 18px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.btn-outline:hover {
-  background: var(--color-surface-container);
-}
-
-.btn-primary {
-  background: var(--color-primary);
-  color: #ffffff;
-  border: none;
-  padding: 8px 16px;
-  border-radius: var(--radius);
-  font-size: 13px;
-  line-height: 18px;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.btn-primary:hover {
-  opacity: 0.9;
-}
-
-/* ───────── KPI Grid ───────── */
-.kpi-grid {
+.metric-strip {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
-}
-
-.kpi-card {
-  background: #ffffff;
-  border: 1px solid var(--color-outline);
-  border-radius: var(--radius);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.kpi-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: var(--color-on-surface-variant);
-}
-
-.kpi-label {
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 16px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.kpi-icon {
-  font-size: 16px;
-}
-
-.kpi-value {
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 32px;
-  letter-spacing: -0.02em;
-  color: var(--color-on-surface);
-  font-variant-numeric: tabular-nums;
-}
-
-.kpi-note {
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--color-on-surface-variant);
-}
-
-/* ───────── Charts Row ───────── */
-.charts-row {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 16px;
-  min-height: 320px;
-}
-
-.chart-card {
-  background: #ffffff;
-  border: 1px solid var(--color-outline);
-  border-radius: var(--radius);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-}
-
-.chart-card-wide {
-  /* takes 2 columns via grid */
-}
-
-.card-title {
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 20px;
-  color: var(--color-on-surface);
-  margin: 0 0 24px;
-}
-
-/* ── Donut Chart ── */
-.chart-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  flex-grow: 1;
-  gap: 32px;
-}
-
-.donut-container {
-  position: relative;
-  width: 192px;
-  height: 192px;
-  flex-shrink: 0;
-}
-
-.donut-svg {
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
-}
-
-.ring-transition {
-  transition: stroke-dasharray 0.8s ease;
-}
-
-.donut-center {
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  width: 96px;
-  height: 96px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.donut-total {
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 24px;
-  color: var(--color-on-surface);
-}
-
-.donut-label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  color: var(--color-on-surface-variant);
-}
-
-/* ── Legend ── */
-.chart-legend {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.legend-swatch {
-  width: 16px;
-  height: 16px;
-  border-radius: 2px;
-  flex-shrink: 0;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.legend-text {
-  display: flex;
-  flex-direction: column;
-}
-
-.legend-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-on-surface);
-}
-
-.legend-val {
-  font-size: 12px;
-  color: var(--color-on-surface-variant);
-  font-variant-numeric: tabular-nums;
-}
-
-.legend-divider {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--color-outline);
-}
-
-.legend-note {
-  font-size: 13px;
-  color: var(--color-on-surface-variant);
-  line-height: 18px;
-  margin: 0;
-}
-
-/* ── Project Status Bars ── */
-.status-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin-top: 8px;
-}
-
-.status-item {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.status-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--color-on-surface-variant);
-}
-
-.status-pct {
-  font-variant-numeric: tabular-nums;
-}
-
-.progress-track {
-  width: 100%;
-  height: 8px;
-  background: var(--color-surface-container);
-  border-radius: 9999px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  border-radius: 9999px;
-  transition: width 0.6s ease;
-}
-
-/* ───────── Data Table ───────── */
-.table-card {
-  background: #ffffff;
-  border: 1px solid var(--color-outline);
-  border-radius: var(--radius);
-  display: flex;
-  flex-direction: column;
-}
-
-.table-header {
-  padding: 16px;
-  border-bottom: 1px solid var(--color-outline);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.table-header .card-title {
-  margin: 0;
-}
-
-.view-all-btn {
-  background: none;
-  border: none;
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--color-on-surface-variant);
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.view-all-btn:hover {
-  text-decoration: underline;
-}
-
-.table-scroll {
-  width: 100%;
-  overflow-x: auto;
-}
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-}
-
-.data-table thead tr {
-  background: var(--color-surface-container);
-  border-bottom: 1px solid var(--color-outline);
-}
-
-.data-table th {
-  padding: 8px;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 16px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--color-on-surface-variant);
-}
-
-.data-table th:first-child {
-  padding-left: 16px;
-}
-
-.data-table th:last-child {
-  padding-right: 16px;
-}
-
-.data-table tbody tr {
-  border-bottom: 1px solid var(--color-outline);
-  transition: background 0.1s;
-}
-
-.data-table tbody tr:last-child {
-  border-bottom: none;
-}
-
-.data-table tbody tr:hover {
-  background: var(--color-background);
-}
-
-.data-table td {
-  padding: 8px;
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--color-on-surface);
-}
-
-.data-table td:first-child {
-  padding-left: 16px;
-}
-
-.data-table td:last-child {
-  padding-right: 16px;
-}
-
-.mono {
-  font-variant-numeric: tabular-nums;
-}
-
-.muted {
-  color: var(--color-on-surface-variant);
-}
-
-.text-right {
-  text-align: right;
-}
-
-.text-center {
-  text-align: center;
-}
-
-.stage-badge {
-  display: inline-block;
-  background: var(--color-surface-container-high);
-  padding: 2px 8px;
-  border-radius: 9999px;
-  font-size: 12px;
-}
-
-.more-btn {
-  background: none;
-  border: none;
-  color: var(--color-on-surface-variant);
-  cursor: pointer;
-  padding: 2px;
-}
-
-.more-btn:hover {
-  color: var(--color-on-surface);
-}
-
-.more-btn .material-symbols-outlined {
-  font-size: 18px;
-}
-
-.empty-row td {
-  padding: 24px;
-  color: var(--color-on-surface-variant);
-}
-
-/* ───────── Dashboard Grid (2x2) ───────── */
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
   margin-bottom: 24px;
 }
+.metric-tile {
+  background: #fff;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.m-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--color-on-surface-variant); }
+.m-val { font-family: var(--font-display); font-size: 24px; font-weight: 700; color: var(--color-on-surface); }
+.m-sub { font-size: 11px; color: var(--color-on-surface-variant); }
+.text-green { color: #15803d; }
+.text-red { color: #b91c1c; }
+.text-teal { color: var(--color-primary); }
+.text-grey { color: var(--color-on-surface-variant); }
 
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
 .dashboard-card {
-  background: #ffffff;
-  border: 1px solid var(--color-outline);
-  border-radius: var(--radius);
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  min-height: 300px;
+  background: #fff;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+  display: flex; flex-direction: column;
+  min-height: 320px;
+  overflow: hidden;
 }
-
-.dashboard-card .card-title {
-  margin: 0 0 16px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-on-surface);
+.card-head {
+  padding: 16px 18px 8px;
+  border-bottom: 1px solid var(--color-outline-variant);
 }
+.card-title { font-family: var(--font-display); margin: 0 0 2px; font-size: 15px; font-weight: 700; color: var(--color-on-surface); }
+.card-sub { margin: 0; font-size: 12px; color: var(--color-on-surface-variant); }
 
-/* ── Metric Card (Top Right) ── */
-.metric-card {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+.chart-body {
+  padding: 18px;
+  flex: 1;
+  display: flex; align-items: center; justify-content: center;
+  gap: 16px;
+  min-width: 0;
+}
+.chart-canvas-bar { width: 100%; overflow-x: auto; }
+.chart-canvas-bar canvas { max-width: 100%; }
+.chart-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: var(--color-on-surface-variant); font-size: 13px; text-align: center; gap: 8px;
+}
+.chart-empty .material-symbols-outlined { font-size: 36px; opacity: 0.4; }
+
+.legend {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 4px;
+  min-width: 0; flex: 1;
+}
+.legend-row {
+  display: grid;
+  grid-template-columns: 14px 1fr auto auto;
   align-items: center;
-  gap: 12px;
-  min-height: 300px;
-}
-
-.metric-value {
-  font-size: 40px;
-  font-weight: 700;
-  line-height: 48px;
-  letter-spacing: -0.02em;
-  color: var(--color-on-surface);
-  text-align: center;
-}
-
-.metric-note {
-  font-size: 13px;
-  color: var(--color-on-surface-variant);
-  text-align: center;
-}
-
-/* ── Bar Chart ── */
-.chart-content {
-  flex-grow: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.bar-chart {
-  width: 100%;
-  height: 100%;
-  max-height: 250px;
-}
-
-/* ── Status Info (Billed/Unbilled) ── */
-.status-info {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  flex-grow: 1;
-  justify-content: center;
-}
-
-.status-item {
-  display: flex;
-  flex-direction: column;
   gap: 8px;
-}
-
-.status-label {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-on-surface-variant);
-}
-
-.status-value {
-  font-size: 28px;
-  font-weight: 700;
-  line-height: 36px;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.status-value.unbilled {
-  color: #ea580c;
-}
-
-.status-value.billed {
-  color: #16a34a;
-}
-
-/* ── Pie Chart ── */
-.pie-chart-container {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  flex-grow: 1;
-  justify-content: center;
-  align-items: center;
-}
-
-.pie-chart-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: 0 8px;
-}
-
-.pie-chart {
-  width: 140px;
-  height: 140px;
-  max-width: 100%;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.08));
-}
-
-.pie-chart circle {
-  transform-origin: 100px 100px;
-}
-
-.pie-legend {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  width: 100%;
-  padding: 0 8px;
-}
-
-.legend-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  padding: 4px 0;
   font-size: 12px;
 }
+.swatch { width: 12px; height: 12px; border-radius: 3px; }
+.leg-label { color: var(--color-on-surface); font-weight: 500; }
+.leg-val { color: var(--color-on-surface); font-variant-numeric: tabular-nums; font-weight: 600; }
+.leg-pct { color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
 
-.legend-color {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  flex-shrink: 0;
-  margin-top: 2px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+.table-card {
+  background: #fff;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
 }
-
-.legend-text {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  flex-grow: 1;
+.table-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-outline-variant);
 }
-
-.legend-label {
-  font-size: 11px;
-  font-weight: 600;
+.view-all-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--color-primary); font-weight: 600; font-size: 13px;
+}
+.table-scroll { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table th {
+  text-align: left; padding: 10px 16px;
+  font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
   color: var(--color-on-surface-variant);
-  text-transform: capitalize;
-  letter-spacing: 0.03em;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--color-outline-variant);
 }
-
-.legend-value {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--color-on-surface);
-  font-variant-numeric: tabular-nums;
+.data-table td { padding: 10px 16px; border-bottom: 1px solid #e2e8f0; }
+.data-table tr:last-child td { border-bottom: none; }
+.mono { font-variant-numeric: tabular-nums; }
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+.empty-row td { padding: 24px; color: var(--color-on-surface-variant); }
+.stage-badge {
+  display: inline-block; padding: 2px 8px;
+  background: #d4edee; color: #113b3c;
+  border-radius: 2px; font-size: 11px; font-weight: 600;
 }
-
-/* ── Status Badge ── */
 .status-badge {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: var(--radius);
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: capitalize;
+  display: inline-block; padding: 2px 8px;
+  border-radius: 2px; font-size: 11px; font-weight: 600; text-transform: capitalize;
 }
-
-.status-badge.billed {
-  background: #dcfce7;
-  color: #166534;
+.status-badge.billed { background: #dcfce7; color: #166534; }
+.status-badge.unbilled { background: #fee2e2; color: #b91c1c; }
+.status-badge.partial { background: #fef3c7; color: #92400e; }
+.more-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--color-on-surface-variant);
 }
+.more-btn:hover { color: var(--color-on-surface); }
 
-.status-badge.unbilled {
-  background: #fed7aa;
-  color: #92400e;
+@media (max-width: 1200px) {
+  .metric-strip { grid-template-columns: 1fr 1fr; }
+  .dashboard-grid { grid-template-columns: 1fr; }
 }
-
-/* ───────── Material Symbols ───────── */
-.material-symbols-outlined {
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+@media (max-width: 600px) {
+  .metric-strip { grid-template-columns: 1fr; }
 }
 </style>

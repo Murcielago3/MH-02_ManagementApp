@@ -172,6 +172,13 @@
                 <label>Total Assigned Hours</label>
                 <input v-model.number="form.total_assigned_hours" type="number" step="0.5" placeholder="e.g. 500" />
               </div>
+
+              <!-- Billed Till Date -->
+              <div class="form-field span-2">
+                <label>Billed Till Date (₹)</label>
+                <input v-model.number="form.advance_amount" type="number" min="0" step="1000" placeholder="0" />
+                <p class="field-hint">Amount already billed for this project before being tracked in this system. Seeds the project reserve.</p>
+              </div>
             </div>
 
             <div v-if="formError" class="form-error">
@@ -409,6 +416,7 @@ const form = reactive({
   client_id: null,
   total_assigned_hours: null,
   color: '#B5EAD7',
+  advance_amount: 0,
 })
 
 // Pastel-only palette — admins can only assign soft/pastel colors to projects.
@@ -493,6 +501,7 @@ function resetForm() {
   form.client_id = null
   form.total_assigned_hours = null
   form.color = '#B5EAD7'
+  form.advance_amount = 0
   formError.value = ''
 }
 
@@ -525,6 +534,7 @@ function openEditModal(p) {
   form.client_id = p.client_id || null
   form.total_assigned_hours = p.total_assigned_hours ? Number(p.total_assigned_hours) : null
   form.color = p.color || '#B5EAD7'
+  form.advance_amount = Number(p.advance_amount) || 0
   formError.value = ''
   modalOpen.value = true
 }
@@ -613,6 +623,7 @@ async function handleSubmit() {
       client_id: form.client_id || null,
       total_assigned_hours: form.total_assigned_hours,
       color: form.color,
+      advance_amount: Number(form.advance_amount) || 0,
     }
     if (isEditing.value) {
       await projectsAPI.updateProject(editingId.value, payload)
@@ -895,6 +906,13 @@ const progressPercent = computed(() => {
   border-radius: 50%;
   margin-right: 8px;
   flex-shrink: 0;
+}
+
+.field-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  line-height: 1.4;
 }
 
 .form-error {

@@ -1,0 +1,49 @@
+# Keep the production image lean. Anything matched here is excluded from
+# `COPY . .` in the Dockerfile.
+#
+# WARNING: bare patterns like `models/` match at ANY depth — that's why we
+# scope our excludes carefully. Removing this comment may bite future you.
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local venv (in case it ever lands inside backend/)
+.venv/
+Lib/
+Include/
+Scripts/
+share/
+pyvenv.cfg
+
+# Local SQLite databases (prod uses Postgres)
+*.db
+*.sqlite3
+
+# Local env file (use docker-compose env_file: instead)
+.env
+
+# Dev/test artifacts
+*.html
+*.pdf
+tmp_*.py
+check_*.py
+debug_*.py
+test_*.py
+add_*.py
+create_tables.py
+
+# CI / git metadata
+.git/
+.gitignore
+.dockerignore
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
+
+# Demo seeder (don't ship to prod by default — copy in manually if needed)
+scripts/seed_demo_data.py

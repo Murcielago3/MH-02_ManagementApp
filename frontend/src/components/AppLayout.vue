@@ -4,12 +4,7 @@
     <aside class="sidebar">
       <div class="sidebar-brand">
         <div class="brand-logo">
-          <div class="logo-grid-mini">
-            <div class="lg-cell lg-a"></div>
-            <div class="lg-cell lg-b"></div>
-            <div class="lg-cell lg-c"></div>
-            <div class="lg-cell lg-a"></div>
-          </div>
+          <img :src="logoUrl" alt="Studio MH02 Logo" class="brand-logo-img" />
         </div>
         <div>
           <h1 class="brand-name">{{ brandName }}</h1>
@@ -88,7 +83,7 @@
           <button class="icon-btn">
             <span class="material-symbols-outlined">notifications</span>
           </button>
-          <button class="icon-btn">
+          <button class="icon-btn" title="Settings" @click="goToSettings">
             <span class="material-symbols-outlined">settings</span>
           </button>
           <button class="icon-btn">
@@ -136,6 +131,7 @@ import { computed, onMounted, ref, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { usersAPI } from '../api/users'
+import { getAppLogoUrl } from '../utils/logo'
 
 const route = useRoute()
 const router = useRouter()
@@ -157,6 +153,8 @@ const brandName = computed(() => {
   if (authStore.role === 'employee') return 'Employee'
   return 'Studio MH02'
 })
+
+const logoUrl = getAppLogoUrl()
 
 const userInitials = computed(() => {
   const name = currentUser.value?.name || authStore.user?.name || 'Admin'
@@ -190,6 +188,10 @@ const handleLogout = () => {
   router.push('/login')
 }
 
+const goToSettings = () => {
+  router.push('/admin/settings')
+}
+
 const projectsExpanded = ref(false)
 
 const navItemsTop = [
@@ -201,6 +203,7 @@ const projectSubNav = [
   { path: '/admin/projects', label: 'All Projects' },
   { path: '/admin/projects/summary', label: 'Summary' },
   { path: '/admin/projects/billing', label: 'Billing' },
+  { path: '/admin/projects/reports', label: 'Reports' },
 ]
 
 const navItemsBottom = [
@@ -211,8 +214,6 @@ const navItemsBottom = [
   { path: '/admin/expenses', icon: 'payments', label: 'Expenses' },
   { path: '/admin/invoices', icon: 'receipt_long', label: 'Invoices' },
   { path: '/admin/estimates', icon: 'calculate', label: 'Estimates' },
-  { path: '/admin/reports', icon: 'analytics', label: 'Reports' },
-  { path: '/admin/settings/bank', icon: 'account_balance', label: 'Bank Accounts' },
 ]
 
 watch(
@@ -285,6 +286,14 @@ function toggleProjects() {
   border-radius: var(--radius);
   overflow: hidden;
   flex-shrink: 0;
+  background: var(--color-surface);
+}
+
+.brand-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .logo-grid-mini {
@@ -453,6 +462,9 @@ function toggleProjects() {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-width: 0;          /* allow shrinking — without this, wide children (e.g. resource calendar) push the page wider than viewport */
+  width: calc(100% - 260px);
+  max-width: calc(100% - 260px);
 }
 
 /* ───────── Top Bar ───────── */
@@ -635,6 +647,9 @@ function toggleProjects() {
   display: flex;
   flex-direction: column;
   gap: 32px;
+  min-width: 0;          /* let flex children constrain themselves */
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* ───────── Material Symbols ───────── */

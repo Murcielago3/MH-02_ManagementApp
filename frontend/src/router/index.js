@@ -40,6 +40,12 @@ const routes = [
     meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
+    path: '/admin/projects/reports',
+    name: 'AdminProjectReports',
+    component: () => import('../views/AdminProjectReportsView.vue'),
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
     path: '/admin/projects',
     name: 'AdminProjects',
     component: () => import('../views/AdminProjects.vue'),
@@ -106,15 +112,15 @@ const routes = [
     meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
-    path: '/admin/estimates',
-    name: 'AdminEstimates',
-    component: () => import('../views/EstimateView.vue'),
+    path: '/admin/settings',
+    name: 'AdminSettings',
+    component: () => import('../views/AdminSettingsView.vue'),
     meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
-    path: '/admin/reports',
-    name: 'AdminReports',
-    component: () => import('../views/AdminDashboard.vue'), // placeholder
+    path: '/admin/estimates',
+    name: 'AdminEstimates',
+    component: () => import('../views/EstimateView.vue'),
     meta: { requiresAuth: true, roles: ['admin'] },
   },
 

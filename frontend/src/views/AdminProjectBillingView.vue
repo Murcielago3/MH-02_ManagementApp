@@ -266,28 +266,17 @@ function destroyChart() {
 
 function renderOrDestroyChart() {
   destroyChart()
-  if (pieBothZero.value) {
-    console.log('[ChartDebug] Skipping: pieBothZero is true')
-    return
-  }
+  if (pieBothZero.value) return
 
   const el = chartCanvas.value || document.getElementById('billingPieChart')
-  if (!el) {
-    console.warn('[ChartDebug] Skipping: Canvas element not found')
-    return
-  }
+  if (!el) return
 
   const pie = billing.value.pie_data || []
-  if (pie.length === 0) {
-    console.log('[ChartDebug] Skipping: No pie data')
-    return
-  }
+  if (pie.length === 0) return
 
   const values = pie.map((p) => Number(p.value) || 0)
   const labels = pie.map((p) => p.label)
   const bg = [TEAL, RED]
-
-  console.log('[ChartDebug] Rendering chart with values:', values)
 
   try {
     chartInstance = new Chart(el, {
@@ -320,9 +309,8 @@ function renderOrDestroyChart() {
         },
       },
     })
-    console.log('[ChartDebug] Chart instance created successfully')
   } catch (err) {
-    console.error('[ChartDebug] Failed to create Chart instance:', err)
+    console.error('Failed to create chart:', err)
   }
 }
 
