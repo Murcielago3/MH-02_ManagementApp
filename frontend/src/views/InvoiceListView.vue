@@ -599,4 +599,14 @@ const handleDelete = async () => {
 }
 .draft-delete-btn:hover { background: #fee2e2; color: var(--color-error); }
 .draft-delete-btn .material-symbols-outlined { font-size: 16px; }
+
+@media (max-width: 768px) {
+  .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .table-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .data-table { min-width: 600px; }
+  .draft-item { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .draft-actions { align-self: flex-end; }
+  .modal { max-width: 100%; width: 100%; }
+  .modal-backdrop { padding: 8px; }
+}
 </style>

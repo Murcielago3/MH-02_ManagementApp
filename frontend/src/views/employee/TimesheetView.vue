@@ -78,4 +78,11 @@ onMounted(async () => {
     grid-template-rows: auto 1fr;
   }
 }
+@media (max-width: 768px) {
+  .week-nav { flex-wrap: wrap; gap: 6px; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .timesheet-table { min-width: 540px; }
+  .modal { max-width: 100%; width: 100%; }
+  .modal-backdrop { padding: 8px; }
+}
 </style>

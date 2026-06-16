@@ -421,4 +421,15 @@ function downloadActive() {
   #payslip-print { position: absolute; left: 0; top: 0; width: 100%; }
   .modal-actions { display: none !important; }
 }
+
+@media (max-width: 768px) {
+  .slips-grid { grid-template-columns: repeat(2, 1fr); }
+  .controls-row { margin-bottom: 16px; }
+  .pdf-modal { height: 85vh; }
+  .modal-backdrop { padding: 0; align-items: flex-end; }
+  .pdf-modal { border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+}
+@media (max-width: 480px) {
+  .slips-grid { grid-template-columns: 1fr; }
+}
 </style>

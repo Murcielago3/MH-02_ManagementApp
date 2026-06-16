@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
-from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips
+from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips, holidays
 
 
 security = HTTPBearer()
@@ -43,6 +43,7 @@ app.include_router(teams.router)
 app.include_router(settings_router.router)
 app.include_router(estimates.router)
 app.include_router(salary_slips.router)
+app.include_router(holidays.router)
 
 
 @app.get("/health")
@@ -180,6 +181,26 @@ async def run_migrations():
                 await conn.execute(text(f"ALTER TABLE salary_slips ADD COLUMN {col_name} {col_def}"))
         except Exception:
             pass
+
+    # Per-day hours breakdown on timesheet entries (Mon..Sun JSON array)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("ALTER TABLE weekly_timesheet_entries ADD COLUMN daily_hours JSON"))
+    except Exception:
+        pass
+
+    # Company-wide holidays table
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS holidays (
+                    id SERIAL PRIMARY KEY,
+                    date DATE NOT NULL UNIQUE,
+                    name VARCHAR NOT NULL
+                )
+            """))
+    except Exception:
+        pass
 
     # Create the salary_slips table if missing
     try:

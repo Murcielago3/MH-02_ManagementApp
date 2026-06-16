@@ -640,4 +640,15 @@ async function handleAddProject() {
 @media print {
   .project-push-settings, .step-footer, .rate-section, .step-header, .formula-hint { display: none !important; }
 }
+
+@media (max-width: 768px) {
+  .step-card { padding: 16px; }
+  .partner-grid { grid-template-columns: 1fr; }
+  .push-setting-grid { grid-template-columns: 1fr; }
+  .step-footer { flex-direction: column; gap: 10px; }
+  .action-right { flex-wrap: wrap; justify-content: flex-end; }
+  .doc-rows { overflow-x: auto; }
+  .doc-row { grid-template-columns: 1fr auto; }
+  .doc-row-formula { display: none; }
+}
 </style>

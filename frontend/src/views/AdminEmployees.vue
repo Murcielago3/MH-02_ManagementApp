@@ -1345,4 +1345,17 @@ form .modal-footer {
   cursor: pointer;
 }
 .draft-discard-btn:hover { background: #fef3c7; }
+
+@media (max-width: 768px) {
+  .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .header-actions { flex-wrap: wrap; }
+  .filter-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .filter-bar-left { flex-wrap: wrap; }
+  .table-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .data-table { min-width: 560px; }
+  .modal { max-width: 100%; width: 100%; }
+  .modal-backdrop { padding: 8px; }
+  .form-grid { grid-template-columns: 1fr !important; }
+  .span-2 { grid-column: span 1 !important; }
+}
 </style>

@@ -32,6 +32,10 @@ export const tasksAPI = {
     return client.post('/tasks/', data)
   },
 
+  bulkAssign: (data) => {
+    return client.post('/tasks/bulk-assign', data)
+  },
+
   updateTask: (taskId, data) => {
     return client.put(`/tasks/${taskId}`, data)
   },

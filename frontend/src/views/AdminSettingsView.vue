@@ -203,6 +203,11 @@
       <BankAccountsManager />
     </section>
 
+    <!-- HOLIDAYS -->
+    <section v-if="activeTab === 'holidays'" class="panel">
+      <HolidaysManager />
+    </section>
+
     <ToastNotification v-if="toastMsg" :message="toastMsg" :type="toastType" @done="toastMsg = ''" />
   </AppLayout>
 </template>
@@ -211,6 +216,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import BankAccountsManager from '../components/BankAccountsManager.vue'
+import HolidaysManager from '../components/HolidaysManager.vue'
 import ToastNotification from '../components/ToastNotification.vue'
 import { settingsAPI } from '../api/settings'
 import { formatInr } from '../utils/currency'
@@ -219,6 +225,7 @@ const tabs = [
   { key: 'company', label: 'Company Profile', icon: 'business' },
   { key: 'compensation', label: 'Compensation', icon: 'payments' },
   { key: 'bank', label: 'Bank Accounts', icon: 'account_balance' },
+  { key: 'holidays', label: 'Holidays', icon: 'event' },
 ]
 const activeTab = ref('company')
 
@@ -509,4 +516,14 @@ onMounted(loadSettings)
 /* ── Spinner ── */
 .spin-icon { animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 768px) {
+  .tabs-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; white-space: nowrap; }
+  .tab-btn { padding: 10px 14px; }
+  .settings-form { max-width: 100%; }
+  .settings-group { padding: 18px 16px; }
+  .field-row.two-col { flex-direction: column; }
+  .push-setting-grid { grid-template-columns: 1fr; }
+  .form-actions { padding: 16px; }
+}
 </style>

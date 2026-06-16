@@ -2,7 +2,7 @@
   <div class="app-shell">
 
     <!-- ── Sidebar ── -->
-    <aside class="sidebar">
+    <aside class="sidebar" :class="{ open: sidebarOpen }">
       <div class="sidebar-brand">
         <div class="brand-logo">
           <img :src="logoUrl" alt="Studio MH02" class="brand-logo-img" />
@@ -69,12 +69,18 @@
       </div>
     </aside>
 
+    <!-- Mobile backdrop -->
+    <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
+
     <!-- ── Main area ── -->
     <div class="main-area">
 
       <!-- Top bar -->
       <header class="top-bar">
         <div class="top-bar-left">
+          <button class="hamburger" @click="sidebarOpen = true" aria-label="Open menu">
+            <span class="material-symbols-outlined">menu</span>
+          </button>
           <h2 class="page-title">{{ currentPageTitle }}</h2>
         </div>
         <div class="top-bar-right">
@@ -92,7 +98,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, onUnmounted } from 'vue'
+import { computed, onMounted, ref, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useTimesheetStore } from '../stores/timesheet'
@@ -105,7 +111,11 @@ const authStore = useAuthStore()
 const timesheetStore = useTimesheetStore()
 const currentUser = ref(null)
 const showProfileMenu = ref(false)
+const sidebarOpen = ref(false)
 const logoUrl = getAppLogoUrl()
+
+// Close the mobile drawer whenever the route changes
+watch(() => route.path, () => { sidebarOpen.value = false })
 
 const closeProfileMenu = (e) => {
   if (!e.target.closest('.sidebar-user')) {
@@ -451,5 +461,43 @@ const currentPageTitle = computed(() => {
   gap: 24px;
   min-width: 0;
   max-width: 100%;
+}
+
+/* ── Hamburger + mobile drawer ── */
+.hamburger {
+  display: none;
+  width: 38px; height: 38px;
+  align-items: center; justify-content: center;
+  background: transparent; border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-on-surface); cursor: pointer;
+  flex-shrink: 0;
+}
+.hamburger:hover { background: var(--color-surface-container); }
+.hamburger .material-symbols-outlined { font-size: 24px; }
+
+.sidebar-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  z-index: 35;
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index: 40;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.35);
+  }
+  .sidebar.open { transform: translateX(0); }
+
+  .main-area {
+    margin-left: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+  .top-bar { left: 0; padding: 0 12px; }
+  .hamburger { display: flex; }
+  .page-content { padding: 16px 14px; gap: 16px; }
 }
 </style>

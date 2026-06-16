@@ -133,8 +133,19 @@ async def create_invoice(
         db.add(item)
 
     await db.commit()
-    await db.refresh(invoice)
-    # Invoice totals feed the reserve balance — bust the sidebar cache.
+    # Re-fetch with all relationships so bank_account / items / client are nested
+    from sqlalchemy.orm import selectinload
+    result = await db.execute(
+        select(Invoice)
+        .options(
+            selectinload(Invoice.items),
+            selectinload(Invoice.bank_account),
+            selectinload(Invoice.client),
+            selectinload(Invoice.project),
+        )
+        .where(Invoice.id == invoice.id)
+    )
+    invoice = result.scalar_one()
     from app.routers.projects import _invalidate_reserve
     _invalidate_reserve()
     return invoice
@@ -194,7 +205,19 @@ async def update_invoice(
         db.add(item)
 
     await db.commit()
-    await db.refresh(invoice)
+    # Re-fetch with all relationships
+    from sqlalchemy.orm import selectinload as _sl
+    result2 = await db.execute(
+        select(Invoice)
+        .options(
+            _sl(Invoice.items),
+            _sl(Invoice.bank_account),
+            _sl(Invoice.client),
+            _sl(Invoice.project),
+        )
+        .where(Invoice.id == invoice_id)
+    )
+    invoice = result2.scalar_one()
     from app.routers.projects import _invalidate_reserve
     _invalidate_reserve()
     return invoice
@@ -238,6 +261,14 @@ async def generate_invoice_pdf(
     invoice = result.scalar_one_or_none()
     if not invoice:
         raise HTTPException(404, "Invoice not found")
+
+    # Guard: if bank_account relationship didn't load (lazy session), fetch it directly
+    if invoice.bank_account_id and invoice.bank_account is None:
+        from app.models.bank_account import BankAccount
+        ba_res = await db.execute(
+            select(BankAccount).where(BankAccount.id == invoice.bank_account_id)
+        )
+        invoice.bank_account = ba_res.scalar_one_or_none()
 
     settings = await get_or_create_settings(db)
     html = render_invoice_html(invoice, settings)
@@ -462,7 +493,7 @@ def render_invoice_html(invoice, settings=None) -> str:
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   html, body {{
     font-family: Arial, sans-serif;
-    font-size: 9px;
+    font-size: 7px;
     color: #000;
     line-height: 1.25;
     width: 194mm;
@@ -490,23 +521,23 @@ def render_invoice_html(invoice, settings=None) -> str:
   .hdr-right {{ width: 40%; padding: 5mm 8mm 5mm 5mm !important; vertical-align: middle !important; text-align: right; }}
   .logo-img {{ width: 80px; height: 80px; object-fit: contain; display: block; }}
   .firm-name {{ font-size: 12px; font-weight: bold; margin-bottom: 2px; }}
-  .firm-details {{ font-size: 9.5px; line-height: 1.4; color: #222; }}
+  .firm-details {{ font-size: 7.5px; line-height: 1.4; color: #222; }}
   .invoice-type {{ font-size: 18px; font-weight: bold; letter-spacing: 0.6px; }}
-  .invoice-num {{ font-size: 8px; margin-top: 4px; color: #333; }}
+  .invoice-num {{ font-size: 6px; margin-top: 4px; color: #333; }}
 
   /* ===== META ===== */
-  .meta-label {{ font-size: 7.5px; color: #555; margin-bottom: 2px; }}
-  .meta-val-bold {{ font-weight: bold; font-size: 9.5px; margin-bottom: 2px; }}
+  .meta-label {{ font-size: 5.5px; color: #555; margin-bottom: 2px; }}
+  .meta-val-bold {{ font-weight: bold; font-size: 7.5px; margin-bottom: 2px; }}
   .meta-cell {{ padding: 5px 8px; }}
 
   /* ===== ITEMS ===== */
   .items-head td {{
     background: #f5f5f5;
     padding: 5px 6px;
-    font-size: 9px;
+    font-size: 7px;
     font-weight: 600;
   }}
-  .items-row td {{ padding: 5px 6px; font-size: 9px; }}
+  .items-row td {{ padding: 5px 6px; font-size: 7px; }}
   .col-num  {{ width: 32px; text-align: center; }}
   .col-hsn  {{ width: 95px; }}
   .col-amt  {{ width: 110px; text-align: right; }}
@@ -514,13 +545,13 @@ def render_invoice_html(invoice, settings=None) -> str:
   /* ===== FOOTER (bank + totals) ===== */
   .foot-left {{ width: 55%; padding: 8px 10px; }}
   .foot-right {{ width: 45%; padding: 8px 10px; }}
-  .bank-tbl td {{ padding: 2px 0; font-size: 9px; }}
+  .bank-tbl td {{ padding: 2px 0; font-size: 7px; }}
   .bank-label {{ width: 130px; color: #444; font-weight: 600; }}
-  .totals-tbl td {{ padding: 3px 6px; font-size: 9px; }}
+  .totals-tbl td {{ padding: 3px 6px; font-size: 7px; }}
   .tot-val {{ text-align: right; }}
   .total-final td {{
     font-weight: bold;
-    font-size: 10px;
+    font-size: 8px;
     border-top: 1.5px solid #000 !important;
     padding-top: 5px;
   }}
@@ -528,19 +559,19 @@ def render_invoice_html(invoice, settings=None) -> str:
     margin-top: 8px;
     padding-top: 6px;
     border-top: 1px solid #ccc;
-    font-size: 8.5px;
+    font-size: 6.5px;
     font-style: italic;
     color: #333;
   }}
   .words-label {{ font-weight: bold; font-style: normal; margin-bottom: 2px; }}
 
   /* ===== T&C + SIGNATORY ===== */
-  .tc-cell {{ padding: 6px 10px; font-size: 8px; line-height: 1.4; }}
-  .tc-label {{ font-weight: bold; font-size: 9px; margin-bottom: 3px; }}
-  .sig-cell {{ padding: 8px 10px; font-size: 9px; }}
-  .sig-name {{ font-weight: bold; font-size: 10px; margin-top: 22mm; }}
+  .tc-cell {{ padding: 6px 10px; font-size: 6px; line-height: 1.4; }}
+  .tc-label {{ font-weight: bold; font-size: 7px; margin-bottom: 3px; }}
+  .sig-cell {{ padding: 8px 10px; font-size: 7px; }}
+  .sig-name {{ font-weight: bold; font-size: 8px; margin-top: 22mm; }}
   .sig-role {{ color: #444; margin-top: 2px; }}
-  .auth-label {{ font-size: 8px; color: #555; }}
+  .auth-label {{ font-size: 6px; color: #555; }}
 </style>
 </head>
 <body>
@@ -584,7 +615,7 @@ def render_invoice_html(invoice, settings=None) -> str:
       <td style=\"padding:5px 8px;\">
         <div class=\"meta-label\">Bill To</div>
         <div class=\"meta-val-bold\">{invoice.bill_to_name or ''}</div>
-        <div style=\"font-size:9.5px; line-height:1.4; margin-top:2px;\">
+        <div style=\"font-size:7.5px; line-height:1.4; margin-top:2px;\">
           {(invoice.bill_to_address or '').replace(chr(10), '<br>')}
           {'<br>GSTIN ' + invoice.bill_to_gstin if invoice.bill_to_gstin else ''}
         </div>
@@ -592,7 +623,7 @@ def render_invoice_html(invoice, settings=None) -> str:
       <td style=\"padding:5px 8px;\">
         <div class=\"meta-label\">Ship To</div>
         <div class=\"meta-val-bold\">{invoice.ship_to_name or ''}</div>
-        <div style=\"font-size:9.5px; line-height:1.4; margin-top:2px;\">
+        <div style=\"font-size:7.5px; line-height:1.4; margin-top:2px;\">
           {(invoice.ship_to_address or '').replace(chr(10), '<br>')}
           {'<br>GSTIN ' + invoice.ship_to_gstin if invoice.ship_to_gstin else ''}
         </div>

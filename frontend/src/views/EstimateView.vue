@@ -721,4 +721,13 @@ async function handleDeleteEstimate(id) {
     print-color-adjust: exact;
   }
 }
+
+@media (max-width: 768px) {
+  .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .page-header-right { flex-wrap: wrap; }
+  .saved-grid { grid-template-columns: 1fr; }
+  .step-indicator { padding: 0 4px 20px; gap: 0; }
+  .step-label { font-size: 9px; }
+  .drafts-card { margin-bottom: 12px; }
+}
 </style>

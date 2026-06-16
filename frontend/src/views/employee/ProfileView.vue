@@ -752,4 +752,14 @@ const formatCurrency = (val) => {
 .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
 @keyframes spin { 100% { transform: rotate(360deg); } }
+
+@media (max-width: 768px) {
+  .profile-layout { flex-direction: column; }
+  .profile-sidebar { width: 100%; }
+  .profile-main { min-width: 0; }
+  .info-grid { grid-template-columns: 1fr; }
+  .doc-grid { grid-template-columns: 1fr; }
+  .modal { max-width: 100%; width: 100%; }
+  .modal-backdrop { padding: 8px; }
+}
 </style>

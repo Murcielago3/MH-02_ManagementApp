@@ -369,4 +369,12 @@ const handleDelete = async () => {
 }
 .btn-danger:hover { opacity: 0.88; }
 .btn-danger:disabled { opacity: 0.55; cursor: not-allowed; }
+
+@media (max-width: 768px) {
+  .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .header-actions { flex-wrap: wrap; width: 100%; }
+  .preview-wrap { padding: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .modal { max-width: 100%; width: 100%; }
+  .modal-backdrop { padding: 8px; }
+}
 </style>

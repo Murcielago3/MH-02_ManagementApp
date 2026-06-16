@@ -134,35 +134,10 @@
         </div>
 
         <div class="modal-body">
-          <!-- Entries Table -->
+          <!-- Daily Hours Breakdown -->
           <div class="detail-section">
-            <label class="section-label">Time Entries</label>
-            <div class="detail-table-wrapper">
-              <table class="detail-table">
-                <thead>
-                  <tr>
-                    <th>Project</th>
-                    <th>Task Description</th>
-                    <th class="col-right">Hours</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="entry in selectedTimesheet.entries" :key="entry.id">
-                    <td class="col-proj">
-                      <span class="project-tag">{{ getProjectName(entry.project_id) }}</span>
-                    </td>
-                    <td class="col-desc">{{ entry.description }}</td>
-                    <td class="col-right cell-mono">{{ entry.hours }}h</td>
-                  </tr>
-                </tbody>
-                <tfoot>
-                  <tr class="total-row">
-                    <td colspan="2" class="col-right total-label">Total Time</td>
-                    <td class="col-right total-val">{{ selectedTimesheet.total_hours }}h</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+            <label class="section-label">Daily Hours Log</label>
+            <TimesheetDailyGrid :timesheet="selectedTimesheet" :projects="projects" />
           </div>
 
           <!-- Weekly Overview -->
@@ -231,6 +206,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
+import TimesheetDailyGrid from '../components/timesheet/TimesheetDailyGrid.vue'
 import { weeklyTimesheetsAPI } from '../api/weekly_timesheets'
 import { usersAPI } from '../api/users'
 import { projectsAPI } from '../api/projects'
@@ -435,11 +411,6 @@ function viewDetail(ts) {
 function closeDetailModal() {
   showDetailModal.value = false
   selectedTimesheet.value = null
-}
-
-function getProjectName(id) {
-  const p = projects.value.find(proj => proj.id === id)
-  return p ? p.name : 'Unknown Project'
 }
 </script>
 
@@ -939,4 +910,12 @@ textarea.form-input { resize: vertical; }
 }
 .btn-danger:hover:not(:disabled) { background: #b91c1c; }
 .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+@media (max-width: 768px) {
+  .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .filter-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .filter-bar-left { flex-wrap: wrap; }
+  .table-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .data-table { min-width: 580px; }
+}
 </style>

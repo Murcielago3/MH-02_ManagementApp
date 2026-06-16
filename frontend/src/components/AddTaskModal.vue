@@ -220,4 +220,10 @@ async function handleSubmit() {
   border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 .btn-danger:hover { background: #b91c1c; }
+
+@media (max-width: 768px) {
+  .modal { max-width: 100%; width: 100%; max-height: 92vh; }
+  .modal-backdrop { padding: 8px; }
+  .form-grid { grid-template-columns: 1fr !important; }
+}
 </style>

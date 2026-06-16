@@ -408,4 +408,13 @@ textarea.field-input {
 
 @keyframes spin { 100% { transform: rotate(360deg); } }
 .spinner { animation: spin 1s linear infinite; }
+
+@media (max-width: 768px) {
+  .layout { flex-direction: column; }
+  .form-panel { min-width: 0; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .data-table { min-width: 480px; }
+  .modal { max-width: 100%; width: 100%; }
+  .modal-backdrop { padding: 8px; }
+}
 </style>

@@ -2,7 +2,7 @@
   <div class="app-shell">
 
     <!-- ── Sidebar ── -->
-    <aside class="sidebar">
+    <aside class="sidebar" :class="{ open: sidebarOpen }">
       <div class="sidebar-brand">
         <div class="brand-logo">
           <img :src="logoUrl" alt="Studio MH02" class="brand-logo-img" />
@@ -95,11 +95,17 @@
       </div>
     </aside>
 
+    <!-- Mobile backdrop -->
+    <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
+
     <!-- ── Main area ── -->
     <div class="main-area">
 
       <!-- Top bar -->
       <header class="top-bar">
+        <button class="hamburger" @click="sidebarOpen = true" aria-label="Open menu">
+          <span class="material-symbols-outlined">menu</span>
+        </button>
         <div class="top-bar-search">
           <span class="material-symbols-outlined search-icon">search</span>
           <input type="text" placeholder="Search anything…" class="search-field" />
@@ -159,6 +165,7 @@ const authStore = useAuthStore()
 const currentUser     = ref(null)
 const showProfileMenu = ref(false)
 const projectsExpanded = ref(false)
+const sidebarOpen     = ref(false)
 
 const logoUrl = getAppLogoUrl()
 
@@ -215,6 +222,7 @@ const navItemsBottom = [
 
 watch(() => route.path, (p) => {
   projectsExpanded.value = p.startsWith('/admin/projects')
+  sidebarOpen.value = false   // close the mobile drawer on navigation
 }, { immediate: true })
 
 const isProjectsSectionActive = computed(() => route.path.startsWith('/admin/projects'))
@@ -535,5 +543,44 @@ function toggleProjects()  { projectsExpanded.value = !projectsExpanded.value }
   gap: 24px;
   min-width: 0;
   max-width: 100%;
+}
+
+/* ── Hamburger + mobile drawer ── */
+.hamburger {
+  display: none;
+  width: 38px; height: 38px;
+  align-items: center; justify-content: center;
+  background: transparent; border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-on-surface); cursor: pointer;
+  flex-shrink: 0;
+}
+.hamburger:hover { background: var(--color-surface-container); }
+.hamburger .material-symbols-outlined { font-size: 24px; }
+
+.sidebar-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  z-index: 35;
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index: 40;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.35);
+  }
+  .sidebar.open { transform: translateX(0); }
+
+  .main-area {
+    margin-left: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+  .top-bar { left: 0; padding: 0 12px; }
+  .top-bar-search { display: none; }   /* declutter; search is non-functional */
+  .hamburger { display: flex; }
+  .page-content { padding: 16px 14px; gap: 16px; }
 }
 </style>

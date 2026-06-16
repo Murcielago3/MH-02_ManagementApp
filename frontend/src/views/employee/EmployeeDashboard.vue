@@ -32,6 +32,7 @@
           :projectMap="projectMap"
           :userMap="{}"
           :leaves="approvedLeaves"
+          :holidays="holidays"
           :isAdmin="false"
           :timesheetWeeks="combinedTimesheetWeeks"
           @ribbon-click="openTaskDrawer"
@@ -75,6 +76,7 @@ import { attendanceAPI } from '../../api/attendance'
 import { tasksAPI } from '../../api/tasks'
 import { leavesAPI } from '../../api/leaves'
 import { projectsAPI } from '../../api/projects'
+import { holidaysAPI } from '../../api/holidays'
 import { countWorkingDays } from '../../stores/estimate'
 import { useTimesheetStore } from '../../stores/timesheet'
 
@@ -111,18 +113,20 @@ async function fetchDashboardData() {
     timesheetStore.fetchPendingWeeks()
     timesheetStore.fetchMyTimesheets()
 
-    const [uRes, aRes, lRes, tRes, pRes] = await Promise.all([
+    const [uRes, aRes, lRes, tRes, pRes, hRes] = await Promise.all([
       usersAPI.getMe(),
       attendanceAPI.getMyAttendance(),
       leavesAPI.getMyLeaves(),
       tasksAPI.getMyTasks(),
       projectsAPI.getProjects().catch(() => ({ data: [] })), // may fail for employee role
+      holidaysAPI.getHolidays().catch(() => ({ data: [] })),
     ])
 
     user.value = uRes.data
     leaves.value = lRes.data
     allTasks.value = tRes.data
     projectsList.value = pRes.data || []
+    holidays.value = hRes.data || []
   } catch (err) {
     console.error('Failed to load dashboard data', err)
   }
@@ -264,4 +268,9 @@ async function updateTaskStatus(taskId, status) {
 
 @keyframes spin { 100% { transform: rotate(360deg); } }
 .spinner { animation: spin 1s linear infinite; }
+
+@media (max-width: 768px) {
+  .stats-strip { flex-direction: column; }
+  .calendar-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
 </style>

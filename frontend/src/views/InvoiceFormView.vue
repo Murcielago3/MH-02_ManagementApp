@@ -1030,4 +1030,15 @@ const submitInvoice = async () => {
 /* ── Spinner ── */
 .spin-icon { animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 900px) {
+  .invoice-layout { flex-direction: column; }
+  .form-sidebar { width: 100%; position: static; }
+  .billing-grid { grid-template-columns: 1fr; }
+  .row-2 { grid-template-columns: 1fr; }
+  .type-toggles { flex-direction: column; }
+  .items-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .items-table { min-width: 480px; }
+  .form-card { padding: 18px; }
+}
 </style>

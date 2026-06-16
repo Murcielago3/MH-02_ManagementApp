@@ -14,3 +14,4 @@ from app.models.team import Team, TeamMember
 from app.models.settings import Settings
 from app.models.estimate import Estimate, EstimateEmployee
 from app.models.salary_slip import SalarySlip
+from app.models.holiday import Holiday

@@ -447,4 +447,9 @@ input:checked + .slider:before { transform: translateX(20px); }
   color: var(--color-primary);
   font-size: 28px;
 }
+
+@media (max-width: 480px) {
+  .summary-grid { grid-template-columns: 1fr; }
+  .see-you-tomorrow { font-size: 22px; margin-bottom: 28px; }
+}
 </style>

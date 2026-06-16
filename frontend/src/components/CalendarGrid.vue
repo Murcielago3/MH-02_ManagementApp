@@ -52,13 +52,16 @@
               'other-month': !day.isCurrentMonth,
               'is-today': day.isToday,
               'is-leave': isLeaveDay(day.dateStr),
+              'is-holiday': isHolidayDay(day.dateStr),
               'is-drag-highlight': isDragHighlight(day.dateStr),
             }"
             :data-date="day.dateStr"
+            :title="isHolidayDay(day.dateStr) ? holidayName(day.dateStr) : ''"
             @mousedown.prevent="onCellMouseDown($event, day.dateStr)"
           >
             <span class="day-number">{{ day.num }}</span>
-            <span v-if="isLeaveDay(day.dateStr)" class="leave-chip">On Leave</span>
+            <span v-if="isHolidayDay(day.dateStr)" class="holiday-chip">{{ holidayName(day.dateStr) }}</span>
+            <span v-else-if="isLeaveDay(day.dateStr)" class="leave-chip">On Leave</span>
           </div>
 
           <!-- Ribbon layer for this week -->
@@ -91,10 +94,11 @@
             </div>
           </div>
 
-          <!-- Leave overlay layer -->
+          <!-- Leave / holiday overlay layer -->
           <div class="leave-overlay-layer">
             <div v-for="(day, idx) in week" :key="'lo-'+day.dateStr" :style="{ gridColumn: idx + 1 }">
-              <div v-if="isLeaveDay(day.dateStr)" class="leave-darken"></div>
+              <div v-if="isHolidayDay(day.dateStr)" class="holiday-darken"></div>
+              <div v-else-if="isLeaveDay(day.dateStr)" class="leave-darken"></div>
             </div>
           </div>
         </div>
@@ -129,9 +133,18 @@ const props = defineProps({
   projectMap: { type: Object, default: () => ({}) },
   userMap: { type: Object, default: () => ({}) },
   leaves: { type: Array, default: () => [] },
+  holidays: { type: Array, default: () => [] },
   isAdmin: { type: Boolean, default: false },
   timesheetWeeks: { type: Array, default: () => [] } // { week_start, status }
 })
+
+const holidayMap = computed(() => {
+  const m = {}
+  for (const h of props.holidays || []) m[h.date] = h.name
+  return m
+})
+function isHolidayDay(dateStr) { return dateStr in holidayMap.value }
+function holidayName(dateStr) { return holidayMap.value[dateStr] || '' }
 
 const emit = defineEmits(['ribbon-click', 'cell-drag-create', 'ribbon-drag-extend', 'timesheet-click'])
 
@@ -579,6 +592,9 @@ defineExpose({ viewMode, anchorDate })
 .cal-day-cell.is-leave {
   background: rgba(229, 231, 235, 0.6);
 }
+.cal-day-cell.is-holiday {
+  background: repeating-linear-gradient(-45deg, #fef3c7, #fef3c7 7px, #fde68a 7px, #fde68a 14px);
+}
 .cal-day-cell.is-drag-highlight {
   background: rgba(40, 116, 117, 0.12);
   outline: 1px dashed #287475;
@@ -600,6 +616,18 @@ defineExpose({ viewMode, anchorDate })
   font-weight: 600;
   letter-spacing: 0.05em;
   margin-top: 2px;
+}
+.holiday-chip {
+  display: block;
+  font-size: 9px;
+  color: #92400e;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Ribbon layer */
@@ -623,6 +651,12 @@ defineExpose({ viewMode, anchorDate })
   height: 100%;
   background: rgba(0, 0, 0, 0.25);
   backdrop-filter: grayscale(80%);
+}
+.holiday-darken {
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.12);
+  backdrop-filter: grayscale(60%);
 }
 
 .task-ribbon {
@@ -779,5 +813,11 @@ defineExpose({ viewMode, anchorDate })
   z-index: 9999;
   pointer-events: none;
   box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+@media (max-width: 768px) {
+  .calendar-controls { flex-wrap: wrap; gap: 8px; }
+  .calendar-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .cal-header, .cal-week-row { min-width: 560px; }
 }
 </style>

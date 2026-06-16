@@ -30,12 +30,14 @@
             v-for="day in visibleDays"
             :key="day.dateStr"
             class="rc-day-header"
-            :class="{ today: day.isToday, weekend: day.isWeekend, 'week-start': day.isMonday, 'month-start': day.isFirstOfMonth }"
+            :class="{ today: day.isToday, weekend: day.isWeekend, holiday: isHoliday(day.dateStr), 'week-start': day.isMonday, 'month-start': day.isFirstOfMonth }"
             :style="{ width: COL_W + 'px' }"
+            :title="isHoliday(day.dateStr) ? holidayName(day.dateStr) : ''"
           >
             <span v-if="day.isFirstOfMonth" class="dh-month">{{ new Date(day.dateStr).toLocaleDateString('en-GB', { month: 'short' }) }}</span>
             <span class="dh-name">{{ day.label }}</span>
             <span class="dh-num">{{ day.num }}</span>
+            <span v-if="isHoliday(day.dateStr)" class="dh-holiday">{{ holidayName(day.dateStr) }}</span>
           </div>
         </div>
 
@@ -58,10 +60,10 @@
                 v-for="day in visibleDays"
                 :key="day.dateStr"
                 class="rc-cell"
-                :class="{ today: day.isToday && !day.isWeekend, weekend: day.isWeekend, 'is-leave': isEmpLeave(emp.id, day.dateStr), 'drag-hl': isDragHL(day.dateStr, emp.id), 'week-start': day.isMonday, 'month-start': day.isFirstOfMonth }"
+                :class="{ today: day.isToday && !day.isWeekend, weekend: day.isWeekend, holiday: isHoliday(day.dateStr), 'is-leave': isEmpLeave(emp.id, day.dateStr), 'drag-hl': isDragHL(day.dateStr, emp.id), 'week-start': day.isMonday, 'month-start': day.isFirstOfMonth }"
                 :data-date="day.dateStr"
                 :data-employee="emp.id"
-                @mousedown.prevent="!day.isWeekend && onCellDown($event, day.dateStr, emp.id)"
+                @mousedown.prevent="!day.isWeekend && !isHoliday(day.dateStr) && onCellDown($event, day.dateStr, emp.id)"
               >
                 <span v-if="isEmpLeave(emp.id, day.dateStr)" class="leave-tag">Leave</span>
               </div>
@@ -146,8 +148,17 @@ const props = defineProps({
   employees: { type: Array, default: () => [] },
   projectMap: { type: Object, default: () => ({}) },
   leaves: { type: Array, default: () => [] },
+  holidays: { type: Array, default: () => [] },
   filterEmployeeId: { type: Number, default: null },
 })
+
+const holidayMap = computed(() => {
+  const m = {}
+  for (const h of props.holidays || []) m[h.date] = h.name
+  return m
+})
+function isHoliday(ds) { return ds in holidayMap.value }
+function holidayName(ds) { return holidayMap.value[ds] || '' }
 const emit = defineEmits(['ribbon-click', 'cell-drag-create', 'ribbon-drag-extend', 'ribbon-move', 'ribbon-clone', 'ribbon-split', 'range-change'])
 
 const COL_W = 120
@@ -387,7 +398,10 @@ function empRibbons(eid) {
   for (const task of empTasks) {
     const tEnd = task.end_date || task.date
     const rS = task.date < vStart ? vStart : task.date, rE = tEnd > vEnd ? vEnd : tEnd
-    const left = daysBetween(vStart, rS), width = daysBetween(rS, rE) + 1
+    // Clamp defensively: a date-format mismatch between task.date and vStart could
+    // otherwise yield a negative offset, painting the ribbon under the sticky team column.
+    const left = Math.max(0, daysBetween(vStart, rS))
+    const width = Math.max(1, Math.min(days.length - left, daysBetween(rS, rE) + 1))
     let lane = 0, ok = false
     while (!ok) { ok = true; for (let c = left; c < left + width; c++) if (lanes[c]?.has(lane)) { ok = false; break }; if (!ok) lane++ }
     for (let c = left; c < left + width; c++) if (lanes[c]) lanes[c].add(lane)
@@ -620,7 +634,12 @@ defineExpose({ anchorDate, rangeStart, rangeEnd, scrollToToday: goToday })
 .rc-today { display: inline-flex; gap: 4px; }
 .rc-today .material-symbols-outlined { font-size: 16px; }
 
-.rc-container { background: var(--color-surface); border: 1px solid var(--color-outline-variant); border-radius: 8px; overflow-x: auto; overflow-y: visible; width: 100%; max-width: 100%; min-width: 0; }
+.rc-container { background: var(--color-surface); border: 1px solid var(--color-outline-variant); border-radius: 8px; overflow-x: auto; overflow-y: visible; width: 100%; max-width: 100%; min-width: 0; -webkit-overflow-scrolling: touch; }
+
+@media (max-width: 768px) {
+  .rc-controls { flex-wrap: wrap; gap: 8px; }
+  .rc-hint { display: none; }
+}
 .rc-scroll { min-width: 100%; }
 
 .rc-header { display: flex; border-bottom: 2px solid var(--color-outline-variant); background: var(--color-surface-container-lowest, #fafafa); }
@@ -644,7 +663,7 @@ defineExpose({ anchorDate, rangeStart, rangeEnd, scrollToToday: goToday })
 .rc-row:last-child { border-bottom: none; }
 .rc-row:hover { background: rgba(40,116,117,.015); }
 
-.rc-emp-cell { width: 200px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-right: 1px solid var(--color-outline-variant); background: var(--color-surface-container-lowest, #fafafa); position: sticky; left: 0; z-index: 2; transition: background .2s, box-shadow .2s; }
+.rc-emp-cell { width: 200px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-right: 1px solid var(--color-outline-variant); background: var(--color-surface-container-lowest, #fafafa); position: sticky; left: 0; z-index: 8; transition: background .2s, box-shadow .2s; }
 .rc-emp-cell.overloaded { background: #fef2f2; box-shadow: inset 3px 0 0 #dc2626; }
 .emp-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .03em; flex-shrink: 0; }
 .rc-emp-cell.overloaded .emp-avatar { box-shadow: 0 0 0 2px #dc2626; }
@@ -662,7 +681,14 @@ defineExpose({ anchorDate, rangeStart, rangeEnd, scrollToToday: goToday })
 .rc-cell:last-of-type { border-right: none; }
 .rc-cell.today { background: rgba(40,116,117,.04); }
 .rc-cell.weekend { background: #f3f4f6; cursor: not-allowed; }
+.rc-cell.holiday { background: repeating-linear-gradient(-45deg, #fef3c7, #fef3c7 6px, #fde68a 6px, #fde68a 12px); cursor: not-allowed; }
 .rc-cell.is-leave { background: rgba(229,231,235,.5); }
+.rc-day-header.holiday { background: #fef3c7; }
+.dh-holiday {
+  display: block; font-size: 8px; font-weight: 700; color: #92400e;
+  text-transform: uppercase; letter-spacing: .02em; margin-top: 1px;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .rc-cell.drag-hl { background: rgba(40,116,117,.12); outline: 1px dashed #287475; outline-offset: -1px; }
 .rc-cell.week-start { border-left: 2px solid var(--color-outline-variant); }
 .leave-tag { position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #9ca3af; }
@@ -671,7 +697,7 @@ defineExpose({ anchorDate, rangeStart, rangeEnd, scrollToToday: goToday })
 .rc-leave-overlay-layer { position: absolute; inset: 0; pointer-events: none; z-index: 6; display: grid; }
 .leave-darken { width: 100%; height: 100%; background: rgba(0, 0, 0, 0.25); backdrop-filter: grayscale(80%); }
 .rc-ribbon { position: absolute; display: flex; align-items: center; color: #fff; font-size: 11px; cursor: pointer; pointer-events: auto; overflow: hidden; z-index: 5; transition: opacity .12s; }
-.rc-ribbon:hover { opacity: 1 !important; z-index: 10; filter: brightness(1.1); }
+.rc-ribbon:hover { opacity: 1 !important; z-index: 7; filter: brightness(1.1); }
 .rc-container.dragging .rc-ribbon { pointer-events: none; }
 .rc-ribbon.completed { text-decoration: line-through; }
 .rc-ribbon.delayed { border-left: 3px solid #dc2626; background-image: repeating-linear-gradient(-45deg, transparent, transparent 6px, rgba(220,38,38,.12) 6px, rgba(220,38,38,.12) 12px); animation: dl-pulse 2.5s ease-in-out infinite; }

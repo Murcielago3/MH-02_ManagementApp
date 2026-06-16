@@ -726,4 +726,14 @@ textarea.form-input { resize: vertical; }
 }
 .btn-danger:hover:not(:disabled) { background: #b91c1c; }
 .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+@media (max-width: 768px) {
+  .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .filter-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .filter-bar-left { flex-wrap: wrap; }
+  .table-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .data-table { min-width: 520px; }
+  .form-grid { grid-template-columns: 1fr; }
+  .span-2 { grid-column: span 1; }
+}
 </style>

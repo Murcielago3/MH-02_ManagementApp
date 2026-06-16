@@ -421,4 +421,9 @@ function goNext() {
 /* Transition */
 .stats-fade-enter-active { transition: opacity 0.4s ease, transform 0.4s ease; }
 .stats-fade-enter-from   { opacity: 0; transform: translateY(8px); }
+
+@media (max-width: 768px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
 </style>

@@ -15,6 +15,7 @@ class TimesheetEntryCreate(BaseModel):
     project_id: Optional[int] = None
     hours: float
     description: str
+    daily_hours: Optional[List[float]] = None
 
 class WeeklyTimesheetCreate(BaseModel):
     week_start: date
@@ -150,7 +151,8 @@ async def submit_timesheet(
             timesheet_id=timesheet.id,
             project_id=entry_data.project_id,
             hours=entry_data.hours,
-            description=entry_data.description
+            description=entry_data.description,
+            daily_hours=entry_data.daily_hours
         )
         db.add(entry)
 

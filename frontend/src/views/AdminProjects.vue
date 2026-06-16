@@ -22,68 +22,76 @@
       </button>
     </div>
 
-    <!-- Table -->
-    <div class="table-card">
-      <table class="proj-table">
-        <thead>
-          <tr>
-            <th>Project No.</th>
-            <th>Name</th>
-            <th>Client</th>
-            <th>Location</th>
-            <th>Stage</th>
-            <th>Year</th>
-            <th>Billing</th>
-            <th class="text-center col-actions">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="loading">
-            <td :colspan="8" class="empty-cell"><div class="loading-text">Loading projects…</div></td>
-          </tr>
-          <tr v-else-if="filtered.length === 0">
-            <td :colspan="8" class="empty-cell">No projects found.</td>
-          </tr>
-          <tr v-for="p in filtered" :key="p.id" class="proj-row" @click="goToSummary(p)">
-            <td class="mono"><span class="proj-num">{{ p.project_number }}</span></td>
-            <td>
-              <span class="proj-name">
-                <span class="color-dot" :style="{ background: p.color || '#B5EAD7' }"></span>
-                {{ p.name }}
-              </span>
-            </td>
-            <td><span class="muted">{{ getClientName(p.client_id) }}</span></td>
-            <td class="muted">{{ p.location || '—' }}</td>
-            <td>
-              <span class="stage-badge" :class="stageBadgeClass(p.current_stage)">
-                {{ p.current_stage || 'N/A' }}
-              </span>
-            </td>
-            <td class="mono muted">{{ p.year || '—' }}</td>
-            <td>
-              <span class="billing-badge" :class="p.is_billed === 'billed' ? 'billed' : 'unbilled'">
-                {{ p.is_billed }}
-              </span>
-            </td>
-            <td @click.stop>
-              <div class="row-actions">
-                <button class="action-btn edit-btn" title="Edit" @click="openEditModal(p)">
-                  <span class="material-symbols-outlined">edit</span>
-                </button>
-                <button class="action-btn delete-btn" title="Delete" @click="confirmDelete(p)">
-                  <span class="material-symbols-outlined">delete</span>
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div class="table-footer">
-        <span class="page-info">
-          {{ filtered.length }} {{ filtered.length === 1 ? 'project' : 'projects' }}
-        </span>
+    <!-- Card Grid -->
+    <div class="cards-grid">
+      <div v-if="loading" class="cards-empty">
+        <div class="loading-text">Loading projects…</div>
       </div>
+      <div v-else-if="filtered.length === 0" class="cards-empty">
+        No projects found.
+      </div>
+      <div v-else class="cards-wrap">
+        <article
+          v-for="p in filtered"
+          :key="p.id"
+          class="project-card"
+          @click="goToSummary(p)"
+        >
+          <div class="project-card-top">
+            <div class="name-cell">
+              <span class="color-dot" :style="{ background: p.color || '#B5EAD7' }"></span>
+              <div>
+                <div class="proj-name">{{ p.name }}</div>
+                <div class="proj-sub mono">{{ p.project_number }} <span v-if="p.year">· {{ p.year }}</span></div>
+              </div>
+            </div>
+            <span class="stage-badge" :class="stageBadgeClass(p.current_stage)">
+              {{ p.current_stage || 'N/A' }}
+            </span>
+          </div>
+
+          <div class="proj-meta-row">
+            <span class="muted">{{ getClientName(p.client_id) }}</span>
+          </div>
+
+          <div class="project-card-body">
+            <div class="stat-row">
+              <span class="stat-label">Total Project Cost</span>
+              <span class="stat-val">₹{{ formatAmount(p.project_remuneration) }}</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Billed</span>
+              <span class="stat-val billed-val">₹{{ formatAmount(getFinancials(p.id).billed) }}</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Employee Rem.</span>
+              <span class="stat-val">₹{{ formatAmount(getFinancials(p.id).employeeRem) }}</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Partner Rem.</span>
+              <span class="stat-val">₹{{ formatAmount(getFinancials(p.id).partnerRem) }}</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Unbilled</span>
+              <span class="stat-val" :class="getFinancials(p.id).unbilled > 0 ? 'unbilled-val' : ''">
+                ₹{{ formatAmount(getFinancials(p.id).unbilled) }}
+              </span>
+            </div>
+          </div>
+
+          <div class="card-actions">
+            <button type="button" class="btn-text btn-text-primary" @click.stop="openAssignModal(p)">Assign</button>
+            <button type="button" class="btn-text" @click.stop="openEditModal(p)">Edit</button>
+            <button type="button" class="btn-text btn-text-danger" @click.stop="confirmDelete(p)">Delete</button>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <div class="table-footer">
+      <span class="page-info">
+        {{ filtered.length }} {{ filtered.length === 1 ? 'project' : 'projects' }}
+      </span>
     </div>
 
     <!-- Add/Edit Modal -->
@@ -236,6 +244,15 @@
       </div>
     </Teleport>
 
+    <!-- Assign Project Modal -->
+    <AssignProjectModal
+      v-if="assignTarget"
+      :project="assignTarget"
+      :users="users"
+      @close="assignTarget = null"
+      @assigned="onAssigned"
+    />
+
     <ToastNotification
       v-if="toastMsg"
       :message="toastMsg"
@@ -252,11 +269,14 @@ import AppLayout from '../components/AppLayout.vue'
 import EmployeeLayout from '../components/EmployeeLayout.vue'
 import CurrencyInput from '../components/CurrencyInput.vue'
 import ToastNotification from '../components/ToastNotification.vue'
+import AssignProjectModal from '../components/AssignProjectModal.vue'
 import { useAuthStore } from '../stores/auth'
 import { projectsAPI } from '../api/projects'
 import { clientsAPI } from '../api/clients'
 import { usersAPI } from '../api/users'
+import { weeklyTimesheetsAPI } from '../api/weekly_timesheets'
 import { useDraftStorage } from '../composables/useDraftStorage'
+import { previewHourlyFromBasePay } from '../utils/currency'
 
 const route = useRoute()
 const router = useRouter()
@@ -274,6 +294,8 @@ const isAdmin = computed(() => authStore.role === 'admin')
 const projects = ref([])
 const clients = ref([])
 const users = ref([])
+const reserveMap = ref({})
+const approvedTimesheets = ref([])
 const loading = ref(true)
 const searchQuery = ref('')
 const filterYear = ref('')
@@ -285,6 +307,7 @@ const editingId = ref(null)
 const submitting = ref(false)
 const formError = ref('')
 const deleteTarget = ref(null)
+const assignTarget = ref(null)
 
 
 const toastMsg = ref('')
@@ -370,23 +393,101 @@ async function fetchAll() {
     const results = await Promise.allSettled([
       projectsAPI.getProjects(),
       clientsAPI.getClients(),
-      usersAPI.getUsers()
+      usersAPI.getUsers(),
+      projectsAPI.getReserveStatus(),
+      weeklyTimesheetsAPI.getTimesheets({ status: 'approved' }),
     ])
-    
+
     if (results[0].status === 'fulfilled') projects.value = results[0].value.data
     else console.error('Projects fetch failed', results[0].reason)
-    
+
     if (results[1].status === 'fulfilled') clients.value = results[1].value.data
     else console.error('Clients fetch failed', results[1].reason)
-    
+
     if (results[2].status === 'fulfilled') users.value = results[2].value.data
     else console.error('Users fetch failed', results[2].reason)
-    
+
+    if (results[3].status === 'fulfilled') {
+      const map = {}
+      for (const r of results[3].value.data) map[r.project_id] = r
+      reserveMap.value = map
+    } else {
+      console.error('Reserve status fetch failed', results[3].reason)
+    }
+
+    if (results[4].status === 'fulfilled') {
+      approvedTimesheets.value = await ensureTimesheetEntries(results[4].value.data || [])
+    } else {
+      console.error('Timesheets fetch failed', results[4].reason)
+    }
+
   } catch (e) {
     console.error('FetchAll failed', e)
   } finally {
     loading.value = false
   }
+}
+
+// Some timesheets come back from the list endpoint without their `entries`
+// populated — fetch the missing ones individually (same pattern used on the
+// project summary page), capped so a huge backlog can't blow up requests.
+async function ensureTimesheetEntries(timesheets) {
+  const list = [...(timesheets || [])]
+  const missing = list.filter((t) => !t.entries || t.entries.length === 0)
+  const slice = missing.slice(0, 80)
+  if (!slice.length) return list
+  const detailed = await Promise.all(
+    slice.map((t) => weeklyTimesheetsAPI.getTimesheet(t.id).then((r) => r.data).catch(() => t))
+  )
+  const byId = new Map(detailed.map((d) => [d.id, d]))
+  return list.map((t) => byId.get(t.id) || t)
+}
+
+// Per-project: total hours worked by each employee, from approved timesheets.
+// Map<projectId, Map<employeeId, hours>>
+const hoursByProjectAndEmployee = computed(() => {
+  const out = new Map()
+  for (const ts of approvedTimesheets.value || []) {
+    if (ts.status !== 'approved') continue
+    const uid = ts.employee_id ?? ts.user_id
+    if (!uid) continue
+    for (const e of ts.entries || []) {
+      const pid = Number(e.project_id)
+      const h = Number(e.hours) || 0
+      if (!pid || h <= 0) continue
+      if (!out.has(pid)) out.set(pid, new Map())
+      const empMap = out.get(pid)
+      empMap.set(uid, (empMap.get(uid) || 0) + h)
+    }
+  }
+  return out
+})
+
+// Billed / unbilled / employee & partner remuneration per project. Employee
+// and partner remuneration are ALWAYS calculated live from approved
+// timesheet hours — total hours × each employee's hourly pay, and total
+// hours × the project's partner hourly rate — never the static budgeted
+// fields on the project record.
+function getFinancials(projectId) {
+  const r = reserveMap.value[projectId]
+  const billed = r ? Number(r.total_invoiced) || 0 : 0
+  const p = projects.value.find(proj => proj.id === projectId)
+  const totalCost = Number(p?.project_remuneration) || 0
+  const unbilled = totalCost - billed
+
+  const empHours = hoursByProjectAndEmployee.value.get(projectId) || new Map()
+  let employeeRem = 0
+  let totalHours = 0
+  for (const [uid, hours] of empHours) {
+    totalHours += hours
+    const u = users.value.find((x) => x.id === uid)
+    const hourly = previewHourlyFromBasePay(u?.salary_month) || 0
+    employeeRem += hourly * hours
+  }
+  const partnerHourly = Number(p?.partner_hourly_rate) || 0
+  const partnerRem = partnerHourly * totalHours
+
+  return { billed, unbilled, employeeRem, partnerRem }
 }
 
 onMounted(async () => {
@@ -486,6 +587,15 @@ function closeModal() { modalOpen.value = false }
 
 function goToSummary(p) {
   router.push(`/admin/projects/summary/${p.id}`)
+}
+
+function openAssignModal(p) {
+  assignTarget.value = p
+}
+
+function onAssigned({ count }) {
+  assignTarget.value = null
+  toast(`Project assigned to ${count} ${count === 1 ? 'employee' : 'employees'}.`)
 }
 
 
@@ -640,83 +750,78 @@ function getClientName(clientId) {
 .add-btn:hover { opacity: 0.88; box-shadow: var(--shadow-md); }
 .add-btn .material-symbols-outlined { font-size: 16px; }
 
-/* ─── Table Card ─── */
-.table-card {
+/* ─── Project Card Grid ─── */
+.cards-grid { min-height: 220px; }
+
+.cards-empty {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--color-on-surface-variant);
+  font-size: 13px;
   background: var(--color-surface);
   border: 1px solid var(--color-outline);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
+}
+.loading-text { animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.cards-wrap {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
 }
 
-.proj-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-}
-
-/* thead */
-.proj-table thead { background: #f8fafc; }
-.proj-table th {
-  padding: 12px 16px;
-  font-family: var(--font-body);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--color-on-surface-variant);
-  border-bottom: 1px solid var(--color-outline);
-  white-space: nowrap;
-}
-
-/* tbody */
-.proj-table tbody tr {
-  border-bottom: 1px solid var(--color-outline-variant);
-  transition: background var(--transition);
+.project-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: 20px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   cursor: pointer;
+  transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
 }
-.proj-table tbody tr:last-child { border-bottom: none; }
-.proj-row:hover { background: #fafbfc; }
-.proj-table td {
-  padding: 12px 16px;
-  font-family: var(--font-body);
-  font-size: 13px;
-  color: var(--color-on-surface);
-  vertical-align: middle;
+.project-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
 }
 
-/* Project number pill */
-.proj-num {
-  font-family: 'Courier New', monospace;
-  font-size: 11px;
-  font-weight: 600;
-  background: var(--color-outline-variant);
-  color: var(--color-on-surface-variant);
-  padding: 2px 7px;
-  border-radius: var(--radius-full);
+.project-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
 }
-
-/* Project name with color dot */
-.proj-name {
-  display: inline-flex;
-  align-items: center;
-  font-weight: 600;
-  color: var(--color-on-surface);
-}
+.name-cell { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
 .color-dot {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  margin-right: 7px;
+  margin-top: 4px;
   flex-shrink: 0;
+}
+.proj-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-on-surface);
+  line-height: 1.3;
+}
+.proj-sub {
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  margin-top: 2px;
+}
+.proj-meta-row {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  margin-top: -6px;
 }
 
 .mono { font-variant-numeric: tabular-nums; }
 .muted { color: var(--color-on-surface-variant); }
-.text-right { text-align: right; }
-.text-center { text-align: center; }
-.col-actions { width: 90px; }
 
 /* Stage badges */
 .stage-badge {
@@ -725,60 +830,49 @@ function getClientName(clientId) {
   border-radius: var(--radius-full);
   font-size: 11px;
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .stage-active  { background: #dbeafe; color: #1d4ed8; }
 .stage-done    { background: #dcfce7; color: #15803d; }
 .stage-const   { background: #fef3c7; color: #92400e; }
 .stage-na      { background: var(--color-outline-variant); color: var(--color-on-surface-variant); }
 
-/* Billing badges */
-.billing-badge {
-  display: inline-block;
-  padding: 3px 9px;
-  border-radius: var(--radius-full);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: capitalize;
+.project-card-body {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-outline-variant);
 }
-.billed   { background: #dcfce7; color: #15803d; }
-.unbilled { background: #fee2e2; color: #b91c1c; }
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+}
+.stat-label { color: var(--color-on-surface-variant); }
+.stat-val { font-weight: 700; color: var(--color-on-surface); font-variant-numeric: tabular-nums; }
+.billed-val { color: #15803d; }
+.unbilled-val { color: #b91c1c; }
 
-/* Row actions — visible on hover */
-.row-actions {
+.card-actions {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  opacity: 0;
-  transition: opacity var(--transition);
+  gap: 14px;
+  justify-content: flex-end;
+  margin-top: 2px;
 }
-.proj-row:hover .row-actions { opacity: 1; }
-.action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
+.btn-text {
   border: none;
   background: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  color: var(--color-on-surface-variant);
-  transition: background var(--transition), color var(--transition);
-}
-.action-btn .material-symbols-outlined { font-size: 17px; }
-.edit-btn:hover   { color: var(--color-primary); background: var(--color-primary-light); }
-.delete-btn:hover { color: var(--color-error);   background: #fee2e2; }
-
-/* Empty / loading */
-.empty-cell {
-  padding: 48px 16px;
-  text-align: center;
-  color: var(--color-on-surface-variant);
+  color: var(--color-primary);
   font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
 }
-.loading-text { animation: pulse 1.4s ease-in-out infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.btn-text:hover { text-decoration: underline; }
+.btn-text-danger { color: var(--color-error); }
+.btn-text-primary { color: var(--color-primary); margin-right: auto; }
 
 /* ─── Table Footer / Pagination ─── */
 .table-footer {
@@ -1221,5 +1315,15 @@ form .modal-footer {
   font-size: 11px;
   font-weight: 600;
   color: var(--color-on-surface-variant);
+}
+
+@media (max-width: 768px) {
+  .page-actions { flex-direction: column; align-items: stretch; gap: 10px; }
+  .actions-left { flex-wrap: wrap; }
+  .search-input { width: 100%; }
+  .cards-wrap { grid-template-columns: 1fr; }
+  .modal { max-width: 100%; width: 100%; }
+  .modal-backdrop { padding: 8px; }
+  .info-grid { grid-template-columns: 1fr; }
 }
 </style>

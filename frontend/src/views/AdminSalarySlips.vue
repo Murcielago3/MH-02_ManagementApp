@@ -964,4 +964,19 @@ function syncRow(updated) {
 /* ── Spinner ── */
 .spin-icon { animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 768px) {
+  .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .gen-group { flex-wrap: wrap; }
+  .gen-select { flex: 1; min-width: 140px; }
+  .filter-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .filter-bar-left { flex-wrap: wrap; }
+  .table-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .data-table { min-width: 780px; }
+  .bulk-bar { flex-direction: column; align-items: stretch; gap: 10px; }
+  .bulk-actions { flex-wrap: wrap; }
+  .modal { max-width: 100%; width: 100%; }
+  .modal-backdrop { padding: 8px; }
+  .push-setting-grid { grid-template-columns: 1fr; }
+}
 </style>

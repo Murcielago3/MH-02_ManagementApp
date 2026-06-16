@@ -165,3 +165,53 @@ select {
   display: inline-block;
   vertical-align: middle;
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Mobile / responsive optimizations (iOS + Android)
+   App-wide rules so views degrade gracefully on small screens. The layout
+   shells (AppLayout / EmployeeLayout) handle the sidebar drawer themselves.
+   ════════════════════════════════════════════════════════════════════════ */
+html { -webkit-text-size-adjust: 100%; }
+/* Never let a stray wide element cause horizontal page scroll */
+html, body { max-width: 100%; overflow-x: hidden; }
+img, svg, video, canvas { max-width: 100%; }
+
+@media (max-width: 768px) {
+  /* iOS zooms the page when focusing an input whose font-size < 16px.
+     Bump form controls to 16px on mobile to prevent that jump. */
+  input[type="text"], input[type="number"], input[type="email"],
+  input[type="url"], input[type="date"], input[type="password"],
+  input[type="search"], select, textarea {
+    font-size: 16px;
+  }
+
+  /* Page headers: stack the title and actions vertically */
+  .page-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  /* Common multi-column form/content grids collapse to one column */
+  .form-grid, .push-setting-grid, .billing-grid, .row-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Invoice/estimate split (form + sticky summary) stacks */
+  .invoice-layout { flex-direction: column !important; }
+  .form-sidebar { width: 100% !important; position: static !important; }
+
+  /* Wide data tables scroll horizontally inside their card instead of
+     blowing out the page width */
+  .table-card { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+
+  /* Modals fill the small screen */
+  .modal, .modal-wide, .modal-sm, .modal-xl {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  .modal-backdrop { padding: 10px !important; }
+
+  /* Document previews (invoice / payslip) scroll rather than overflow */
+  .preview-wrap, .pdf-frame-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}

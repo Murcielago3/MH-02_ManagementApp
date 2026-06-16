@@ -464,4 +464,13 @@ async function handleAction(id, status) {
 .page-btn .material-symbols-outlined { font-size: 16px; }
 .page-btn:hover:not(:disabled) { background: var(--color-outline-variant); color: var(--color-on-surface); }
 .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+@media (max-width: 768px) {
+  .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .filter-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .filter-bar-left { flex-wrap: wrap; }
+  .table-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .data-table { min-width: 700px; }
+  .reason-cell { max-width: 140px; }
+}
 </style>

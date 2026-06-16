@@ -519,4 +519,12 @@ textarea.field-input { resize: vertical; }
 
 @keyframes spin { 100% { transform: rotate(360deg); } }
 .spinner { font-size: 24px; animation: spin 1s linear infinite; color: var(--color-on-surface-variant); }
+
+@media (max-width: 768px) {
+  .kpi-grid { grid-template-columns: 1fr; }
+  .content-grid { grid-template-columns: 1fr; }
+  .form-row { grid-template-columns: 1fr; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .data-table { min-width: 500px; }
+}
 </style>

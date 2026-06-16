@@ -255,32 +255,8 @@
 
         <div class="modal-body">
           <div class="detail-section">
-            <div class="detail-table-wrapper">
-              <table class="detail-table">
-                <thead>
-                  <tr>
-                    <th>Project</th>
-                    <th>Task Description</th>
-                    <th class="text-right">Hours</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="entry in selectedTimesheet.entries" :key="entry.id">
-                    <td class="col-proj">
-                      <span class="project-tag">{{ getProjectName(entry.project_id) }}</span>
-                    </td>
-                    <td class="col-desc">{{ entry.description }}</td>
-                    <td class="text-right mono">{{ entry.hours }}h</td>
-                  </tr>
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td colspan="2" class="text-right font-bold">Total Time</td>
-                    <td class="text-right font-bold total-val">{{ selectedTimesheet.total_hours }}h</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+            <label>Daily Hours Log</label>
+            <TimesheetDailyGrid :timesheet="selectedTimesheet" :projects="projects" />
           </div>
 
           <div v-if="selectedTimesheet.description" class="detail-section">
@@ -319,6 +295,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
+import TimesheetDailyGrid from '../components/timesheet/TimesheetDailyGrid.vue'
 import { usersAPI } from '../api/users'
 import { weeklyTimesheetsAPI } from '../api/weekly_timesheets'
 import { leavesAPI } from '../api/leaves'
@@ -520,11 +497,6 @@ function viewDetail(ts) {
 function closeDetailModal() {
   showDetailModal.value = false
   selectedTimesheet.value = null
-}
-
-function getProjectName(id) {
-  const p = projects.value.find(proj => proj.id === id)
-  return p ? p.name : 'Unknown Project'
 }
 
 function taskDueStatus(task) {
@@ -926,4 +898,17 @@ function isDueToday(task) {
 
 .btn-approve-large:hover { background: #1a4e4f; }
 .btn-reject-large:hover { background: #fef2f2; }
+
+@media (max-width: 768px) {
+  .profile-header { flex-direction: column; gap: 12px; }
+  .profile-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; white-space: nowrap; }
+  .tab-btn { padding: 10px 14px; }
+  .tab-content { padding: 14px; }
+  .info-grid { grid-template-columns: 1fr; }
+  .table-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .proj-table { min-width: 540px; }
+  .ts-actions { flex-wrap: wrap; gap: 4px; }
+  .modal-content { max-width: 100%; width: 100%; }
+  .detail-modal { width: 100%; max-width: 100%; }
+}
 </style>

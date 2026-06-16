@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import Optional
+from typing import Optional, List
 from datetime import date as date_type
 from pydantic import BaseModel
 from app.database import get_db
@@ -138,6 +138,46 @@ async def create_task(
     await db.commit()
     await db.refresh(task)
     return task
+
+
+class BulkTaskAssign(BaseModel):
+    title: str
+    description: Optional[str] = None
+    date: date_type
+    end_date: Optional[date_type] = None
+    duration_hours: Optional[int] = None
+    priority: str = "medium"
+    project_id: Optional[int] = None
+    assigned_to: List[int]   # one task is created per employee id
+
+
+@router.post("/bulk-assign", status_code=201)
+async def bulk_assign(
+    data: BulkTaskAssign,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """Assign a project (as a task) to several employees at once — one Task row
+    per selected employee. Powers the 'Assign Project' button."""
+    if not data.assigned_to:
+        raise HTTPException(400, "Select at least one employee")
+    created = []
+    for emp_id in data.assigned_to:
+        task = Task(
+            title=data.title,
+            description=data.description,
+            date=data.date,
+            end_date=data.end_date,
+            duration_hours=data.duration_hours,
+            priority=data.priority,
+            project_id=data.project_id,
+            assigned_to=emp_id,
+            assigned_by=current_user.id,
+        )
+        db.add(task)
+        created.append(task)
+    await db.commit()
+    return {"created": len(created)}
 
 def parse_task_update_value(task, field, value):
     if field in ["date", "end_date"]:

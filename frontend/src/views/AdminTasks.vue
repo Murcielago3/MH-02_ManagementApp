@@ -21,6 +21,7 @@
       :employees="usersList"
       :projectMap="projectMap"
       :leaves="allLeaves"
+      :holidays="holidays"
       :filterEmployeeId="filterEmployee"
       @ribbon-click="openDrawer"
       @cell-drag-create="onDragCreate"
@@ -135,6 +136,7 @@ import { tasksAPI } from '../api/tasks'
 import { projectsAPI } from '../api/projects'
 import { usersAPI } from '../api/users'
 import { leavesAPI } from '../api/leaves'
+import { holidaysAPI } from '../api/holidays'
 
 const authStore = useAuthStore()
 const layout = computed(() => authStore.role === 'admin' ? AppLayout : EmployeeLayout)
@@ -146,6 +148,7 @@ const tasks = ref([])
 const projectsList = ref([])
 const usersList = ref([])
 const allLeaves = ref([])
+const holidays = ref([])
 
 const projectMap = computed(() => {
   const map = {}
@@ -189,14 +192,16 @@ function showToast(msg, type = 'success') {
 // ── Fetch ──
 async function fetchAll() {
   try {
-    const [pRes, uRes, lRes] = await Promise.all([
+    const [pRes, uRes, lRes, hRes] = await Promise.all([
       projectsAPI.getProjects(),
       usersAPI.getUsers(),
       leavesAPI.getLeaves(),
+      holidaysAPI.getHolidays().catch(() => ({ data: [] })),
     ])
     projectsList.value = pRes.data
     usersList.value = uRes.data
     allLeaves.value = (lRes.data || []).filter(l => l.status === 'approved')
+    holidays.value = hRes.data || []
   } catch (e) {
     console.error('Failed to fetch base data', e)
   }
@@ -574,5 +579,11 @@ async function onSplitTask({ taskId, splitDate }) {
 }
 .weekend-warn-note {
   margin: 0; font-size: 13px; color: #dc2626; line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .header-actions { width: 100%; }
+  .filter-select { width: 100%; }
 }
 </style>

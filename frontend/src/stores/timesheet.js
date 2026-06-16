@@ -176,7 +176,8 @@ export const useTimesheetStore = defineStore('timesheet', () => {
         entries: form.value.entries.map(e => ({
           project_id: e.project_id,
           hours: Number(e.hours),
-          description: e.description
+          description: e.description,
+          daily_hours: e.daily ? e.daily.map(h => Number(h) || 0) : null
         }))
       })
       // Refresh

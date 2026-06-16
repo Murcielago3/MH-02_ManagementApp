@@ -12,6 +12,10 @@
         </div>
       </div>
       <div class="page-header__actions" v-if="summaryProjectMeta">
+        <button class="btn-outline" @click="assignOpen = true">
+          <span class="material-symbols-outlined">group_add</span>
+          Assign Project
+        </button>
         <button class="btn-outline" @click="editProject">
           <span class="material-symbols-outlined">edit</span>
           Edit Project
@@ -64,17 +68,37 @@
                 <div class="partner-grid">
                   <div class="partner-metric">
                     <span class="metric-label">Total Project Cost</span>
-                    <div class="metric-value">{{ summaryProjectMeta?.project_remuneration ? formatInr(summaryProjectMeta.project_remuneration, 0) : '—' }}</div>
+                    <div class="metric-value">{{ financialTotalCost > 0 ? formatInr(financialTotalCost, 0) : '—' }}</div>
                   </div>
                   <div class="partner-metric">
                     <span class="metric-label">Employee Remuneration</span>
-                    <div class="metric-value">{{ summaryProjectMeta?.employee_remuneration ? formatInr(summaryProjectMeta.employee_remuneration, 0) : '—' }}</div>
+                    <div class="metric-value">{{ financialEmployeeAmount > 0 ? formatInr(financialEmployeeAmount, 0) : '—' }}</div>
                   </div>
                   <div class="partner-metric">
                     <span class="metric-label">Partner Remuneration</span>
-                    <div class="metric-value">{{ summaryProjectMeta?.partner_remuneration ? formatInr(summaryProjectMeta.partner_remuneration, 0) : '—' }}</div>
+                    <div class="metric-value">{{ financialPartnerAmount > 0 ? formatInr(financialPartnerAmount, 0) : '—' }}</div>
                   </div>
                 </div>
+                <p v-if="financialsEstimated" class="financials-note">
+                  <span class="material-symbols-outlined">info</span>
+                  Budgeted remuneration wasn't set for this project — showing calculated actuals (timesheet spend / partner rate × hours) instead.
+                </p>
+              </div>
+
+              <div class="chart-card-body chart-body-pie" v-if="hasFinancialsData">
+                <div class="pie-canvas-wrap">
+                  <canvas ref="financialsChartRef" width="190" height="190" />
+                </div>
+                <ul class="pie-legend">
+                  <li v-for="r in financialsLegend" :key="r.label">
+                    <span class="swatch" :style="{ background: r.color }" />
+                    <span class="leg-label">{{ r.label }}</span>
+                    <span class="leg-right">
+                      <span class="leg-val">{{ formatInr(r.value, 0) }}</span>
+                      <span class="leg-pct">{{ r.pct }}%</span>
+                    </span>
+                  </li>
+                </ul>
               </div>
             </div>
 
@@ -84,6 +108,10 @@
                 <span class="material-symbols-outlined section-icon">people</span>
                 <span class="section-title">Employee Spend</span>
                 <span class="type-tag expense">EXPENSE</span>
+              </div>
+
+              <div class="bar-chart-wrap" v-if="hasEmployeeSpendData">
+                <canvas ref="employeeSpendChartRef" />
               </div>
 
               <div class="table-card">
@@ -195,6 +223,10 @@
                 </span>
               </div>
 
+              <div class="bar-chart-wrap" v-if="hasReserveChartData">
+                <canvas ref="reserveChartRef" />
+              </div>
+
               <div class="reserve-card" :class="{ 'reserve-card--depleted': reserveDepleted }">
                 <div class="summary-rows">
                   <div class="summary-row">
@@ -233,6 +265,10 @@
               </div>
 
               <div v-else-if="projectedData && projectedData.rows && projectedData.rows.length">
+                <div class="bar-chart-wrap" v-if="hasProjectedChartData">
+                  <canvas ref="projectedChartRef" />
+                </div>
+
                 <div class="table-card">
                   <table class="data-table">
                     <thead>
@@ -291,6 +327,15 @@
 
     </div>
 
+    <!-- Assign Project Modal -->
+    <AssignProjectModal
+      v-if="assignOpen && summaryProjectMeta"
+      :project="{ id: selectedProjectId, name: apiSummary.project_name || summaryProjectMeta.name }"
+      :users="allUsers"
+      @close="assignOpen = false"
+      @assigned="onAssigned"
+    />
+
     <ToastNotification
       v-if="toastMsg"
       :message="toastMsg"
@@ -301,14 +346,23 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { Chart, registerables } from 'chart.js'
 import AppLayout from '../components/AppLayout.vue'
 import ToastNotification from '../components/ToastNotification.vue'
+import AssignProjectModal from '../components/AssignProjectModal.vue'
 import { projectsAPI } from '../api/projects'
 import { usersAPI } from '../api/users'
 import { weeklyTimesheetsAPI } from '../api/weekly_timesheets'
 import { formatInr, formatInrPerHour, previewHourlyFromBasePay } from '../utils/currency'
+
+Chart.register(...registerables)
+
+const TEAL   = '#287475'
+const RED    = '#ef4444'
+const INDIGO = '#6366f1'
+const AMBER  = '#f59e0b'
 
 const route = useRoute()
 const router = useRouter()
@@ -320,6 +374,12 @@ function goBack() {
 function editProject() {
   if (!selectedProjectId.value) return
   router.push({ path: '/admin/projects', query: { edit: selectedProjectId.value } })
+}
+
+const assignOpen = ref(false)
+function onAssigned({ count }) {
+  assignOpen.value = false
+  toast(`Project assigned to ${count} ${count === 1 ? 'employee' : 'employees'}.`)
 }
 
 // ── Projected cost ───────────────────────────────────────────────────────────
@@ -482,6 +542,226 @@ const reserveBalance = computed(() => {
 })
 const reserveDepleted = computed(() => reserveBalance.value < 0)
 const showReserveSection = computed(() => (Number(apiSummary.value.total_invoiced) || 0) > 0)
+
+// ── Project Financials: fall back to live computed actuals when the project's
+// budgeted employee/partner remuneration fields were never filled in ──
+const financialEmployeeAmount = computed(() => {
+  const budgeted = Number(summaryProjectMeta.value?.employee_remuneration) || 0
+  return budgeted > 0 ? budgeted : displayTotals.value.total_spent
+})
+const financialPartnerAmount = computed(() => {
+  const budgeted = Number(summaryProjectMeta.value?.partner_remuneration) || 0
+  return budgeted > 0 ? budgeted : displayPartnerCost.value
+})
+const financialTotalCost = computed(() => {
+  const budgeted = Number(summaryProjectMeta.value?.project_remuneration) || 0
+  return budgeted > 0 ? budgeted : financialEmployeeAmount.value + financialPartnerAmount.value
+})
+const financialsEstimated = computed(() => {
+  const empBudgeted = Number(summaryProjectMeta.value?.employee_remuneration) || 0
+  const partnerBudgeted = Number(summaryProjectMeta.value?.partner_remuneration) || 0
+  return (empBudgeted <= 0 && financialEmployeeAmount.value > 0) ||
+         (partnerBudgeted <= 0 && financialPartnerAmount.value > 0)
+})
+
+// ── Chart data ─────────────────────────────────────────────────────────────
+const financialsLegend = computed(() => {
+  const rows = [
+    { label: 'Employee Remuneration', value: financialEmployeeAmount.value, color: RED },
+    { label: 'Partner Remuneration', value: financialPartnerAmount.value, color: INDIGO },
+  ].filter((r) => r.value > 0)
+  const total = rows.reduce((s, r) => s + r.value, 0)
+  return rows.map((r) => ({ ...r, pct: total > 0 ? ((r.value / total) * 100).toFixed(1) : '0.0' }))
+})
+const hasFinancialsData = computed(() => financialsLegend.value.length > 0)
+
+const employeeSpendChartData = computed(() =>
+  shownRows.value
+    .filter((r) => Number(r.display_spent) > 0)
+    .map((r) => ({ label: r.name, value: Number(r.display_spent) || 0, color: TEAL }))
+)
+const hasEmployeeSpendData = computed(() => employeeSpendChartData.value.length > 0)
+
+const reserveChartData = computed(() => {
+  const invoiced = Number(apiSummary.value.total_invoiced) || 0
+  const spend = displayGrandTotal.value
+  return [
+    { label: 'Total Invoiced', value: invoiced, color: TEAL },
+    { label: 'Total Spend', value: spend, color: spend > invoiced ? RED : AMBER },
+  ]
+})
+const hasReserveChartData = computed(() =>
+  showReserveSection.value && reserveChartData.value.some((d) => d.value > 0)
+)
+
+const projectedChartData = computed(() => {
+  if (!projectedData.value?.rows) return []
+  const rows = projectedData.value.rows
+    .filter((r) => Number(r.projected_cost) > 0)
+    .map((r) => ({ label: r.name, value: Number(r.projected_cost) || 0, color: AMBER }))
+  const partnerProjected = Number(projectedData.value.partner_projected_cost) || 0
+  if (partnerProjected > 0) rows.push({ label: 'Partner', value: partnerProjected, color: INDIGO })
+  return rows
+})
+const hasProjectedChartData = computed(() => projectedChartData.value.length > 0)
+
+// ── Chart rendering ───────────────────────────────────────────────────────
+// Chart.js draws tooltips directly onto the canvas's own pixel buffer, so a
+// long un-abbreviated currency string (from formatInr) can get hard-clipped
+// at the canvas edge — especially on the small fixed-size doughnut. Use a
+// short abbreviated form for all chart tooltips instead.
+function formatCurrencyShort(val) {
+  const n = Number(val) || 0
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)}Cr`
+  if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`
+  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`
+  return `₹${n.toLocaleString('en-IN')}`
+}
+
+const financialsChartRef = ref(null)
+const employeeSpendChartRef = ref(null)
+const reserveChartRef = ref(null)
+const projectedChartRef = ref(null)
+let financialsChart = null, employeeSpendChart = null, reserveChart = null, projectedChart = null
+
+function destroyAllCharts() {
+  ;[financialsChart, employeeSpendChart, reserveChart, projectedChart].forEach((c) => c?.destroy())
+  financialsChart = employeeSpendChart = reserveChart = projectedChart = null
+}
+
+// Chart.js' built-in tooltip draws directly onto the canvas's own pixel
+// buffer, so it gets hard-clipped at the canvas edge — fine for short labels,
+// but "Employee Remuneration: ₹15.4L (23.0%)" doesn't fit on a small 190px
+// doughnut. An external HTML tooltip isn't bound by the canvas and can never
+// be clipped, regardless of label length or canvas size.
+function externalTooltip(context) {
+  const { chart, tooltip } = context
+  let el = chart.canvas.parentNode.querySelector('.chart-tooltip-box')
+  if (!el) {
+    el = document.createElement('div')
+    el.className = 'chart-tooltip-box'
+    chart.canvas.parentNode.appendChild(el)
+  }
+  if (tooltip.opacity === 0) {
+    el.style.opacity = 0
+    return
+  }
+  const lines = (tooltip.body || []).flatMap((b) => b.lines)
+  el.innerHTML = lines.map((l) => `<div>${l}</div>`).join('')
+  el.style.opacity = 1
+  el.style.left = `${tooltip.caretX}px`
+  el.style.top = `${tooltip.caretY}px`
+}
+
+function renderPie(chartRef, rows, existing) {
+  existing?.destroy()
+  if (!rows.length || !chartRef.value) return null
+  return new Chart(chartRef.value, {
+    type: 'doughnut',
+    data: {
+      labels: rows.map((r) => r.label),
+      datasets: [{
+        data: rows.map((r) => r.value),
+        backgroundColor: rows.map((r) => r.color),
+        borderWidth: 0,
+        hoverOffset: 4,
+      }],
+    },
+    options: {
+      responsive: false,
+      cutout: '60%',
+      animation: { duration: 350 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          enabled: false,
+          external: externalTooltip,
+          callbacks: {
+            label(ctx) {
+              const total = rows.reduce((s, r) => s + r.value, 0)
+              const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : '0.0'
+              return `${ctx.label}: ${formatCurrencyShort(ctx.parsed)} (${pct}%)`
+            },
+          },
+        },
+      },
+    },
+  })
+}
+
+function renderBar(chartRef, rows, existing) {
+  existing?.destroy()
+  if (!rows.length || !chartRef.value) return null
+  return new Chart(chartRef.value, {
+    type: 'bar',
+    data: {
+      labels: rows.map((r) => r.label),
+      datasets: [{
+        data: rows.map((r) => r.value),
+        backgroundColor: rows.map((r) => r.color),
+        borderRadius: 6,
+        maxBarThickness: 36,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 350 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          enabled: false,
+          external: externalTooltip,
+          callbacks: { label: (ctx) => formatCurrencyShort(ctx.parsed.y) },
+        },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#94a3b8' } },
+        y: {
+          beginAtZero: true,
+          ticks: { font: { size: 10 }, color: '#94a3b8', callback: (v) => formatInr(v, 0) },
+          grid: { color: 'rgba(148,163,184,0.15)' },
+          border: { display: false },
+        },
+      },
+    },
+  })
+}
+
+function queueRender() {
+  let attempts = 0
+  const tryOnce = () => {
+    attempts++
+    const ready = (
+      (!hasFinancialsData.value || financialsChartRef.value) &&
+      (!hasEmployeeSpendData.value || employeeSpendChartRef.value) &&
+      (!hasReserveChartData.value || reserveChartRef.value) &&
+      (!hasProjectedChartData.value || projectedChartRef.value)
+    )
+    if (ready) {
+      financialsChart = renderPie(financialsChartRef, financialsLegend.value, financialsChart)
+      employeeSpendChart = renderBar(employeeSpendChartRef, employeeSpendChartData.value, employeeSpendChart)
+      reserveChart = renderBar(reserveChartRef, reserveChartData.value, reserveChart)
+      projectedChart = renderBar(projectedChartRef, projectedChartData.value, projectedChart)
+      return
+    }
+    if (attempts < 60) requestAnimationFrame(tryOnce)
+  }
+  requestAnimationFrame(tryOnce)
+}
+
+watch(
+  () => [
+    hasFinancialsData.value, hasEmployeeSpendData.value,
+    hasReserveChartData.value, hasProjectedChartData.value,
+    financialsLegend.value, employeeSpendChartData.value,
+    reserveChartData.value, projectedChartData.value,
+  ],
+  () => queueRender(),
+  { flush: 'post', deep: true },
+)
+
+onBeforeUnmount(destroyAllCharts)
 
 
 
@@ -1127,6 +1407,76 @@ async function savePartnerRate() {
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 1s linear infinite; }
 
+/* ── Charts ───────────────────────────────────────────────────────────────── */
+.chart-card-body {
+  padding: 16px 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.chart-body-pie { min-height: 160px; }
+
+.pie-legend {
+  list-style: none;
+  margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 8px;
+  min-width: 180px; flex: 1;
+}
+.pie-legend li { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.leg-label { flex: 1; color: var(--color-on-surface); font-weight: 500; }
+.leg-right { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.leg-val { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--color-on-surface); font-size: 12px; }
+.leg-pct { font-size: 10px; color: var(--color-on-surface-variant); }
+
+.bar-chart-wrap {
+  width: 100%;
+  height: 220px;
+  position: relative;
+  margin-bottom: 14px;
+}
+.bar-chart-wrap canvas { width: 100% !important; height: 100% !important; }
+
+.pie-canvas-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* External chart tooltip — a real HTML element, never clipped by the
+   canvas's own pixel bounds (unlike Chart.js' built-in canvas tooltip). */
+.chart-tooltip-box {
+  position: absolute;
+  pointer-events: none;
+  background: rgba(15, 23, 42, 0.92);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transform: translate(-50%, -120%);
+  opacity: 0;
+  z-index: 30;
+  transition: opacity 0.1s ease, left 0.1s ease, top 0.1s ease;
+}
+
+.financials-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: #1e40af;
+  line-height: 1.4;
+}
+.financials-note .material-symbols-outlined { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
 /* ── Transitions ──────────────────────────────────────────────────────────── */
 .fade-panel-enter-active,
 .fade-panel-leave-active { transition: opacity 0.2s ease; }
@@ -1136,5 +1486,14 @@ async function savePartnerRate() {
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 960px) {
   .partner-grid  { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .page-header { flex-wrap: wrap; gap: 10px; }
+  .page-header__left { gap: 8px; }
+  .table-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .data-table { min-width: 520px; }
+  .partner-card { padding: 14px; }
+  .partner-metric--highlight { margin: -6px -8px; padding: 8px; }
+  .grand-total-block { margin: 0 12px; padding: 14px; }
 }
 </style>

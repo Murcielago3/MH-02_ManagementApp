@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, ForeignKey, Numeric
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, Numeric, JSON
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -25,6 +25,9 @@ class WeeklyTimesheetEntry(Base):
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
     hours = Column(Numeric(5, 2), nullable=False)
     description = Column(String, nullable=True)
+    # Per-day breakdown for the week, Mon..Sun, e.g. [8, 8, 8, 8, 8, 0, 0].
+    # Null for entries submitted before this field existed.
+    daily_hours = Column(JSON, nullable=True)
 
     timesheet = relationship("WeeklyTimesheet", back_populates="entries")
     project = relationship("Project", foreign_keys=[project_id])
