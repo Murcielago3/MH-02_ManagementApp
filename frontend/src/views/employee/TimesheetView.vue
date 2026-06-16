@@ -66,7 +66,7 @@ onMounted(async () => {
 
 .content-grid {
   display: grid;
-  grid-template-columns: 35% 1fr;
+  grid-template-columns: 30% 1fr;
   gap: 32px;
   height: 100%;
   align-items: flex-start;

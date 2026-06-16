@@ -12,3 +12,5 @@ from app.models.bank_account import BankAccount
 from app.models.invoice import Invoice, InvoiceItem
 from app.models.team import Team, TeamMember
 from app.models.settings import Settings
+from app.models.estimate import Estimate, EstimateEmployee
+from app.models.salary_slip import SalarySlip

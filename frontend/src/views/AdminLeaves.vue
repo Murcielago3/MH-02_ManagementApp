@@ -1,14 +1,22 @@
 <template>
   <AppLayout>
-    <!-- Page Actions -->
-    <div class="page-actions">
-      <div class="actions-left">
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1 class="page-title">Leave Requests</h1>
+        <p class="page-subtitle">Review and manage employee leave applications</p>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <div class="filter-bar-left">
         <div class="search-box">
           <span class="material-symbols-outlined search-icon">search</span>
-          <input v-model="searchQuery" type="text" placeholder="Search leaves..." class="search-input" />
+          <input v-model="searchQuery" type="text" placeholder="Search by employee or reason..." class="search-input" />
         </div>
-        <select v-model="filterStatus" class="status-select">
-          <option value="">All Status</option>
+        <select v-model="filterStatus" class="filter-select">
+          <option value="">All Statuses</option>
           <option value="pending">Pending</option>
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
@@ -16,9 +24,9 @@
       </div>
     </div>
 
-    <!-- Table -->
+    <!-- Table Card -->
     <div class="table-card">
-      <table class="proj-table">
+      <table class="data-table">
         <thead>
           <tr>
             <th>Employee</th>
@@ -27,37 +35,51 @@
             <th>Days</th>
             <th>Reason</th>
             <th>Status</th>
-            <th class="text-center col-actions">Actions</th>
+            <th class="col-actions">Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="7" class="empty-cell"><div class="loading-text">Loading leaves…</div></td>
+            <td colspan="7" class="empty-cell">
+              <div class="empty-state">
+                <span class="material-symbols-outlined empty-icon">hourglass_empty</span>
+                <p>Loading leave requests…</p>
+              </div>
+            </td>
           </tr>
           <tr v-else-if="filtered.length === 0">
-            <td colspan="7" class="empty-cell">No leave requests found.</td>
+            <td colspan="7" class="empty-cell">
+              <div class="empty-state">
+                <span class="material-symbols-outlined empty-icon">event_busy</span>
+                <p>No leave requests found.</p>
+              </div>
+            </td>
           </tr>
-          <tr v-for="l in paginated" :key="l.id" class="proj-row">
-            <td><span class="proj-name">{{ l.employee?.name }}</span></td>
-            <td class="mono">{{ formatDate(l.start_date) }}</td>
-            <td class="mono">{{ formatDate(l.end_date) }}</td>
-            <td class="mono">{{ l.days_count }}</td>
-            <td class="muted">{{ l.reason }}</td>
+          <tr v-for="l in filtered" :key="l.id" class="data-row">
+            <td><span class="row-name">{{ l.employee?.name }}</span></td>
+            <td class="cell-mono">{{ formatDate(l.start_date) }}</td>
+            <td class="cell-mono">{{ formatDate(l.end_date) }}</td>
             <td>
-              <span class="status-badge" :class="`status-${l.status}`">
+              <span class="days-pill">{{ l.days_count }}d</span>
+            </td>
+            <td class="cell-muted cell-reason">{{ l.reason }}</td>
+            <td>
+              <span class="badge" :class="`badge-${l.status}`">
                 {{ l.status }}
               </span>
             </td>
             <td>
               <div class="row-actions" v-if="l.status === 'pending'">
-                <button class="action-btn approve-btn" title="Approve" @click="actionLeave(l, 'approved')">
+                <button class="action-btn action-approve" title="Approve" @click="actionLeave(l, 'approved')">
                   <span class="material-symbols-outlined">check</span>
+                  Approve
                 </button>
-                <button class="action-btn reject-btn" title="Reject" @click="actionLeave(l, 'rejected')">
+                <button class="action-btn action-reject" title="Reject" @click="actionLeave(l, 'rejected')">
                   <span class="material-symbols-outlined">close</span>
+                  Reject
                 </button>
               </div>
-              <span v-else class="muted">—</span>
+              <span v-else class="cell-muted no-action">—</span>
             </td>
           </tr>
         </tbody>
@@ -65,12 +87,8 @@
 
       <div class="table-footer">
         <span class="page-info">
-          Showing {{ filtered.length === 0 ? 0 : startIdx + 1 }} to {{ endIdx }} of {{ filtered.length }} entries
+          {{ filtered.length }} {{ filtered.length === 1 ? 'request' : 'requests' }}
         </span>
-        <div class="page-btns">
-          <button class="page-btn" :disabled="currentPage === 1" @click="currentPage--">Prev</button>
-          <button class="page-btn" :disabled="currentPage >= totalPages" @click="currentPage++">Next</button>
-        </div>
       </div>
     </div>
   </AppLayout>
@@ -85,8 +103,6 @@ const leaves = ref([])
 const loading = ref(true)
 const searchQuery = ref('')
 const filterStatus = ref('')
-const currentPage = ref(1)
-const perPage = 10
 
 async function fetchLeaves() {
   loading.value = true
@@ -103,7 +119,8 @@ async function fetchLeaves() {
 onMounted(fetchLeaves)
 
 const filtered = computed(() => {
-  let list = leaves.value
+  let list = [...leaves.value]
+  list.sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
   if (filterStatus.value) list = list.filter(l => l.status === filterStatus.value)
   const q = searchQuery.value.toLowerCase()
   if (q) list = list.filter(l =>
@@ -112,11 +129,6 @@ const filtered = computed(() => {
   )
   return list
 })
-
-const totalPages = computed(() => Math.max(1, Math.ceil(filtered.value.length / perPage)))
-const startIdx = computed(() => (currentPage.value - 1) * perPage)
-const endIdx = computed(() => Math.min(startIdx.value + perPage, filtered.value.length))
-const paginated = computed(() => filtered.value.slice(startIdx.value, endIdx.value))
 
 async function actionLeave(leave, status) {
   try {
@@ -134,88 +146,226 @@ function formatDate(dateStr) {
 </script>
 
 <style scoped>
-.page-actions {
+/* ── Page Header ── */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.page-header-left { display: flex; flex-direction: column; gap: 2px; }
+.page-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--color-on-surface);
+  margin: 0;
+}
+.page-subtitle {
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
+
+/* ── Filter Bar ── */
+.filter-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-xl);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
 }
-.actions-left { display: flex; gap: 8px; align-items: center; }
+.filter-bar-left { display: flex; gap: 10px; align-items: center; }
 .search-box { position: relative; }
 .search-icon {
-  position: absolute; left: 8px; top: 50%;
-  transform: translateY(-50%); color: var(--color-on-surface-variant); font-size: 18px;
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-on-surface-variant);
+  font-size: 18px;
+  pointer-events: none;
 }
-.search-input, .status-select {
-  padding: 8px 8px 8px 32px; background: #fff; border: 1px solid var(--color-outline);
-  border-radius: var(--radius-lg); font-family: var(--font-display); font-size: 13px;
-  color: var(--color-on-surface); outline: none; transition: border 0.15s;
+.search-input {
+  padding: 8px 12px 8px 36px;
+  background: var(--color-surface-dim);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-on-surface);
+  outline: none;
+  transition: border var(--transition);
+  min-width: 260px;
 }
-.status-select { padding-left: 8px; }
-.search-input:focus, .status-select:focus { border-color: var(--color-primary); }
+.search-input:focus { border-color: var(--color-primary); background: var(--color-surface); }
+.filter-select {
+  padding: 8px 12px;
+  background: var(--color-surface-dim);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-on-surface);
+  outline: none;
+  transition: border var(--transition);
+  cursor: pointer;
+}
+.filter-select:focus { border-color: var(--color-primary); background: var(--color-surface); }
 
+/* ── Table Card ── */
 .table-card {
-  background: #fff; border: 1px solid var(--color-surface-container-high); border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
-.proj-table {
-  width: 100%; border-collapse: collapse;
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
 }
-.proj-table th {
-  padding: 12px 16px; text-align: left; font-family: var(--font-display);
-  font-size: 11px; font-weight: 600; text-transform: uppercase;
-  letter-spacing: 0.05em; color: var(--color-on-surface-variant); border-bottom: 1px solid var(--color-surface-container-high);
-  background: var(--color-background);
+.data-table thead {
+  background: #f8fafc;
 }
-.proj-table td {
-  padding: 12px 16px; border-bottom: 1px solid var(--color-surface-container);
-  font-family: var(--font-display); font-size: 13px; color: var(--color-on-surface);
+.data-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-on-surface-variant);
+  border-bottom: 1px solid var(--color-outline);
 }
-.proj-row:hover { background: var(--color-background); }
-.proj-name { font-weight: 500; }
-.muted { color: var(--color-on-surface-variant); }
-.mono { font-variant-numeric: tabular-nums; }
-.text-center { text-align: center; }
-.col-actions { width: 120px; }
+.data-table td {
+  padding: 12px 16px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-on-surface);
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+.data-row:last-child td { border-bottom: none; }
+.data-row:hover { background: #fafbfc; }
+.col-actions { width: 180px; }
 
-.empty-cell {
-  text-align: center; padding: 48px 16px; color: var(--color-on-surface-variant);
-  font-family: var(--font-display); font-size: 13px;
+.row-name { font-weight: 600; }
+.cell-muted { color: var(--color-on-surface-variant); }
+.cell-mono { font-variant-numeric: tabular-nums; }
+.cell-reason {
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.loading-text { color: var(--color-on-surface-variant); }
+.no-action { display: block; text-align: center; }
 
+/* ── Days Pill ── */
+.days-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  background: var(--color-outline-variant);
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+}
+
+/* ── Status Badges ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.badge-pending  { background: #fef3c7; color: #92400e; }
+.badge-approved { background: #dcfce7; color: #166534; }
+.badge-rejected { background: #fee2e2; color: #991b1b; }
+
+/* ── Row Actions ── */
+.row-actions { display: flex; gap: 6px; align-items: center; }
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all var(--transition);
+}
+.action-btn .material-symbols-outlined { font-size: 15px; }
+.action-approve {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.action-approve:hover { background: var(--color-primary); color: #fff; }
+.action-reject {
+  background: #fef2f2;
+  color: var(--color-error);
+  border-color: #fca5a5;
+}
+.action-reject:hover { background: var(--color-error); color: #fff; }
+
+/* ── Empty State ── */
+.empty-cell { text-align: center; padding: 0; }
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 16px;
+  color: var(--color-on-surface-variant);
+}
+.empty-icon { font-size: 36px; opacity: 0.4; }
+.empty-state p { margin: 0; font-size: 13px; }
+
+/* ── Table Footer ── */
 .table-footer {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 16px; background: var(--color-background); border-top: 1px solid var(--color-surface-container-high);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-top: 1px solid var(--color-outline);
 }
 .page-info {
-  font-family: var(--font-display); font-size: 13px; color: var(--color-on-surface-variant);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
 }
-.page-btns { display: flex; gap: 4px; }
+.page-btns { display: flex; gap: 6px; }
 .page-btn {
-  padding: 6px 12px; background: #fff; border: 1px solid var(--color-surface-container-high);
-  border-radius: var(--radius); font-family: var(--font-display); font-size: 13px;
-  color: var(--color-on-surface-variant); cursor: pointer; transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: all var(--transition);
 }
-.page-btn:hover:not(:disabled) { background: var(--color-surface-container); }
-.page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.row-actions { display: flex; justify-content: center; gap: 8px; }
-.action-btn {
-  padding: 6px; background: none; border: none; border-radius: var(--radius);
-  cursor: pointer; transition: background 0.15s; display: flex; align-items: center;
-}
-.approve-btn:hover { background: #dcfce7; }
-.reject-btn:hover { background: #fef2f2; }
-.action-btn .material-symbols-outlined { font-size: 18px; color: var(--color-on-surface-variant); }
-.approve-btn .material-symbols-outlined { color: #16a34a; }
-.reject-btn .material-symbols-outlined { color: #dc2626; }
-
-.status-badge {
-  padding: 4px 8px; border-radius: var(--radius-lg); font-size: 11px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.05em;
-}
-.status-badge.status-pending { background: #fef3c7; color: #92400e; }
-.status-badge.status-approved { background: #dcfce7; color: #166534; }
-.status-badge.status-rejected { background: #fee2e2; color: #991b1b; }
+.page-btn .material-symbols-outlined { font-size: 16px; }
+.page-btn:hover:not(:disabled) { background: var(--color-outline-variant); color: var(--color-on-surface); }
+.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

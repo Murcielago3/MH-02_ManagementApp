@@ -1,124 +1,144 @@
 <template>
   <div class="app-shell">
-    <!-- Sidebar -->
+
+    <!-- ── Sidebar ── -->
     <aside class="sidebar">
       <div class="sidebar-brand">
         <div class="brand-logo">
-          <img :src="logoUrl" alt="Studio MH02 Logo" class="brand-logo-img" />
+          <img :src="logoUrl" alt="Studio MH02" class="brand-logo-img" />
         </div>
-        <div>
-          <h1 class="brand-name">{{ brandName }}</h1>
-          <p class="brand-sub">Enterprise ERP</p>
+        <div class="brand-text">
+          <span class="brand-name">{{ brandName }}</span>
+          <span class="brand-tag">Enterprise ERP</span>
         </div>
       </div>
 
       <nav class="sidebar-nav">
-        <router-link
-          v-for="item in navItemsTop"
-          :key="item.path"
-          :to="item.path"
-          :class="['nav-item', { active: isActive(item.path) }]"
-        >
-          <span
-            class="material-symbols-outlined"
-            :style="isActive(item.path) ? 'font-variation-settings: \'FILL\' 1;' : ''"
-          >{{ item.icon }}</span>
-          <span>{{ item.label }}</span>
-        </router-link>
+        <!-- Top items -->
+        <div class="nav-section">
+          <router-link
+            v-for="item in navItemsTop"
+            :key="item.path"
+            :to="item.path"
+            :class="['nav-item', { active: isActive(item.path) }]"
+          >
+            <span class="nav-icon material-symbols-outlined"
+              :style="isActive(item.path) ? 'font-variation-settings:\'FILL\' 1' : ''">
+              {{ item.icon }}
+            </span>
+            <span class="nav-label">{{ item.label }}</span>
+          </router-link>
+        </div>
 
-        <div class="nav-group" :class="{ 'nav-group--open': projectsExpanded }">
+        <div class="nav-divider" />
+
+        <!-- Projects group -->
+        <div class="nav-section">
           <button
-            type="button"
-            class="nav-group-header"
+            class="nav-item"
             :class="{ active: isProjectsSectionActive }"
             @click="toggleProjects"
           >
-            <span
-              class="material-symbols-outlined"
-              :style="isProjectsSectionActive ? 'font-variation-settings: \'FILL\' 1;' : ''"
-            >architecture</span>
-            <span class="nav-group-label">Projects</span>
-            <span class="material-symbols-outlined nav-chevron">{{ subNavVisible ? 'expand_less' : 'expand_more' }}</span>
+            <span class="nav-icon material-symbols-outlined"
+              :style="isProjectsSectionActive ? 'font-variation-settings:\'FILL\' 1' : ''">
+              architecture
+            </span>
+            <span class="nav-label">Projects</span>
+            <span class="nav-chevron material-symbols-outlined">
+              {{ subNavVisible ? 'expand_less' : 'expand_more' }}
+            </span>
           </button>
-          <div v-show="subNavVisible" class="nav-subitems">
-            <router-link
-              v-for="sub in projectSubNav"
-              :key="sub.path"
-              :to="sub.path"
-              :class="['nav-sub', { active: isSubActive(sub.path) }]"
-            >
-              <span>{{ sub.label }}</span>
-            </router-link>
-          </div>
+          <transition name="subnav">
+            <div v-show="subNavVisible" class="nav-subitems">
+              <router-link
+                v-for="sub in projectSubNav"
+                :key="sub.path"
+                :to="sub.path"
+                :class="['nav-sub', { active: isSubActive(sub.path) }]"
+              >
+                <span class="sub-dot" />
+                {{ sub.label }}
+              </router-link>
+            </div>
+          </transition>
         </div>
 
-        <router-link
-          v-for="item in navItemsBottom"
-          :key="item.path"
-          :to="item.path"
-          :class="['nav-item', { active: isActive(item.path) }]"
-        >
-          <span
-            class="material-symbols-outlined"
-            :style="isActive(item.path) ? 'font-variation-settings: \'FILL\' 1;' : ''"
-          >{{ item.icon }}</span>
-          <span>{{ item.label }}</span>
-        </router-link>
+        <div class="nav-divider" />
+
+        <!-- Bottom items -->
+        <div class="nav-section">
+          <router-link
+            v-for="item in navItemsBottom"
+            :key="item.path"
+            :to="item.path"
+            :class="['nav-item', { active: isActive(item.path) }]"
+          >
+            <span class="nav-icon material-symbols-outlined"
+              :style="isActive(item.path) ? 'font-variation-settings:\'FILL\' 1' : ''">
+              {{ item.icon }}
+            </span>
+            <span class="nav-label">{{ item.label }}</span>
+          </router-link>
+        </div>
       </nav>
+
+      <!-- Sidebar footer -->
+      <div class="sidebar-footer">
+        <div class="sidebar-user" @click="goToSettings">
+          <div class="sidebar-avatar">{{ userInitials }}</div>
+          <div class="sidebar-user-info">
+            <span class="sidebar-user-name">{{ currentUser?.name || 'Admin' }}</span>
+            <span class="sidebar-user-role">{{ authStore.role }}</span>
+          </div>
+          <span class="material-symbols-outlined sidebar-user-icon">settings</span>
+        </div>
+      </div>
     </aside>
 
-    <!-- Main content area -->
+    <!-- ── Main area ── -->
     <div class="main-area">
-      <!-- Top App Bar -->
+
+      <!-- Top bar -->
       <header class="top-bar">
-        <div class="top-bar-left">
-          <span class="material-symbols-outlined top-bar-icon">search</span>
-          <input
-            type="text"
-            placeholder="Search..."
-            class="search-input"
-          />
+        <div class="top-bar-search">
+          <span class="material-symbols-outlined search-icon">search</span>
+          <input type="text" placeholder="Search anything…" class="search-field" />
         </div>
         <div class="top-bar-right">
-          <button class="icon-btn">
+          <button class="top-icon-btn" title="Notifications">
             <span class="material-symbols-outlined">notifications</span>
           </button>
-          <button class="icon-btn" title="Settings" @click="goToSettings">
-            <span class="material-symbols-outlined">settings</span>
+          <button class="top-icon-btn" title="Help">
+            <span class="material-symbols-outlined">help_outline</span>
           </button>
-          <button class="icon-btn">
-            <span class="material-symbols-outlined">help</span>
-          </button>
-          
-          <div class="avatar-wrapper" style="position: relative;" @click="showProfileMenu = !showProfileMenu">
-            <div class="avatar">{{ userInitials }}</div>
-            
-            <!-- Profile Dropdown -->
-            <div v-if="showProfileMenu" class="profile-dropdown">
-              <div class="dropdown-header">
-                <p class="dropdown-name">{{ currentUser?.name || authStore.user?.name || 'Admin' }}</p>
-                <p class="dropdown-role">{{ authStore.role }}</p>
+          <div class="top-avatar-wrap" @click.stop="showProfileMenu = !showProfileMenu">
+            <div class="top-avatar">{{ userInitials }}</div>
+            <transition name="dropdown">
+              <div v-if="showProfileMenu" class="profile-dropdown">
+                <div class="dropdown-user">
+                  <div class="dropdown-avatar">{{ userInitials }}</div>
+                  <div>
+                    <p class="dropdown-name">{{ currentUser?.name || authStore.user?.name || 'Admin' }}</p>
+                    <p class="dropdown-role">{{ authStore.role }}</p>
+                  </div>
+                </div>
+                <div class="dropdown-sep" />
+                <router-link to="/employee/profile" class="dropdown-item" @click="showProfileMenu = false">
+                  <span class="material-symbols-outlined">person</span>My Profile
+                </router-link>
+                <button class="dropdown-item" @click="goToSettings; showProfileMenu = false">
+                  <span class="material-symbols-outlined">settings</span>Settings
+                </button>
+                <div class="dropdown-sep" />
+                <button class="dropdown-item danger" @click.stop="handleLogout">
+                  <span class="material-symbols-outlined">logout</span>Log out
+                </button>
               </div>
-              <div class="dropdown-divider"></div>
-              <router-link to="/employee/profile" class="dropdown-item" @click="showProfileMenu = false">
-                <span class="material-symbols-outlined">person</span>
-                My Profile
-              </router-link>
-              <button class="dropdown-item">
-                <span class="material-symbols-outlined">settings</span>
-                Settings
-              </button>
-              <div class="dropdown-divider"></div>
-              <button class="dropdown-item text-error" @click.stop="handleLogout">
-                <span class="material-symbols-outlined">logout</span>
-                Log out
-              </button>
-            </div>
+            </transition>
           </div>
         </div>
       </header>
 
-      <!-- Page content slot -->
       <main class="page-content">
         <slot />
       </main>
@@ -133,530 +153,387 @@ import { useAuthStore } from '../stores/auth'
 import { usersAPI } from '../api/users'
 import { getAppLogoUrl } from '../utils/logo'
 
-const route = useRoute()
-const router = useRouter()
+const route     = useRoute()
+const router    = useRouter()
 const authStore = useAuthStore()
-const currentUser = ref(null)
+const currentUser     = ref(null)
 const showProfileMenu = ref(false)
-
-const closeProfileMenu = (e) => {
-  if (!e.target.closest('.avatar-wrapper')) {
-    showProfileMenu.value = false
-  }
-}
-
-const brandName = computed(() => {
-  if (currentUser.value?.name) return currentUser.value.name
-  if (authStore.user?.name) return authStore.user.name
-  if (authStore.role === 'admin') return 'Studio MH02'
-  if (authStore.role === 'project_manager') return 'Project Manager'
-  if (authStore.role === 'employee') return 'Employee'
-  return 'Studio MH02'
-})
+const projectsExpanded = ref(false)
 
 const logoUrl = getAppLogoUrl()
 
+const brandName = computed(() => {
+  if (currentUser.value?.name) return currentUser.value.name
+  if (authStore.user?.name)    return authStore.user.name
+  return 'Studio MH02'
+})
+
 const userInitials = computed(() => {
   const name = currentUser.value?.name || authStore.user?.name || 'Admin'
-  return name
-    .split(' ')
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
+  return name.split(' ').map((p) => p[0]).join('').toUpperCase().slice(0, 2)
 })
+
+const closeMenu = (e) => {
+  if (!e.target.closest('.top-avatar-wrap')) showProfileMenu.value = false
+}
 
 onMounted(async () => {
-  document.addEventListener('click', closeProfileMenu)
+  document.addEventListener('click', closeMenu)
   if (!authStore.isAuthenticated) return
-
-  try {
-    const response = await usersAPI.getMe()
-    currentUser.value = response.data
-  } catch (err) {
-    console.warn('Unable to load current user profile', err)
-  }
+  try { currentUser.value = (await usersAPI.getMe()).data } catch {}
 })
-
-onUnmounted(() => {
-  document.removeEventListener('click', closeProfileMenu)
-})
+onUnmounted(() => document.removeEventListener('click', closeMenu))
 
 const handleLogout = () => {
   showProfileMenu.value = false
   authStore.clearAuth()
   router.push('/login')
 }
-
-const goToSettings = () => {
-  router.push('/admin/settings')
-}
-
-const projectsExpanded = ref(false)
+const goToSettings = () => router.push('/admin/settings')
 
 const navItemsTop = [
-  { path: '/admin/dashboard', icon: 'dashboard', label: 'Dashboard' },
-  { path: '/admin/employees', icon: 'group', label: 'Employees' },
+  { path: '/admin/dashboard', icon: 'dashboard',  label: 'Dashboard' },
+  { path: '/admin/employees', icon: 'group',       label: 'Employees' },
 ]
 
 const projectSubNav = [
-  { path: '/admin/projects', label: 'All Projects' },
-  { path: '/admin/projects/summary', label: 'Summary' },
-  { path: '/admin/projects/billing', label: 'Billing' },
+  { path: '/admin/projects',         label: 'All Projects' },
   { path: '/admin/projects/reports', label: 'Reports' },
 ]
 
 const navItemsBottom = [
-  { path: '/admin/clients', icon: 'handshake', label: 'Clients' },
-  { path: '/admin/tasks', icon: 'task', label: 'Tasks' },
-  { path: '/admin/leaves', icon: 'event_busy', label: 'Leaves' },
+  { path: '/admin/clients',    icon: 'handshake',       label: 'Clients' },
+  { path: '/admin/tasks',      icon: 'task_alt',        label: 'Tasks' },
+  { path: '/admin/leaves',     icon: 'event_busy',      label: 'Leaves' },
   { path: '/admin/timesheets', icon: 'pending_actions', label: 'Timesheets' },
-  { path: '/admin/expenses', icon: 'payments', label: 'Expenses' },
-  { path: '/admin/invoices', icon: 'receipt_long', label: 'Invoices' },
-  { path: '/admin/estimates', icon: 'calculate', label: 'Estimates' },
+  { path: '/admin/expenses',        icon: 'payments',        label: 'Expenses' },
+  { path: '/admin/reimbursements', icon: 'request_quote',   label: 'Reimbursements' },
+  { path: '/admin/salary-slips',   icon: 'paid',            label: 'Salary Slips' },
+  { path: '/admin/invoices',       icon: 'receipt_long',    label: 'Invoices' },
+  { path: '/admin/estimates',  icon: 'calculate',       label: 'Estimates' },
 ]
 
-watch(
-  () => route.path,
-  (p) => {
-    if (p.startsWith('/admin/projects')) {
-      projectsExpanded.value = true
-    } else {
-      projectsExpanded.value = false
-    }
-  },
-  { immediate: true }
-)
+watch(() => route.path, (p) => {
+  projectsExpanded.value = p.startsWith('/admin/projects')
+}, { immediate: true })
 
 const isProjectsSectionActive = computed(() => route.path.startsWith('/admin/projects'))
-
 const subNavVisible = computed(() => projectsExpanded.value || isProjectsSectionActive.value)
 
-function isActive(path) {
-  return route.path === path
-}
-
-function isSubActive(path) {
-  return route.path === path
-}
-
-function toggleProjects() {
-  projectsExpanded.value = !projectsExpanded.value
-}
+function isActive(path)    { return route.path === path }
+function isSubActive(path) { return route.path === path }
+function toggleProjects()  { projectsExpanded.value = !projectsExpanded.value }
 </script>
 
 <style scoped>
-/* ───────── Shell ───────── */
+/* ── Shell ── */
 .app-shell {
   display: flex;
   min-height: 100vh;
   font-family: var(--font-body);
-  font-size: 14px;
-  line-height: 20px;
-  color: var(--color-on-surface);
   background: var(--color-background);
 }
 
-/* ───────── Sidebar ───────── */
+/* ── Sidebar ── */
 .sidebar {
-  width: 260px;
-  min-width: 260px;
+  width: 248px;
+  min-width: 248px;
   height: 100vh;
   position: fixed;
-  left: 0;
-  top: 0;
-  background: var(--color-on-surface);
+  left: 0; top: 0;
+  background: var(--color-sidebar-bg);
   display: flex;
   flex-direction: column;
-  padding: 16px 0;
-  z-index: 20;
+  z-index: 30;
+  border-right: 1px solid rgba(255,255,255,0.04);
 }
 
 .sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 32px;
-  padding: 0 24px;
+  gap: 10px;
+  padding: 20px 18px 16px;
+  border-bottom: 1px solid var(--color-sidebar-border);
 }
-
 .brand-logo {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius);
+  width: 34px; height: 34px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   flex-shrink: 0;
-  background: var(--color-surface);
-}
-
-.brand-logo-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.logo-grid-mini {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px;
-  width: 100%;
-  height: 100%;
-  padding: 3px;
   background: var(--color-primary);
 }
-
-.lg-cell {
-  border-radius: 1px;
-}
-
-.lg-a {
-  background: #ffffff;
-}
-
-.lg-b {
-  background: rgba(255, 255, 255, 0.4);
-}
-
-.lg-c {
-  background: rgba(255, 255, 255, 0.7);
-}
-
+.brand-logo-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.brand-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .brand-name {
   font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 15px; font-weight: 700;
+  color: #fff;
   letter-spacing: -0.01em;
-  color: #ffffff;
-  margin: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.brand-tag {
+  font-size: 9px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: rgba(255,255,255,.35);
 }
 
-.brand-sub {
-  font-family: var(--font-body);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.5);
-  margin: 4px 0 0;
-}
-
-/* ───────── Nav ───────── */
+/* ── Nav ── */
 .sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 0;
   display: flex;
   flex-direction: column;
-  flex-grow: 1;
+  gap: 2px;
+}
+.sidebar-nav::-webkit-scrollbar { width: 0; }
+
+.nav-section { padding: 0 10px; display: flex; flex-direction: column; gap: 1px; }
+
+.nav-divider {
+  height: 1px;
+  background: var(--color-sidebar-border);
+  margin: 8px 18px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 24px;
-  font-family: var(--font-body);
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.7);
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-md);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--color-sidebar-text);
   text-decoration: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border-left: 3px solid transparent;
-}
-
-.nav-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
-}
-
-.nav-item.active {
-  background: rgba(40, 116, 117, 0.15);
-  color: #ffffff;
-  border-left-color: var(--color-primary);
-}
-
-.nav-item .material-symbols-outlined {
-  font-size: 20px;
-  width: 24px;
-  display: flex;
-  justify-content: center;
-}
-
-/* ───────── Projects nav group ───────── */
-.nav-group {
-  display: flex;
-  flex-direction: column;
-}
-
-.nav-group-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 12px 24px;
-  font-family: var(--font-body);
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.7);
   background: transparent;
   border: none;
-  border-left: 3px solid transparent;
   cursor: pointer;
+  width: 100%;
   text-align: left;
-  transition: all 0.2s ease;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.nav-item:hover {
+  background: rgba(255,255,255,0.06);
+  color: var(--color-sidebar-text-hover);
+}
+.nav-item.active {
+  background: var(--color-sidebar-active-bg);
+  color: var(--color-sidebar-active-text);
 }
 
-.nav-group-header:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
-}
+.nav-icon { font-size: 18px; width: 20px; flex-shrink: 0; }
+.nav-label { flex: 1; }
+.nav-chevron { font-size: 16px; opacity: .6; }
 
-.nav-group-header.active {
-  background: rgba(40, 116, 117, 0.15);
-  color: #ffffff;
-  border-left-color: var(--color-primary);
-}
-
-.nav-group-label {
-  flex: 1;
-}
-
-.nav-chevron {
-  font-size: 20px !important;
-  opacity: 0.85;
-  width: 20px;
-  display: flex;
-  justify-content: center;
-}
-
+/* Subnav */
 .nav-subitems {
-  display: flex;
-  flex-direction: column;
-  padding: 4px 0 8px 0;
+  padding: 2px 0 4px 30px;
+  display: flex; flex-direction: column; gap: 1px;
 }
-
 .nav-sub {
-  display: block;
-  padding: 10px 24px 10px 48px;
-  font-family: var(--font-body);
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.65);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: rgba(255,255,255,.45);
   text-decoration: none;
-  border-left: 3px solid transparent;
-  transition: all 0.2s ease;
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
-
-.nav-sub:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
+.nav-sub:hover { color: rgba(255,255,255,.85); background: rgba(255,255,255,.04); }
+.nav-sub.active { color: #fff; font-weight: 600; }
+.sub-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+  opacity: .6;
 }
+.nav-sub.active .sub-dot { opacity: 1; background: var(--color-primary); }
 
-.nav-sub.active {
-  background: rgba(40, 116, 117, 0.2);
-  color: #ffffff;
-  border-left-color: var(--color-primary);
-  font-weight: 600;
+/* Subnav transition */
+.subnav-enter-active, .subnav-leave-active { transition: opacity .15s, transform .15s; }
+.subnav-enter-from, .subnav-leave-to { opacity: 0; transform: translateY(-4px); }
+
+/* ── Sidebar footer ── */
+.sidebar-footer {
+  border-top: 1px solid var(--color-sidebar-border);
+  padding: 12px 10px;
 }
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.sidebar-user:hover { background: rgba(255,255,255,.06); }
+.sidebar-avatar {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+  flex-shrink: 0;
+}
+.sidebar-user-info { flex: 1; min-width: 0; }
+.sidebar-user-name {
+  font-size: 12.5px; font-weight: 600;
+  color: rgba(255,255,255,.85);
+  display: block;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sidebar-user-role {
+  font-size: 10px; color: rgba(255,255,255,.35);
+  text-transform: capitalize;
+}
+.sidebar-user-icon { font-size: 16px; color: rgba(255,255,255,.3); }
 
-/* ───────── Main Area ───────── */
+/* ── Main area ── */
 .main-area {
-  flex-grow: 1;
-  margin-left: 260px;
+  flex: 1;
+  margin-left: 248px;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  min-width: 0;          /* allow shrinking — without this, wide children (e.g. resource calendar) push the page wider than viewport */
-  width: calc(100% - 260px);
-  max-width: calc(100% - 260px);
+  min-width: 0;
+  width: calc(100% - 248px);
+  max-width: calc(100% - 248px);
 }
 
-/* ───────── Top Bar ───────── */
+/* ── Top bar ── */
 .top-bar {
-  height: 64px;
+  height: 56px;
   position: fixed;
-  top: 0;
-  right: 0;
-  left: 260px;
-  z-index: 10;
+  top: 0; right: 0; left: 248px;
+  z-index: 20;
   background: var(--color-surface);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: 1px solid var(--color-outline);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 32px;
+  padding: 0 28px;
+  gap: 16px;
 }
-
-.top-bar-left {
+.top-bar-search {
   display: flex;
   align-items: center;
-  gap: 12px;
-  width: 40%;
+  gap: 8px;
+  background: var(--color-background);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-full);
+  padding: 6px 14px;
+  width: 260px;
+  transition: border-color var(--transition-fast);
 }
-
-.top-bar-icon {
-  color: var(--color-outline);
-  font-size: 20px;
+.top-bar-search:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(40,116,117,.10);
 }
-
-.search-input {
+.search-icon { font-size: 16px; color: var(--color-on-surface-variant); flex-shrink: 0; }
+.search-field {
   background: transparent;
   border: none;
-  outline: none;
-  font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 13px;
   color: var(--color-on-surface);
   width: 100%;
   padding: 0;
+  box-shadow: none !important;
 }
+.search-field::placeholder { color: var(--color-on-surface-variant); }
 
-.search-input::placeholder {
-  color: var(--color-on-surface-variant);
-}
+.top-bar-right { display: flex; align-items: center; gap: 4px; }
 
-.top-bar-right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.icon-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
+.top-icon-btn {
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
   border: none;
-  background: none;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   color: var(--color-on-surface-variant);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
+.top-icon-btn:hover { background: var(--color-surface-container); color: var(--color-on-surface); }
+.top-icon-btn .material-symbols-outlined { font-size: 20px; }
 
-.icon-btn:hover {
-  background: var(--color-surface-container);
-}
-
-.icon-btn:active {
-  opacity: 0.8;
-}
-
-.icon-btn .material-symbols-outlined {
-  font-size: 22px;
-}
-
-.avatar {
-  width: 36px;
-  height: 36px;
+.top-avatar-wrap { position: relative; margin-left: 6px; }
+.top-avatar {
+  width: 34px; height: 34px;
   border-radius: 50%;
-  background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-body);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
+  background: var(--color-primary);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; letter-spacing: .04em;
   cursor: pointer;
-  border: 1px solid var(--color-outline-variant);
+  border: 2px solid var(--color-primary-light);
+  transition: box-shadow var(--transition-fast);
 }
+.top-avatar:hover { box-shadow: 0 0 0 3px rgba(40,116,117,.20); }
 
-/* ───────── Profile Dropdown ───────── */
-.avatar-wrapper {
-  position: relative;
-}
-
+/* ── Profile dropdown ── */
 .profile-dropdown {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 8px);
   right: 0;
-  margin-top: 8px;
-  width: 220px;
+  width: 230px;
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  display: flex;
-  flex-direction: column;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  z-index: 200;
   overflow: hidden;
-  z-index: 100;
 }
-
-.dropdown-header {
-  padding: 16px;
-  background: var(--color-surface-container-low);
+.dropdown-user {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px;
+  background: var(--color-surface-dim);
 }
-
-.dropdown-name {
-  font-family: var(--font-body);
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--color-on-surface);
-  margin: 0;
+.dropdown-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700;
+  flex-shrink: 0;
 }
-
-.dropdown-role {
-  font-family: var(--font-body);
-  font-size: 11px;
-  color: var(--color-on-surface-variant);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 4px 0 0;
-}
-
-.dropdown-divider {
-  height: 1px;
-  background: var(--color-outline-variant);
-  margin: 0;
-}
-
+.dropdown-name { font-size: 13px; font-weight: 700; color: var(--color-on-surface); margin: 0; }
+.dropdown-role { font-size: 10px; color: var(--color-on-surface-variant); text-transform: capitalize; margin: 2px 0 0; }
+.dropdown-sep { height: 1px; background: var(--color-outline); }
 .dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: none;
-  border: none;
-  font-family: var(--font-body);
-  font-size: 13px;
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 16px;
+  font-size: 13px; font-weight: 500;
   color: var(--color-on-surface);
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.15s;
+  background: none; border: none;
+  cursor: pointer; width: 100%; text-align: left;
+  text-decoration: none;
+  transition: background var(--transition-fast);
 }
+.dropdown-item:hover { background: var(--color-surface-dim); }
+.dropdown-item .material-symbols-outlined { font-size: 17px; color: var(--color-on-surface-variant); }
+.dropdown-item.danger { color: var(--color-error); }
+.dropdown-item.danger .material-symbols-outlined { color: var(--color-error); }
 
-.dropdown-item:hover {
-  background: var(--color-surface-container);
-}
+.dropdown-enter-active, .dropdown-leave-active { transition: opacity .14s, transform .14s; }
+.dropdown-enter-from, .dropdown-leave-to { opacity: 0; transform: translateY(-6px); }
 
-.dropdown-item .material-symbols-outlined {
-  font-size: 18px;
-  color: var(--color-on-surface-variant);
-}
-
-.dropdown-item.text-error {
-  color: var(--color-error);
-}
-
-.dropdown-item.text-error .material-symbols-outlined {
-  color: var(--color-error);
-}
-
-/* ───────── Page Content ───────── */
+/* ── Page content ── */
 .page-content {
-  margin-top: 64px;
-  padding: 32px;
-  flex-grow: 1;
+  margin-top: 56px;
+  padding: 28px 32px;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 32px;
-  min-width: 0;          /* let flex children constrain themselves */
+  gap: 24px;
+  min-width: 0;
   max-width: 100%;
-  box-sizing: border-box;
-}
-
-/* ───────── Material Symbols ───────── */
-.material-symbols-outlined {
-  font-family: 'Material Symbols Outlined';
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-  user-select: none;
-  overflow: hidden;
 }
 </style>

@@ -13,8 +13,16 @@ class User(Base):
     salary_month = Column(Numeric(10, 2))
     salary_hour = Column(Numeric(8, 2), nullable=True)
     leaves_allowed = Column(Integer, default=12)
+    # Running paid-leave balance (supports half-days); accrues 1.5/month.
+    paid_leave_balance = Column(Numeric(6, 1), default=0)
+    # Last month (YYYY-MM) the monthly accrual was applied — for idempotent accrual.
+    leave_accrued_through = Column(String, nullable=True)
     pan_number = Column(String, nullable=True)
     aadhar_number = Column(String, nullable=True)
+    gender = Column(String, nullable=True)            # e.g. "M" / "F" / "Other"
+    location = Column(String, nullable=True)          # work location, shown on salary slip
+    bank_name = Column(String, nullable=True)         # employee's bank, shown on salary slip
+    bank_account_number = Column(String, nullable=True)
     personal_mail = Column(String, nullable=False, unique=True)
     studio_email = Column(String, nullable=False, unique=True)
     photo_url = Column(String, nullable=True)

@@ -27,3 +27,6 @@ class Settings(Base):
     # hourly_rate = (salary_month * salary_months_per_year / 12) / working_hours_per_month
     working_hours_per_month = Column(Numeric(6, 2), nullable=True)   # default 160
     salary_months_per_year = Column(Numeric(4, 2), nullable=True)    # default 13
+
+    # ─── Payroll ───
+    tds_percent = Column(Numeric(5, 2), nullable=True)   # TDS % deducted from base salary; default 10

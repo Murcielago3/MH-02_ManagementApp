@@ -14,7 +14,7 @@ class Task(Base):
     priority = Column(String, default="medium") # low, medium, high
     status = Column(String, default="pending")  # pending, in-progress, completed
 
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
     assigned_to = Column(Integer, ForeignKey("users.id"), nullable=False)
     assigned_by = Column(Integer, ForeignKey("users.id"), nullable=False)
 

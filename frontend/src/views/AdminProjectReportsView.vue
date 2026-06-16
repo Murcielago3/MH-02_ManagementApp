@@ -1,7 +1,8 @@
 <template>
   <AppLayout>
+    <!-- Page Header -->
     <div class="page-header">
-      <div>
+      <div class="page-header__text">
         <h1 class="page-title">Project Reports</h1>
         <p class="page-sub">Visual breakdown of billing, hours, and remuneration distribution</p>
       </div>
@@ -14,11 +15,14 @@
 
       <section class="col-right">
         <transition name="fade-panel" mode="out-in">
+
+          <!-- Empty state -->
           <div v-if="!selectedProjectId" key="empty" class="empty-center">
             <span class="material-symbols-outlined empty-ic">analytics</span>
             <p>Select a project to view its reports</p>
           </div>
 
+          <!-- Loading skeleton -->
           <div v-else-if="loading" key="load" class="detail-skeleton">
             <div class="sk-h1" />
             <div class="sk-sub" />
@@ -27,22 +31,34 @@
             </div>
           </div>
 
-          <div v-else-if="loadError" key="err" class="empty-center text-error">{{ loadError }}</div>
+          <!-- Error -->
+          <div v-else-if="loadError" key="err" class="empty-center text-error">
+            <span class="material-symbols-outlined" style="font-size:36px;margin-bottom:8px;opacity:0.5;">error_outline</span>
+            {{ loadError }}
+          </div>
 
+          <!-- Main content -->
           <div v-else key="content" class="detail-content">
-            <div class="header-block">
-              <h2 class="detail-title">{{ summary?.project_name || '—' }}</h2>
-              <p class="detail-sub">
-                {{ projectMeta?.project_number }} · {{ projectMeta?.year || '—' }}
-              </p>
-              <div class="header-meta">
-                <span class="dot" :style="{ background: projectMeta?.color || '#287475' }" />
+
+            <!-- Project identity header -->
+            <div class="project-header">
+              <div class="project-header__left">
+                <div class="project-color-dot" :style="{ background: projectMeta?.color || 'var(--color-primary)' }" />
+                <div>
+                  <h2 class="detail-title">{{ summary?.project_name || '—' }}</h2>
+                  <p class="detail-sub">
+                    {{ projectMeta?.project_number }}
+                    <template v-if="projectMeta?.year"> · {{ projectMeta.year }}</template>
+                  </p>
+                </div>
+              </div>
+              <div class="project-header__badges">
                 <span class="stage-badge" :class="stageClass(projectMeta?.current_stage)">
                   {{ projectMeta?.current_stage || 'N/A' }}
                 </span>
                 <span
                   v-if="summary?.reserve_depleted"
-                  class="reserve-chip depleted"
+                  class="reserve-chip"
                   title="Reserve balance has gone negative"
                 >
                   <span class="material-symbols-outlined">warning</span>
@@ -51,24 +67,28 @@
               </div>
             </div>
 
-            <!-- 2x2 Grid -->
-            <div class="grid-2x2">
-              <!-- (1,1) Billed vs Unbilled -->
+            <!-- 2×2 chart grid -->
+            <div class="charts-grid">
+
+              <!-- Card 1: Billed vs Unbilled -->
               <div class="report-card">
                 <header class="card-head">
-                  <h3 class="card-title">Billed vs Unbilled</h3>
-                  <p class="card-sub">
-                    Unbilled appears only when reserve runs below zero
-                  </p>
+                  <div class="card-head__icon-wrap card-head__icon-wrap--teal">
+                    <span class="material-symbols-outlined">payments</span>
+                  </div>
+                  <div>
+                    <h3 class="card-title">Billed vs Unbilled</h3>
+                    <p class="card-sub">Unbilled appears only when reserve runs below zero</p>
+                  </div>
                 </header>
                 <div class="chart-body">
                   <div v-if="!hasBillingData" class="chart-empty">
                     <span class="material-symbols-outlined">payments</span>
-                    No billing or invoices yet
+                    <span>No billing or invoices yet</span>
                   </div>
                   <template v-else>
                     <div class="chart-canvas-wrap">
-                      <canvas ref="billingChartRef" width="240" height="240" />
+                      <canvas ref="billingChartRef" width="220" height="220" />
                     </div>
                     <ul class="legend">
                       <li v-for="row in billingLegend" :key="row.label" class="legend-row">
@@ -82,52 +102,64 @@
                 </div>
               </div>
 
-              <!-- (1,2) Hours / Cost per employee -->
+              <!-- Card 2: Hours & Cost per Employee -->
               <div class="report-card">
                 <header class="card-head">
-                  <h3 class="card-title">Hours &amp; Cost per Employee</h3>
-                  <p class="card-sub">
-                    From approved timesheets · cost = hours × rate
-                  </p>
+                  <div class="card-head__icon-wrap card-head__icon-wrap--amber">
+                    <span class="material-symbols-outlined">groups</span>
+                  </div>
+                  <div>
+                    <h3 class="card-title">Hours &amp; Cost per Employee</h3>
+                    <p class="card-sub">From approved timesheets · cost = hours × rate</p>
+                  </div>
                 </header>
-                <div class="chart-body">
+                <div class="chart-body chart-body--bar">
                   <div v-if="!hasEmpData" class="chart-empty">
                     <span class="material-symbols-outlined">groups</span>
-                    No approved timesheet hours yet
+                    <span>No approved timesheet hours yet</span>
                   </div>
-                  <div v-else class="chart-canvas-wrap chart-canvas-bar">
-                    <canvas ref="empChartRef" width="420" height="240" />
+                  <div v-else class="chart-canvas-wrap chart-canvas-hbar">
+                    <canvas ref="empChartRef" />
                   </div>
                 </div>
               </div>
 
-              <!-- (2,1) Reserved for later -->
-              <div class="report-card placeholder-card">
+              <!-- Card 3: Coming Soon -->
+              <div class="report-card report-card--placeholder">
                 <header class="card-head">
-                  <h3 class="card-title">Coming Soon</h3>
-                  <p class="card-sub">A fourth chart will land here</p>
+                  <div class="card-head__icon-wrap card-head__icon-wrap--slate">
+                    <span class="material-symbols-outlined">insights</span>
+                  </div>
+                  <div>
+                    <h3 class="card-title">Coming Soon</h3>
+                    <p class="card-sub">A fourth chart will land here</p>
+                  </div>
                 </header>
-                <div class="chart-body placeholder">
-                  <span class="material-symbols-outlined">insights</span>
+                <div class="chart-body chart-empty">
+                  <span class="material-symbols-outlined placeholder-icon">insights</span>
+                  <span>More insights on the way</span>
                 </div>
               </div>
 
-              <!-- (2,2) Distribution: Partner / Profit / Employees -->
+              <!-- Card 4: Remuneration & Profit Distribution -->
               <div class="report-card">
                 <header class="card-head">
-                  <h3 class="card-title">Remuneration &amp; Profit Distribution</h3>
-                  <p class="card-sub">
-                    Partner share, employees to pay out, and profit (only when reserve is positive)
-                  </p>
+                  <div class="card-head__icon-wrap card-head__icon-wrap--green">
+                    <span class="material-symbols-outlined">donut_small</span>
+                  </div>
+                  <div>
+                    <h3 class="card-title">Remuneration &amp; Profit Distribution</h3>
+                    <p class="card-sub">Partner share, employees, and profit (when reserve is positive)</p>
+                  </div>
                 </header>
                 <div class="chart-body">
                   <div v-if="!hasDistData" class="chart-empty">
                     <span class="material-symbols-outlined">donut_small</span>
-                    No remuneration to distribute yet
+                    <span>No remuneration to distribute yet</span>
                   </div>
                   <template v-else>
                     <div class="chart-canvas-wrap">
-                      <canvas ref="distChartRef" width="240" height="240" />
+                      <canvas ref="distChartRef" width="220" height="220" />
                     </div>
                     <ul class="legend">
                       <li v-for="row in distLegend" :key="row.label" class="legend-row">
@@ -140,6 +172,7 @@
                   </template>
                 </div>
               </div>
+
             </div>
           </div>
         </transition>
@@ -154,7 +187,9 @@ import { Chart, registerables } from 'chart.js'
 import AppLayout from '../components/AppLayout.vue'
 import ProjectSelector from '../components/projects/ProjectSelector.vue'
 import { projectsAPI } from '../api/projects'
-import { formatInr } from '../utils/currency'
+import { usersAPI } from '../api/users'
+import { weeklyTimesheetsAPI } from '../api/weekly_timesheets'
+import { formatInr, previewHourlyFromBasePay } from '../utils/currency'
 
 Chart.register(...registerables)
 
@@ -171,6 +206,8 @@ const loading = ref(false)
 const loadError = ref('')
 const summary = ref(null)
 const projectMeta = ref(null)
+const approvedTimesheets = ref([])
+const allUsers = ref([])
 
 const billingChartRef = ref(null)
 const empChartRef = ref(null)
@@ -198,7 +235,7 @@ function stageClass(stage) {
 const billed = computed(() => {
   const s = summary.value
   if (!s) return 0
-  return Math.max(0, Number(s.advance_amount || 0) + Number(s.total_invoiced || 0))
+  return Math.max(0, Number(s.total_invoiced || 0))
 })
 
 const unbilled = computed(() => {
@@ -222,19 +259,59 @@ const billingLegend = computed(() => {
   }))
 })
 
+// Hours per employee from approved timesheets (same approach as AdminProjectSummaryView)
+const hoursFromTimesheets = computed(() => {
+  const pid = selectedProjectId.value
+  const map = new Map()
+  if (!pid) return map
+  for (const ts of approvedTimesheets.value) {
+    if (ts.status !== 'approved') continue
+    const uid = ts.employee_id ?? ts.user_id
+    if (!uid) continue
+    for (const e of (ts.entries || [])) {
+      if (Number(e.project_id) !== Number(pid)) continue
+      const h = Number(e.hours) || 0
+      if (h > 0) map.set(uid, (map.get(uid) || 0) + h)
+    }
+  }
+  return map
+})
+
 const empRows = computed(() => {
-  const rows = summary.value?.employee_rows || []
-  // Only include employees with logged hours
-  return rows
-    .filter((r) => Number(r.hours_worked) > 0)
-    .slice()
-    .sort((a, b) => Number(b.total_spent) - Number(a.total_spent))
+  const H = hoursFromTimesheets.value
+  const apiRows = summary.value?.employee_rows || []
+  const assignments = projectMeta.value?.assignments || []
+  const users = allUsers.value || []
+
+  const uids = [...H.keys()].filter((uid) => (H.get(uid) || 0) > 0)
+  return uids
+    .map((uid) => {
+      const apiRow = apiRows.find((r) => r.employee_id === uid)
+      const assign = assignments.find((a) => (a.user_id ?? a.user?.id) === uid)
+      const u = users.find((x) => x.id === uid)
+      const hours = H.get(uid) || 0
+      const basePay = Number(apiRow?.base_pay ?? u?.salary_month ?? assign?.base_pay ?? 0) || 0
+      const hourly = previewHourlyFromBasePay(basePay) || 0
+      return {
+        employee_id: uid,
+        name: apiRow?.name ?? u?.name ?? `Employee #${uid}`,
+        hours_worked: hours,
+        hourly_rate: hourly,
+        total_spent: hourly * hours,
+      }
+    })
+    .sort((a, b) => b.total_spent - a.total_spent)
 })
 const hasEmpData = computed(() => empRows.value.length > 0)
 
-const partnerCost = computed(() => Number(summary.value?.partner?.partner_cost || 0))
-const employeeCost = computed(() => Number(summary.value?.totals?.total_spent || 0))
-const profit = computed(() => Math.max(0, Number(summary.value?.reserve_balance || 0)))
+const partnerHourlyRate = computed(() => Number(projectMeta.value?.partner_hourly_rate || 0))
+const totalHours = computed(() => empRows.value.reduce((s, r) => s + r.hours_worked, 0))
+const employeeCost = computed(() => empRows.value.reduce((s, r) => s + r.total_spent, 0))
+const partnerCost = computed(() => partnerHourlyRate.value * totalHours.value)
+const profit = computed(() => {
+  const inv = Number(summary.value?.total_invoiced || 0)
+  return Math.max(0, inv - employeeCost.value - partnerCost.value)
+})
 
 const hasDistData = computed(
   () => partnerCost.value > 0 || employeeCost.value > 0 || profit.value > 0
@@ -304,67 +381,77 @@ function renderEmpChart() {
   const el = empChartRef.value
   if (!el) return
   const rows = empRows.value
-  const labels = rows.map((r) => r.name)
-  const costs = rows.map((r) => Number(r.total_spent))
-  const hours = rows.map((r) => Number(r.hours_worked))
+
+  // Dynamic height: 52px per employee + 40px padding
+  const canvasH = rows.length * 52 + 40
+  el.style.width = '100%'
+  el.style.height = canvasH + 'px'
+  el.width = el.offsetWidth || 400
+  el.height = canvasH
 
   empChart = new Chart(el, {
     type: 'bar',
     data: {
-      labels,
+      labels: rows.map((r) => r.name),
       datasets: [
         {
           label: 'Cost (₹)',
-          data: costs,
+          data: rows.map((r) => Number(r.total_spent)),
           backgroundColor: TEAL,
-          borderRadius: 4,
+          borderRadius: { topRight: 4, bottomRight: 4 },
+          borderSkipped: false,
           borderWidth: 0,
-          yAxisID: 'y',
+          xAxisID: 'x',
         },
         {
           label: 'Hours',
-          data: hours,
-          backgroundColor: AMBER,
-          borderRadius: 4,
+          data: rows.map((r) => Number(r.hours_worked)),
+          backgroundColor: AMBER + 'cc',
+          borderRadius: { topRight: 4, bottomRight: 4 },
+          borderSkipped: false,
           borderWidth: 0,
-          yAxisID: 'y1',
+          xAxisID: 'x1',
         },
       ],
     },
     options: {
+      indexAxis: 'y',
       responsive: false,
-      animation: { duration: 350 },
+      animation: { duration: 400 },
+      layout: { padding: { right: 8 } },
       scales: {
-        x: {
-          grid: { display: false },
-          ticks: { font: { size: 11 } },
-        },
         y: {
-          type: 'linear',
-          position: 'left',
-          title: { display: true, text: 'Cost (₹)', font: { size: 10 } },
-          ticks: {
-            font: { size: 10 },
-            callback: (v) => formatInr(v, 0),
-          },
-          grid: { color: 'rgba(148,163,184,0.18)' },
+          grid: { display: false },
+          border: { display: false },
+          ticks: { font: { size: 12 }, color: '#475569' },
         },
-        y1: {
-          type: 'linear',
-          position: 'right',
-          title: { display: true, text: 'Hours', font: { size: 10 } },
-          ticks: { font: { size: 10 } },
+        x: {
+          position: 'bottom',
+          title: { display: true, text: 'Cost (₹)', font: { size: 10 }, color: TEAL },
+          ticks: { font: { size: 10 }, color: '#94a3b8', callback: (v) => formatInr(v, 0) },
+          grid: { color: 'rgba(148,163,184,0.12)' },
+          border: { display: false },
+        },
+        x1: {
+          position: 'top',
+          title: { display: true, text: 'Hours', font: { size: 10 }, color: '#b45309' },
+          ticks: { font: { size: 10 }, color: '#94a3b8' },
           grid: { drawOnChartArea: false },
+          border: { display: false },
         },
       },
       plugins: {
-        legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+        legend: {
+          display: true,
+          position: 'bottom',
+          labels: { boxWidth: 10, boxHeight: 10, borderRadius: 2, font: { size: 11 }, padding: 16 },
+        },
         tooltip: {
           callbacks: {
             label(ctx) {
-              const v = ctx.parsed.y
-              if (ctx.dataset.label === 'Cost (₹)') return `Cost: ${formatInr(v, 0)}`
-              return `Hours: ${v} hrs`
+              const v = ctx.parsed.x
+              if (ctx.dataset.label === 'Cost (₹)') return `  Cost: ${formatInr(v, 0)}`
+              return `  Hours: ${v} hrs`
             },
           },
         },
@@ -441,19 +528,39 @@ watch(
 
 // ───────── Data loading ─────────
 
+async function ensureEntries(timesheets) {
+  const missing = timesheets.filter((t) => !t.entries || t.entries.length === 0)
+  if (!missing.length) return timesheets
+  const detailed = await Promise.all(
+    missing.slice(0, 80).map((t) =>
+      weeklyTimesheetsAPI.getTimesheet(t.id).then((r) => r.data).catch(() => t)
+    )
+  )
+  const byId = new Map(detailed.map((d) => [d.id, d]))
+  return timesheets.map((t) => byId.get(t.id) || t)
+}
+
 async function loadAll(projectId) {
   loadError.value = ''
   summary.value = null
   projectMeta.value = null
+  approvedTimesheets.value = []
+  allUsers.value = []
   destroyAll()
   loading.value = true
   try {
-    const [sumRes, projRes] = await Promise.all([
+    const [sumRes, projRes, tsRes, usersRes] = await Promise.all([
       projectsAPI.getProjectSummary(projectId),
       projectsAPI.getProject(projectId),
+      weeklyTimesheetsAPI.getTimesheets({ status: 'approved' }).catch(() => ({ data: [] })),
+      usersAPI.getUsers().catch(() => ({ data: [] })),
     ])
     summary.value = sumRes.data
     projectMeta.value = projRes.data
+    allUsers.value = usersRes.data || []
+    let tsList = tsRes.data || []
+    tsList = await ensureEntries(tsList)
+    approvedTimesheets.value = tsList
   } catch (e) {
     loadError.value = apiErr(e) || 'Could not load reports.'
   } finally {
@@ -467,6 +574,8 @@ watch(selectedProjectId, (id) => {
     destroyAll()
     summary.value = null
     projectMeta.value = null
+    approvedTimesheets.value = []
+    allUsers.value = []
     return
   }
   loadAll(id)
@@ -581,8 +690,17 @@ onBeforeUnmount(() => destroyAll())
   display: flex; align-items: center; justify-content: center;
   min-width: 0;
 }
-.chart-canvas-bar { width: 100%; overflow-x: auto; }
-.chart-canvas-bar canvas { max-width: 100%; }
+.chart-canvas-hbar {
+  width: 100%;
+  overflow-y: auto;
+}
+.chart-canvas-hbar canvas {
+  width: 100% !important;
+}
+.chart-body--bar {
+  padding: 12px 18px 18px;
+  align-items: stretch;
+}
 .chart-empty {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   flex: 1;

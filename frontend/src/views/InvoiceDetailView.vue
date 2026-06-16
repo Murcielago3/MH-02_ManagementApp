@@ -1,42 +1,72 @@
 <template>
   <AppLayout>
+    <!-- Page Header -->
     <div class="page-header">
-      <h2>Invoice Detail</h2>
-      <div class="actions">
-        <button class="btn-secondary" @click="goBack">Back</button>
-        <button class="btn-primary" @click="downloadPDF">
-          <span class="material-symbols-outlined">download</span> Download PDF
+      <div class="header-left">
+        <button class="back-btn" @click="goBack">
+          <span class="material-symbols-outlined">arrow_back</span>
         </button>
-        <button class="btn-danger" @click="confirmDelete">
-          <span class="material-symbols-outlined">delete</span> Delete
+        <div>
+          <h1 class="page-title">Invoice Detail</h1>
+          <p class="page-subtitle">View and manage this invoice</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn-outline" @click="editInvoice">
+          <span class="material-symbols-outlined">edit</span>
+          Edit
+        </button>
+        <button class="btn-outline" @click="downloadPDF">
+          <span class="material-symbols-outlined">download</span>
+          Download PDF
+        </button>
+        <button class="btn-danger-outline" @click="confirmDelete">
+          <span class="material-symbols-outlined">delete</span>
+          Delete
         </button>
       </div>
     </div>
 
-    <div v-if="loading" class="loading-state">Loading invoice...</div>
-    <div v-else-if="!invoice" class="empty-state">Invoice not found.</div>
-    <div v-else class="preview-container">
+    <!-- States -->
+    <div v-if="loading" class="state-card">
+      <span class="material-symbols-outlined spin-icon">progress_activity</span>
+      <span>Loading invoice…</span>
+    </div>
+    <div v-else-if="!invoice" class="state-card">
+      <span class="material-symbols-outlined empty-icon">receipt_long</span>
+      <span>Invoice not found.</span>
+    </div>
+
+    <!-- Preview -->
+    <div v-else class="preview-wrap">
       <InvoicePreview :invoice="invoice" />
     </div>
 
     <!-- Delete Confirmation Modal -->
     <Teleport to="body">
       <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null">
-        <div class="modal delete-modal">
+        <div class="modal">
           <div class="modal-header">
-            <h3>Delete Invoice</h3>
-            <button class="icon-btn-close" @click="deleteTarget = null">
+            <div class="modal-icon-wrap danger">
+              <span class="material-symbols-outlined">delete_forever</span>
+            </div>
+            <button class="modal-close" @click="deleteTarget = null">
               <span class="material-symbols-outlined">close</span>
             </button>
           </div>
           <div class="modal-body">
-            <p>Are you sure you want to delete this invoice?</p>
-            <div class="modal-footer">
-              <button class="btn-secondary" @click="deleteTarget = null">Cancel</button>
-              <button class="btn-danger" :disabled="submitting" @click="handleDelete">
-                {{ submitting ? 'Deleting...' : 'Delete' }}
-              </button>
-            </div>
+            <h3 class="modal-title">Delete Invoice</h3>
+            <p class="modal-desc">
+              Are you sure you want to permanently delete this invoice?
+              This action cannot be undone.
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-outline" @click="deleteTarget = null">Cancel</button>
+            <button class="btn-danger" :disabled="submitting" @click="handleDelete">
+              <span v-if="submitting" class="material-symbols-outlined spin-icon">progress_activity</span>
+              {{ submitting ? 'Deleting…' : 'Delete Invoice' }}
+            </button>
           </div>
         </div>
       </div>
@@ -88,6 +118,12 @@ const goBack = () => {
   router.push('/admin/invoices')
 }
 
+const editInvoice = () => {
+  if (invoice.value) {
+    router.push(`/admin/invoices/${invoice.value.id}/edit`)
+  }
+}
+
 const downloadPDF = async () => {
   if (!invoice.value) return
   const id = invoice.value.id
@@ -125,80 +161,212 @@ const handleDelete = async () => {
 </script>
 
 <style scoped>
+/* ── Page Header ── */
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
-.page-header h2 {
-  font-family: var(--font-display);
-  font-size: 24px;
-  margin: 0;
-}
-
-.actions {
+.header-left {
   display: flex;
+  align-items: center;
   gap: 12px;
 }
 
-.btn-primary, .btn-secondary, .btn-danger {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border-radius: var(--radius);
-  font-family: var(--font-display);
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.2s, background 0.2s;
-  border: none;
-}
-
-.btn-primary { background: var(--color-primary); color: white; }
-.btn-primary:hover { opacity: 0.9; }
-
-.btn-secondary { background: white; border: 1px solid var(--color-outline); color: var(--color-on-surface); }
-.btn-secondary:hover { background: var(--color-surface-container); }
-
-.btn-danger { background: var(--color-error); color: white; }
-.btn-danger:hover { opacity: 0.9; }
-
-.preview-container {
-  background: var(--color-surface-container-lowest);
-  padding: 32px 0;
+.back-btn {
+  width: 38px;
+  height: 38px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-outline);
-}
-
-.loading-state, .empty-state {
-  text-align: center;
-  padding: 60px;
+  background: var(--color-surface);
   color: var(--color-on-surface-variant);
-  background: white;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-outline-variant);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.back-btn:hover { background: var(--color-surface-dim); color: var(--color-on-surface); }
+.back-btn .material-symbols-outlined { font-size: 20px; }
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--color-on-surface);
+  margin: 0 0 2px;
+  letter-spacing: -0.01em;
+}
+.page-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
 }
 
-/* Modals */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ── Buttons ── */
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-outline:hover { background: var(--color-surface-dim); }
+.btn-outline .material-symbols-outlined { font-size: 17px; }
+
+.btn-danger-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  background: var(--color-surface);
+  border: 1px solid #fca5a5;
+  border-radius: var(--radius-lg);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-error);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-danger-outline:hover { background: #fef2f2; }
+.btn-danger-outline .material-symbols-outlined { font-size: 17px; }
+
+/* ── State Cards ── */
+.state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 72px 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-xl);
+  text-align: center;
+  color: var(--color-on-surface-variant);
+  font-size: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.empty-icon { font-size: 40px; opacity: 0.3; }
+
+/* ── Spinner ── */
+.spin-icon { animation: spin 0.8s linear infinite; font-size: 32px; color: var(--color-primary); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Invoice Preview Wrapper ── */
+.preview-wrap {
+  background: var(--color-surface-dim);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-xl);
+  padding: 36px 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Modal ── */
 .modal-backdrop {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.4);
-  display: flex; align-items: center; justify-content: center; z-index: 1000;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
 }
 
 .modal {
-  background: white; width: 400px; max-width: 90vw;
-  border-radius: var(--radius-lg); overflow: hidden;
+  background: var(--color-surface);
+  width: 420px;
+  max-width: 100%;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
 }
 
 .modal-header {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 16px 20px; border-bottom: 1px solid var(--color-outline-variant);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 24px 24px 0;
 }
 
-.modal-header h3 { margin: 0; font-family: var(--font-display); }
-.icon-btn-close { background: none; border: none; cursor: pointer; color: var(--color-on-surface-variant); }
-.modal-body { padding: 20px; }
-.modal-footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+.modal-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-icon-wrap.danger { background: #fef2f2; color: var(--color-error); }
+.modal-icon-wrap .material-symbols-outlined { font-size: 24px; }
+
+.modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  line-height: 1;
+}
+.modal-close:hover { background: var(--color-surface-dim); }
+.modal-close .material-symbols-outlined { font-size: 20px; }
+
+.modal-body { padding: 16px 24px 0; }
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 800;
+  margin: 0 0 8px;
+  color: var(--color-on-surface);
+}
+.modal-desc {
+  font-size: 14px;
+  color: var(--color-on-surface-variant);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 24px;
+}
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 18px;
+  background: var(--color-error);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-danger:hover { opacity: 0.88; }
+.btn-danger:disabled { opacity: 0.55; cursor: not-allowed; }
 </style>

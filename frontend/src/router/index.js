@@ -28,15 +28,9 @@ const routes = [
     meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
-    path: '/admin/projects/summary',
+    path: '/admin/projects/summary/:id?',
     name: 'AdminProjectSummary',
     component: () => import('../views/AdminProjectSummaryView.vue'),
-    meta: { requiresAuth: true, roles: ['admin'] },
-  },
-  {
-    path: '/admin/projects/billing',
-    name: 'AdminProjectBilling',
-    component: () => import('../views/AdminProjectBillingView.vue'),
     meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
@@ -82,6 +76,18 @@ const routes = [
     meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
+    path: '/admin/reimbursements',
+    name: 'AdminReimbursements',
+    component: () => import('../views/AdminReimbursements.vue'),
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
+    path: '/admin/salary-slips',
+    name: 'AdminSalarySlips',
+    component: () => import('../views/AdminSalarySlips.vue'),
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
     path: '/admin/employees/:id',
     name: 'EmployeeProfile',
     component: () => import('../views/EmployeeProfile.vue'),
@@ -96,6 +102,12 @@ const routes = [
   {
     path: '/admin/invoices/new',
     name: 'AdminInvoiceForm',
+    component: () => import('../views/InvoiceFormView.vue'),
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
+    path: '/admin/invoices/:id/edit',
+    name: 'AdminInvoiceEdit',
     component: () => import('../views/InvoiceFormView.vue'),
     meta: { requiresAuth: true, roles: ['admin'] },
   },

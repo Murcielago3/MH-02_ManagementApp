@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
-from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router
+from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips
 
 
 security = HTTPBearer()
@@ -16,6 +16,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 # Serve uploaded files (profile photos, documents)
@@ -40,6 +41,8 @@ app.include_router(bank_accounts.router)
 app.include_router(invoices.router)
 app.include_router(teams.router)
 app.include_router(settings_router.router)
+app.include_router(estimates.router)
+app.include_router(salary_slips.router)
 
 
 @app.get("/health")
@@ -79,6 +82,42 @@ async def run_migrations():
         except Exception:
             pass  # Column already exists in this DB — skip and continue
 
+    # Create estimates tables if missing
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS estimates (
+                    id SERIAL PRIMARY KEY,
+                    project_name VARCHAR NOT NULL,
+                    start_date DATE NOT NULL,
+                    end_date DATE NOT NULL,
+                    working_days INTEGER DEFAULT 0,
+                    partner_pay_per_hour NUMERIC(10, 2) DEFAULT 0,
+                    partner_cost NUMERIC(12, 2) DEFAULT 0,
+                    team_cost NUMERIC(12, 2) DEFAULT 0,
+                    grand_total NUMERIC(12, 2) DEFAULT 0,
+                    project_color VARCHAR DEFAULT '#287475',
+                    status VARCHAR DEFAULT 'draft',
+                    created_by INTEGER REFERENCES users(id),
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS estimate_employees (
+                    id SERIAL PRIMARY KEY,
+                    estimate_id INTEGER REFERENCES estimates(id) ON DELETE CASCADE,
+                    emp_type VARCHAR NOT NULL,
+                    base_pay NUMERIC(10, 2) NOT NULL,
+                    hrs_per_day NUMERIC(4, 1) DEFAULT 8,
+                    pay_per_hour NUMERIC(10, 2) DEFAULT 0,
+                    total_hours NUMERIC(10, 2) DEFAULT 0,
+                    total_cost NUMERIC(12, 2) DEFAULT 0
+                )
+            """))
+    except Exception:
+        pass
+
     # Create the settings table (singleton) if missing — covers both Postgres and SQLite.
     try:
         async with engine.begin() as conn:
@@ -94,6 +133,72 @@ async def run_migrations():
                     company_signatory_role VARCHAR,
                     working_hours_per_month NUMERIC(6, 2),
                     salary_months_per_year NUMERIC(4, 2)
+                )
+            """))
+    except Exception:
+        pass
+
+    # Add the TDS column to settings if missing
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("ALTER TABLE settings ADD COLUMN tds_percent NUMERIC(5, 2)"))
+    except Exception:
+        pass
+
+    # Add salary-slip-related employee columns if missing
+    user_columns = [
+        ("gender", "VARCHAR"),
+        ("location", "VARCHAR"),
+        ("bank_name", "VARCHAR"),
+        ("bank_account_number", "VARCHAR"),
+        ("paid_leave_balance", "NUMERIC(6, 1) DEFAULT 0"),
+        ("leave_accrued_through", "VARCHAR"),
+    ]
+    for col_name, col_def in user_columns:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}"))
+        except Exception:
+            pass
+
+    # Leave request paid/unpaid split columns
+    for col_name, col_def in [("paid_days", "INTEGER DEFAULT 0"), ("unpaid_days", "INTEGER DEFAULT 0")]:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(f"ALTER TABLE leave_requests ADD COLUMN {col_name} {col_def}"))
+        except Exception:
+            pass
+
+    # Salary slip leave-deduction columns
+    for col_name, col_def in [
+        ("paid_leave_days", "NUMERIC(5, 1) DEFAULT 0"),
+        ("unpaid_leave_days", "NUMERIC(5, 1) DEFAULT 0"),
+        ("leave_deduction", "NUMERIC(12, 2) DEFAULT 0"),
+    ]:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(f"ALTER TABLE salary_slips ADD COLUMN {col_name} {col_def}"))
+        except Exception:
+            pass
+
+    # Create the salary_slips table if missing
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS salary_slips (
+                    id SERIAL PRIMARY KEY,
+                    employee_id INTEGER NOT NULL REFERENCES users(id),
+                    month VARCHAR NOT NULL,
+                    base_salary NUMERIC(12, 2) DEFAULT 0,
+                    tds_percent NUMERIC(5, 2) DEFAULT 0,
+                    tds_amount NUMERIC(12, 2) DEFAULT 0,
+                    reimbursement_total NUMERIC(12, 2) DEFAULT 0,
+                    net_total NUMERIC(12, 2) DEFAULT 0,
+                    payout_date DATE,
+                    status VARCHAR DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    approved_at TIMESTAMP,
+                    CONSTRAINT uq_salary_slip_employee_month UNIQUE (employee_id, month)
                 )
             """))
     except Exception:

@@ -256,8 +256,9 @@ function formatINR(val) { return inrFmt.format(val || 0) }
   border-radius: var(--radius); font-family: var(--font-body); font-size: 13px;
   color: var(--color-on-surface); background: #fff; outline: none; cursor: pointer; transition: border-color .15s;
 }
-.type-select.placeholder { color: var(--color-outline); }
+.type-select.placeholder { color: var(--color-on-surface-variant); }
 .type-select:focus { border-color: var(--color-primary); box-shadow: 0 0 0 2px rgba(40,116,117,0.12); }
+.type-select option { color: var(--color-on-surface); }
 
 .num-cell { font-variant-numeric: tabular-nums; }
 .locked { color: var(--color-outline); }

@@ -1,40 +1,42 @@
 <template>
   <EmployeeLayout>
     <div class="dashboard-view">
-      
-      <!-- Top Strip Stats -->
+
+      <!-- Stats strip -->
       <div class="stats-strip">
-        <div class="stat-pill date-pill">
-          <span class="material-symbols-outlined icon">calendar_today</span>
-          <div class="stat-text">
+        <div class="stat-card">
+          <div class="stat-icon-wrap">
+            <span class="material-symbols-outlined">calendar_today</span>
+          </div>
+          <div class="stat-body">
             <span class="stat-val">{{ formattedToday }}</span>
             <span class="stat-lbl">Today's Date</span>
           </div>
         </div>
-        
-        <div class="stat-pill leave-pill">
-          <span class="material-symbols-outlined icon">event_available</span>
-          <div class="stat-text">
+
+        <div class="stat-card">
+          <div class="stat-icon-wrap accent">
+            <span class="material-symbols-outlined">event_available</span>
+          </div>
+          <div class="stat-body">
             <span class="stat-val">{{ leavesRemaining }}</span>
             <span class="stat-lbl">Leaves Remaining</span>
           </div>
         </div>
       </div>
 
-      <!-- Main Content -->
-      <div class="main-content">
-        <div class="calendar-column">
-          <CalendarGrid
-            :tasks="allTasks"
-            :projectMap="projectMap"
-            :userMap="{}"
-            :leaves="approvedLeaves"
-            :isAdmin="false"
-            :timesheetWeeks="combinedTimesheetWeeks"
-            @ribbon-click="openTaskDrawer"
-            @timesheet-click="onTimesheetClick"
-          />
-        </div>
+      <!-- Calendar -->
+      <div class="calendar-wrap">
+        <CalendarGrid
+          :tasks="allTasks"
+          :projectMap="projectMap"
+          :userMap="{}"
+          :leaves="approvedLeaves"
+          :isAdmin="false"
+          :timesheetWeeks="combinedTimesheetWeeks"
+          @ribbon-click="openTaskDrawer"
+          @timesheet-click="onTimesheetClick"
+        />
       </div>
 
       <!-- Task Detail Drawer -->
@@ -116,7 +118,7 @@ async function fetchDashboardData() {
       tasksAPI.getMyTasks(),
       projectsAPI.getProjects().catch(() => ({ data: [] })), // may fail for employee role
     ])
-    
+
     user.value = uRes.data
     leaves.value = lRes.data
     allTasks.value = tRes.data
@@ -197,43 +199,54 @@ async function updateTaskStatus(taskId, status) {
   gap: 24px;
 }
 
-/* ── Top Strip ── */
+/* ── Stats strip ── */
 .stats-strip {
   display: flex;
   gap: 16px;
 }
-.stat-pill {
+
+.stat-card {
   flex: 1;
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--color-outline);
   border-radius: var(--radius-lg);
-  padding: 16px 20px;
+  padding: 18px 20px;
   display: flex;
   align-items: center;
   gap: 16px;
+  box-shadow: var(--shadow-sm);
 }
 
-.stat-pill .icon {
-  font-size: 28px;
-  color: var(--color-outline);
+.stat-icon-wrap {
+  width: 42px; height: 42px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-dim);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.stat-icon-wrap .material-symbols-outlined {
+  font-size: 22px;
+  color: var(--color-on-surface-variant);
+}
+.stat-icon-wrap.accent {
+  background: var(--color-primary-light);
+}
+.stat-icon-wrap.accent .material-symbols-outlined {
+  color: var(--color-primary);
 }
 
-.stat-pill.checkin-pill.active {
-  background: rgba(40, 116, 117, 0.05);
-  border-color: var(--color-primary);
-}
-.stat-pill.checkin-pill.active .icon { color: var(--color-primary); }
-
-.stat-text {
+.stat-body {
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
 .stat-val {
   font-family: var(--font-display);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--color-on-surface);
+  line-height: 1.2;
 }
 
 .stat-lbl {
@@ -241,24 +254,12 @@ async function updateTaskStatus(taskId, status) {
   color: var(--color-on-surface-variant);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  font-weight: 600;
 }
 
-/* ── Main Layout ── */
-.main-content {
-  display: block;
-}
-
-.column-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-.column-title {
-  font-family: 'Integral CF', sans-serif;
-  font-size: 18px;
-  color: var(--color-on-surface);
-  margin: 0;
+/* ── Calendar ── */
+.calendar-wrap {
+  flex: 1;
 }
 
 @keyframes spin { 100% { transform: rotate(360deg); } }

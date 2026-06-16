@@ -78,6 +78,7 @@
           <tr><td>Bank Name</td><td>{{ invoice.bank_account.bank_name }}</td></tr>
           <tr><td>Account</td><td>Type {{ invoice.bank_account.account_type }}</td></tr>
           <tr><td>Account Holder Name</td><td>{{ invoice.bank_account.account_holder_name }}</td></tr>
+          <tr><td>Account Number</td><td>{{ invoice.bank_account.account_number }}</td></tr>
           <tr><td>IFSC Code</td><td>{{ invoice.bank_account.ifsc_code }}</td></tr>
         </table>
       </div>

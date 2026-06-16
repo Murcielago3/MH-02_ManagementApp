@@ -29,7 +29,7 @@ class Invoice(Base):
     total = Column(Numeric(12, 2), default=0)
     tax_type = Column(String, nullable=True)  # CGST_SGST or IGST
 
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=True)
     bank_account_id = Column(Integer, ForeignKey("bank_accounts.id"), nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)

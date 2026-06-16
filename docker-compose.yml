@@ -1,6 +1,10 @@
 services:
   api:
     build: ./backend
+    # Dev: single process with hot-reload (replaces the Dockerfile's 2-worker CMD).
+    # The image ships the GTK/Pango libs WeasyPrint needs, so PDF generation works
+    # here even though the Windows host venv can't load them.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
     volumes:

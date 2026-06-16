@@ -116,6 +116,10 @@
           <span class="material-symbols-outlined">restart_alt</span>
           Start New Estimate
         </button>
+        <button id="est-save" class="btn-save" :disabled="store.saving" @click="handleSave">
+          <span class="material-symbols-outlined">{{ store.saving ? 'hourglass_empty' : 'save' }}</span>
+          {{ store.saving ? 'Saving...' : (store.savedEstimateId ? 'Update Estimate' : 'Save Estimate') }}
+        </button>
         <button id="est-add-project" class="btn-add" :disabled="isAddingProject" @click="handleAddProject">
           <span class="material-symbols-outlined">{{ isAddingProject ? 'hourglass_empty' : 'library_add' }}</span>
           {{ isAddingProject ? 'Adding...' : 'Add to Projects' }}
@@ -193,6 +197,21 @@ function formatINR(val) {
 function formatDate(d) {
   if (!d) return ''
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+async function handleSave() {
+  try {
+    await store.saveEstimate({
+      partnerCost: finalPartnerCost.value,
+      teamCost: finalTeamCost.value,
+      grandTotal: finalGrandTotal.value,
+      projectColor: projectColor.value,
+      status: 'draft',
+    })
+    alert(store.savedEstimateId ? 'Estimate saved successfully!' : 'Estimate created!')
+  } catch (err) {
+    alert('Failed to save estimate. Please try again.')
+  }
 }
 
 function handlePrint() {
@@ -507,6 +526,23 @@ async function handleAddProject() {
 .btn-add:active:not(:disabled) { transform: scale(0.97); }
 .btn-add:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-add .material-symbols-outlined { font-size: 18px; }
+
+.btn-save {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 24px;
+  background: #1e293b;
+  color: #ffffff;
+  border: none; border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  font-size: 14px; font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+.btn-save:hover:not(:disabled) { opacity: 0.85; }
+.btn-save:active:not(:disabled) { transform: scale(0.97); }
+.btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-save .material-symbols-outlined { font-size: 18px; }
 
 .btn-print {
   display: flex; align-items: center; gap: 8px;

@@ -71,8 +71,7 @@ export const usersAPI = {
   resolveFileUrl: (relativeUrl) => {
     if (!relativeUrl) return null
     if (relativeUrl.startsWith('http')) return relativeUrl
-    // Static files are served at the root by Nginx, not under /api
-    const origin = typeof window !== 'undefined' ? window.location.origin : API_BASE_URL
-    return `${origin}${relativeUrl}`
+    // Static files are served by the backend (FastAPI), so always use the API base URL
+    return `${API_BASE_URL}${relativeUrl}`
   },
 }

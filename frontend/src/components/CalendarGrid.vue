@@ -300,9 +300,11 @@ function ribbonStyle(ribbon) {
     width: `calc(${ribbon.widthCells} * (100% / 7) - 6px)`,
     top: `${28 + ribbon.lane * 28}px`,
     background: color,
-    height: '24px',
+    height: '26px',
     borderRadius: '4px',
-    opacity: ribbon.task.status === 'completed' ? '0.5' : '0.88',
+    opacity: ribbon.task.status === 'completed' ? '0.45' : '1',
+    border: '1px solid rgba(0,0,0,0.18)',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
   }
 }
 

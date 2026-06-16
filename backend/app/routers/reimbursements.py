@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional
@@ -46,9 +46,9 @@ async def my_reimbursements(
 
 @router.post("/", status_code=201)
 async def create_reimbursement(
-    amount: float,
-    reason: str,
-    date: date,
+    amount: float = Form(...),
+    reason: str = Form(...),
+    date: date = Form(...),
     proof: Optional[UploadFile] = File(None),
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)

@@ -30,6 +30,7 @@ DEFAULTS = {
     "company_signatory_role": "Partner",
     "working_hours_per_month": 160,
     "salary_months_per_year": 13,
+    "tds_percent": 10,
 }
 
 
@@ -43,6 +44,7 @@ class SettingsUpdate(BaseModel):
     company_signatory_role: Optional[str] = None
     working_hours_per_month: Optional[float] = None
     salary_months_per_year: Optional[float] = None
+    tds_percent: Optional[float] = None
 
 
 async def get_or_create_settings(db: AsyncSession) -> Settings:
@@ -79,6 +81,7 @@ def settings_dict(s: Settings) -> dict:
         "company_signatory_role": s.company_signatory_role,
         "working_hours_per_month": float(s.working_hours_per_month or DEFAULTS["working_hours_per_month"]),
         "salary_months_per_year": float(s.salary_months_per_year or DEFAULTS["salary_months_per_year"]),
+        "tds_percent": float(s.tds_percent if s.tds_percent is not None else DEFAULTS["tds_percent"]),
     }
 
 

@@ -22,7 +22,7 @@ class WeeklyTimesheetEntry(Base):
 
     id = Column(Integer, primary_key=True)
     timesheet_id = Column(Integer, ForeignKey("weekly_timesheets.id", ondelete="CASCADE"), nullable=False)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
     hours = Column(Numeric(5, 2), nullable=False)
     description = Column(String, nullable=True)
 

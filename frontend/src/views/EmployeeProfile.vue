@@ -79,6 +79,18 @@
             <span>{{ employee.leaves_allowed }}</span>
           </div>
           <div class="info-item">
+            <label>Paid Leave Balance</label>
+            <span>{{ Number(employee.paid_leave_balance || 0) }} days</span>
+          </div>
+          <div class="info-item">
+            <label>Probation</label>
+            <span>
+              <span class="status-badge" :class="onProbation ? 'status-pending' : 'status-approved'">
+                {{ onProbation ? `Until ${probationEndLabel}` : 'Completed' }}
+              </span>
+            </span>
+          </div>
+          <div class="info-item">
             <label>Manager</label>
             <span>{{ employee.manager?.name || '—' }}</span>
           </div>
@@ -147,21 +159,29 @@
                 <th>Start Date</th>
                 <th>End Date</th>
                 <th>Days</th>
+                <th>Paid</th>
+                <th>Unpaid</th>
                 <th>Reason</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="loadingLeaves">
-                <td colspan="5" class="empty-cell">Loading leave requests...</td>
+                <td colspan="7" class="empty-cell">Loading leave requests...</td>
               </tr>
               <tr v-else-if="leaves.length === 0">
-                <td colspan="5" class="empty-cell">No leave requests.</td>
+                <td colspan="7" class="empty-cell">No leave requests.</td>
               </tr>
               <tr v-for="l in leaves" :key="l.id" class="proj-row">
                 <td class="mono">{{ formatDate(l.start_date) }}</td>
                 <td class="mono">{{ formatDate(l.end_date) }}</td>
                 <td class="mono">{{ l.days_count }}</td>
+                <td class="mono">{{ l.status === 'approved' ? l.paid_days : '—' }}</td>
+                <td class="mono">
+                  <span :class="{ 'unpaid-flag': l.status === 'approved' && l.unpaid_days > 0 }">
+                    {{ l.status === 'approved' ? l.unpaid_days : '—' }}
+                  </span>
+                </td>
                 <td class="muted">{{ l.reason }}</td>
                 <td>
                   <span class="status-badge" :class="`status-${l.status}`">
@@ -337,6 +357,18 @@ const initials = computed(() => {
   const name = employee.value.name || ''
   return name.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2)
 })
+
+const probationEndDate = computed(() => {
+  const j = employee.value?.joining_date
+  if (!j) return null
+  const d = new Date(j)
+  d.setMonth(d.getMonth() + 3)
+  return d
+})
+const onProbation = computed(() => probationEndDate.value && new Date() < probationEndDate.value)
+const probationEndLabel = computed(() =>
+  probationEndDate.value ? probationEndDate.value.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+)
 
 async function fetchEmployee() {
   try {
@@ -610,6 +642,7 @@ function isDueToday(task) {
 .proj-name { font-weight: 500; }
 .muted { color: var(--color-on-surface-variant); }
 .mono { font-variant-numeric: tabular-nums; }
+.unpaid-flag { color: #b45309; font-weight: 700; }
 
 .empty-cell {
   text-align: center; padding: 48px 16px; color: var(--color-on-surface-variant);

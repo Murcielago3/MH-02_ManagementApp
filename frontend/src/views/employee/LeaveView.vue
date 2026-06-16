@@ -1,105 +1,163 @@
 <template>
   <EmployeeLayout>
     <div class="leave-view">
-      <div class="view-header">
-        <h2 class="view-title">Leaves Management</h2>
-      </div>
 
       <!-- KPI Cards -->
       <div class="kpi-grid">
-        <div class="kpi-card highlight-card">
-          <div class="kpi-label">Days Remaining</div>
-          <div class="kpi-value">{{ leavesRemaining }}</div>
-          <div class="kpi-subtext">Out of {{ leavesAllowed }} total</div>
+        <div class="kpi-card highlight">
+          <div class="kpi-icon-wrap">
+            <span class="material-symbols-outlined">event_available</span>
+          </div>
+          <div class="kpi-body">
+            <span class="kpi-value">{{ paidLeaveBalance }}</span>
+            <span class="kpi-label">Paid Leave Balance</span>
+            <span class="kpi-sub">+1.5 days added each month</span>
+          </div>
+        </div>
+        <div class="kpi-card" :class="{ 'probation-card': onProbation }">
+          <div class="kpi-icon-wrap" :class="{ warn: onProbation }">
+            <span class="material-symbols-outlined">{{ onProbation ? 'hourglass_top' : 'verified' }}</span>
+          </div>
+          <div class="kpi-body">
+            <span class="kpi-value" style="font-size:18px;">{{ onProbation ? 'On Probation' : 'Confirmed' }}</span>
+            <span class="kpi-label">Status</span>
+            <span class="kpi-sub">{{ onProbation ? `All leaves unpaid until ${probationEndLabel}` : 'Paid leaves apply' }}</span>
+          </div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">Total Allowed</div>
-          <div class="kpi-value">{{ leavesAllowed }}</div>
-          <div class="kpi-subtext">Annual quota</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Total Used</div>
-          <div class="kpi-value">{{ leavesUsed }}</div>
-          <div class="kpi-subtext">Approved working days</div>
+          <div class="kpi-icon-wrap warn">
+            <span class="material-symbols-outlined">money_off</span>
+          </div>
+          <div class="kpi-body">
+            <span class="kpi-value">{{ unpaidDaysTaken }}</span>
+            <span class="kpi-label">Unpaid Days Taken</span>
+            <span class="kpi-sub">Deducted from salary</span>
+          </div>
         </div>
       </div>
 
+      <!-- Content grid -->
       <div class="content-grid">
-        <!-- Left: Apply Form -->
-        <div class="apply-panel">
-          <h3 class="panel-title">Apply for Leave</h3>
-          <form @submit.prevent="submitLeave" class="leave-form">
-            <div class="form-row">
+        <!-- Apply panel -->
+        <div class="panel apply-panel">
+          <div class="panel-header">
+            <h3 class="panel-title">Apply for Leave</h3>
+          </div>
+          <div class="panel-body">
+            <form @submit.prevent="submitLeave" class="leave-form">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Start Date</label>
+                  <input type="date" v-model="form.start_date" required class="field-input" :min="todayDate" />
+                </div>
+                <div class="form-group">
+                  <label>End Date</label>
+                  <input type="date" v-model="form.end_date" required class="field-input" :min="form.start_date || todayDate" />
+                </div>
+              </div>
+
+              <div
+                v-if="calculatedDays > 0"
+                class="calc-feedback"
+                :class="{ warn: estimatedUnpaid > 0 }"
+              >
+                <span class="material-symbols-outlined feedback-icon">
+                  {{ estimatedUnpaid > 0 ? 'info' : 'calculate' }}
+                </span>
+                <div class="feedback-text">
+                  <span class="feedback-title">
+                    {{ estimatedUnpaid > 0 ? 'Some days will be unpaid' : 'Duration estimate' }}
+                  </span>
+                  <p>
+                    This request covers <strong>{{ calculatedDays }}</strong> working day{{ calculatedDays !== 1 ? 's' : '' }}.
+                    <template v-if="estimatedUnpaid > 0">
+                      <br><strong>{{ estimatedPaid }}</strong> paid, <strong>{{ estimatedUnpaid }}</strong> unpaid
+                      ({{ onProbation ? 'probation period' : 'balance exhausted' }}) — unpaid days are deducted from salary.
+                    </template>
+                  </p>
+                </div>
+              </div>
+
               <div class="form-group">
-                <label>Start Date</label>
-                <input type="date" v-model="form.start_date" required class="field-input" :min="todayDate">
+                <label>Reason <span class="required">*</span></label>
+                <textarea
+                  v-model="form.reason"
+                  rows="4"
+                  required
+                  class="field-input"
+                  placeholder="Please provide a brief explanation…"
+                ></textarea>
               </div>
-              <div class="form-group">
-                <label>End Date</label>
-                <input type="date" v-model="form.end_date" required class="field-input" :min="form.start_date || todayDate">
-              </div>
-            </div>
 
-            <div class="calc-feedback" :class="{ 'text-error': hasInsufficientBalance }" v-if="calculatedDays > 0">
-              <span class="material-symbols-outlined icon">calculate</span>
-              <div class="feedback-text">
-                <span v-if="hasInsufficientBalance">Insufficient balance</span>
-                <span v-else>Duration calculation</span>
-                <p>This request requires <strong>{{ calculatedDays }}</strong> working days.</p>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label>Reason *</label>
-              <textarea v-model="form.reason" rows="3" required class="field-input" placeholder="Please provide a brief explanation..."></textarea>
-            </div>
-
-            <button type="submit" class="btn-submit" :disabled="submitting || hasInsufficientBalance || calculatedDays <= 0">
-              {{ submitting ? 'Submitting Request...' : 'Submit Application' }}
-            </button>
-          </form>
+              <button
+                type="submit"
+                class="btn-submit"
+                :disabled="submitting || calculatedDays <= 0"
+              >
+                <span v-if="submitting" class="material-symbols-outlined btn-spinner">refresh</span>
+                {{ submitting ? 'Submitting…' : 'Submit Application' }}
+              </button>
+            </form>
+          </div>
         </div>
 
-        <!-- Right: History -->
-        <div class="history-panel">
-          <h3 class="panel-title">Leave History</h3>
-          
-          <div v-if="loadingHistory" class="loading-state">
-            <span class="material-symbols-outlined spinner">refresh</span>
-            <p>Loading records...</p>
+        <!-- History panel -->
+        <div class="panel history-panel">
+          <div class="panel-header">
+            <h3 class="panel-title">Leave History</h3>
+            <span class="record-count" v-if="leaveHistory.length">{{ leaveHistory.length }} records</span>
           </div>
-          
-          <div v-else-if="leaveHistory.length === 0" class="empty-state">
-            <span class="material-symbols-outlined">event_busy</span>
-            <p>No leave requests found in the system.</p>
-          </div>
-          
-          <div v-else class="table-container">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Date Range</th>
-                  <th class="text-center">Days</th>
-                  <th>Reason</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="leave in leaveHistory" :key="leave.id">
-                  <td class="mono">{{ formatDateShort(leave.start_date) }} – {{ formatDateShort(leave.end_date) }}</td>
-                  <td class="text-center mono">{{ countWorkingDays(leave.start_date, leave.end_date) }}</td>
-                  <td class="reason-cell" :title="leave.reason">{{ leave.reason || '—' }}</td>
-                  <td>
-                    <span class="status-badge" :class="leave.status">
-                      {{ formatStatus(leave.status) }}
-                    </span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="panel-body no-pad">
+            <div v-if="loadingHistory" class="loading-state">
+              <span class="material-symbols-outlined spinner">refresh</span>
+              <p>Loading records…</p>
+            </div>
+            <div v-else-if="leaveHistory.length === 0" class="empty-state">
+              <span class="material-symbols-outlined">event_busy</span>
+              <p>No leave requests found.</p>
+            </div>
+            <div v-else class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date Range</th>
+                    <th class="center">Days</th>
+                    <th class="center">Paid</th>
+                    <th class="center">Unpaid</th>
+                    <th>Reason</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="leave in leaveHistory" :key="leave.id">
+                    <td class="mono">{{ formatDateShort(leave.start_date) }} – {{ formatDateShort(leave.end_date) }}</td>
+                    <td class="center mono">{{ countWorkingDays(leave.start_date, leave.end_date) }}</td>
+                    <td class="center mono">{{ leave.status === 'approved' ? leave.paid_days : '—' }}</td>
+                    <td class="center mono">
+                      <span :class="{ 'unpaid-flag': leave.status === 'approved' && leave.unpaid_days > 0 }">
+                        {{ leave.status === 'approved' ? leave.unpaid_days : '—' }}
+                      </span>
+                    </td>
+                    <td class="reason-cell" :title="leave.reason">{{ leave.reason || '—' }}</td>
+                    <td>
+                      <span class="status-badge" :class="leave.status">
+                        {{ formatStatus(leave.status) }}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
+
+      <!-- Info notice -->
+      <div class="info-notice">
+        <span class="material-symbols-outlined">info</span>
+        <p>Leave requests require manager approval. Contact HR if you need to adjust an approved leave.</p>
+      </div>
+
     </div>
   </EmployeeLayout>
 </template>
@@ -151,30 +209,41 @@ const fetchLeaveHistory = async () => {
   }
 }
 
-const leavesAllowed = computed(() => currentUser.value?.leaves_allowed || 0)
+const paidLeaveBalance = computed(() => Number(currentUser.value?.paid_leave_balance || 0))
 
-const leavesUsed = computed(() => {
+const unpaidDaysTaken = computed(() => {
   return leaveHistory.value
     .filter(l => l.status === 'approved')
-    .reduce((total, l) => total + countWorkingDays(l.start_date, l.end_date), 0)
+    .reduce((total, l) => total + (Number(l.unpaid_days) || 0), 0)
 })
 
-const leavesRemaining = computed(() => Math.max(0, leavesAllowed.value - leavesUsed.value))
-
-const progressPercentage = computed(() => {
-  if (leavesAllowed.value === 0) return 0
-  return Math.min(100, (leavesRemaining.value / leavesAllowed.value) * 100)
+// Probation = 3 months from joining date
+const probationEndDate = computed(() => {
+  const j = currentUser.value?.joining_date
+  if (!j) return null
+  const d = new Date(j)
+  d.setMonth(d.getMonth() + 3)
+  return d
 })
+const onProbation = computed(() => probationEndDate.value && new Date() < probationEndDate.value)
+const probationEndLabel = computed(() =>
+  probationEndDate.value ? probationEndDate.value.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+)
 
 const calculatedDays = computed(() => {
   if (!form.start_date || !form.end_date) return 0
   return countWorkingDays(form.start_date, form.end_date)
 })
 
-const hasInsufficientBalance = computed(() => calculatedDays.value > leavesRemaining.value)
+// Estimated paid/unpaid split for the request being composed
+const estimatedPaid = computed(() => {
+  if (onProbation.value) return 0
+  return Math.min(calculatedDays.value, Math.floor(paidLeaveBalance.value))
+})
+const estimatedUnpaid = computed(() => Math.max(0, calculatedDays.value - estimatedPaid.value))
 
 const submitLeave = async () => {
-  if (hasInsufficientBalance.value || calculatedDays.value <= 0) return
+  if (calculatedDays.value <= 0) return
 
   submitting.value = true
   try {
@@ -210,308 +279,244 @@ const formatStatus = (s) => {
 
 <style scoped>
 .leave-view {
-  max-width: 1440px;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
-.view-header {
-  margin-bottom: 32px;
-}
-
-.view-title {
-  font-family: 'Integral CF', sans-serif;
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--color-on-surface);
-  margin: 0;
-  letter-spacing: -0.02em;
-}
-
-/* KPIs */
+/* ── KPI Grid ── */
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-  margin-bottom: 32px;
+  gap: 16px;
 }
-
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
   .kpi-grid { grid-template-columns: 1fr; }
 }
 
 .kpi-card {
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--color-outline);
   border-radius: var(--radius-lg);
-  padding: 24px;
+  padding: 20px;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  box-shadow: var(--shadow-sm);
 }
-
-.kpi-card.highlight-card {
+.kpi-card.highlight {
+  background: var(--color-primary-light);
   border-color: var(--color-primary);
-  background: var(--color-primary-container);
 }
 
-.kpi-label {
-  font-family: var(--font-body);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--color-on-surface-variant);
-  letter-spacing: 0.05em;
-  margin-bottom: 8px;
+.kpi-icon-wrap {
+  width: 44px; height: 44px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-dim);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
 }
-
-.kpi-card.highlight-card .kpi-label {
-  color: var(--color-on-primary-container);
+.kpi-icon-wrap .material-symbols-outlined { font-size: 22px; color: var(--color-on-surface-variant); }
+.kpi-card.highlight .kpi-icon-wrap {
+  background: rgba(40,116,117,0.15);
 }
+.kpi-card.highlight .kpi-icon-wrap .material-symbols-outlined { color: var(--color-primary); }
+.kpi-icon-wrap.warn .material-symbols-outlined { color: #d97706; }
 
+.kpi-body { display: flex; flex-direction: column; gap: 2px; }
 .kpi-value {
-  font-family: 'Integral CF', sans-serif;
-  font-size: 36px;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 28px; font-weight: 700; line-height: 1;
   color: var(--color-on-surface);
-  line-height: 1;
-  margin-bottom: 8px;
+}
+.kpi-card.highlight .kpi-value { color: var(--color-primary); }
+.kpi-label {
+  font-size: 13px; font-weight: 600;
+  color: var(--color-on-surface);
+}
+.kpi-sub {
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
 }
 
-.kpi-card.highlight-card .kpi-value {
-  color: var(--color-primary);
-}
-
-.kpi-subtext {
-  font-size: 13px;
-  color: var(--color-outline);
-}
-
-/* Layout */
+/* ── Content Grid ── */
 .content-grid {
   display: grid;
-  grid-template-columns: 380px 1fr;
-  gap: 32px;
+  grid-template-columns: 360px 1fr;
+  gap: 20px;
+  align-items: start;
 }
-
 @media (max-width: 1024px) {
   .content-grid { grid-template-columns: 1fr; }
 }
 
-.panel-title {
-  font-family: 'Integral CF', sans-serif;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--color-on-surface);
-  margin: 0 0 24px 0;
-  letter-spacing: -0.01em;
-}
-
-/* Apply Panel */
-.apply-panel {
+/* ── Panel ── */
+.panel {
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--color-outline);
   border-radius: var(--radius-lg);
-  padding: 24px;
-  height: max-content;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
-
-.leave-form {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-outline);
+  background: var(--color-surface-dim);
 }
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 14px; font-weight: 700;
+  color: var(--color-on-surface);
+  margin: 0;
+  text-transform: uppercase; letter-spacing: 0.06em;
 }
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.form-group label {
-  font-size: 12px;
-  font-weight: 600;
+.record-count {
+  font-size: 11px; font-weight: 600;
   color: var(--color-on-surface-variant);
+  background: var(--color-background);
+  border: 1px solid var(--color-outline);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
 }
+.panel-body { padding: 20px; }
+.panel-body.no-pad { padding: 0; }
 
+/* ── Leave form ── */
+.leave-form { display: flex; flex-direction: column; gap: 16px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group label {
+  font-size: 12px; font-weight: 700;
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.required { color: var(--color-error); }
 .field-input {
   width: 100%;
-  height: 44px;
-  padding: 0 12px;
-  border-radius: 4px;
-  border: 1px solid #cbd5e1;
-  font-family: var(--font-body);
-  font-size: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body); font-size: 14px;
+  color: var(--color-on-surface);
   background: var(--color-surface);
-  outline: none;
   box-sizing: border-box;
-  transition: all 0.2s;
+  transition: border-color var(--transition);
+  outline: none;
 }
-
-textarea.field-input {
-  height: auto;
-  padding: 12px;
-  resize: vertical;
-}
-
+textarea.field-input { resize: vertical; }
 .field-input:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(40, 116, 117, 0.1);
+  box-shadow: 0 0 0 3px rgba(40,116,117,.10);
 }
 
 .calc-feedback {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 16px;
-  background: var(--color-surface-container);
-  border-radius: 4px;
-  border: 1px solid var(--color-outline-variant);
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-md);
 }
-.calc-feedback.text-error {
-  background: #fee2e2;
+.calc-feedback.error {
+  background: #fef2f2;
   border-color: #fca5a5;
-  color: #991b1b;
 }
-
-.calc-feedback .icon {
-  font-size: 20px;
-  margin-top: 2px;
-  color: var(--color-on-surface-variant);
+.calc-feedback.warn {
+  background: #fffbeb;
+  border-color: #fde68a;
 }
-.calc-feedback.text-error .icon {
-  color: #dc2626;
+.calc-feedback.warn .feedback-icon { color: #d97706; }
+.calc-feedback.warn .feedback-title { color: #b45309; }
+.kpi-card.probation-card { background: #fffbeb; border-color: #fde68a; }
+.unpaid-flag { color: #b45309; font-weight: 700; }
+.feedback-icon {
+  font-size: 18px; flex-shrink: 0; margin-top: 1px;
+  color: #16a34a;
 }
-
-.feedback-text {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.calc-feedback.error .feedback-icon { color: var(--color-error); }
+.feedback-text { display: flex; flex-direction: column; gap: 3px; }
+.feedback-title {
+  font-size: 12px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: #15803d;
 }
-.feedback-text span {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--color-on-surface-variant);
-}
-.calc-feedback.text-error .feedback-text span {
-  color: #991b1b;
-}
-.feedback-text p {
-  margin: 0;
-  font-size: 14px;
-  color: var(--color-on-surface);
-}
+.calc-feedback.error .feedback-title { color: #b91c1c; }
+.feedback-text p { margin: 0; font-size: 13.5px; color: var(--color-on-surface); }
 
 .btn-submit {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
   height: 44px;
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 14px;
-  border: none;
-  border-radius: 4px;
+  background: var(--color-primary); color: #fff;
+  font-family: var(--font-body); font-weight: 600; font-size: 14px;
+  border: none; border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background 0.2s;
-  margin-top: 8px;
+  transition: background var(--transition);
 }
-.btn-submit:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-.btn-submit:hover:not(:disabled) {
-  background: #1a4e4f;
-}
+.btn-submit:hover:not(:disabled) { background: #1a5657; }
+.btn-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-spinner { font-size: 18px; animation: spin 1s linear infinite; }
 
-/* History Panel */
-.history-panel {
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-}
-
-.loading-state, .empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 64px 0;
-  color: var(--color-on-surface-variant);
-}
-
-.loading-state p, .empty-state p {
-  margin: 16px 0 0 0;
-  font-size: 14px;
-}
-
-.empty-state .material-symbols-outlined {
-  font-size: 40px;
-  color: var(--color-outline);
-}
-
-.table-container {
-  overflow-x: auto;
-}
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
+/* ── History table ── */
+.table-wrap { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; }
 .data-table th {
   text-align: left;
   padding: 12px 16px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em;
   color: var(--color-on-surface-variant);
-  border-bottom: 2px solid var(--color-outline-variant);
-  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--color-outline);
+  background: var(--color-surface-dim);
 }
-
+.data-table th.center, .data-table td.center { text-align: center; }
 .data-table td {
-  padding: 16px;
-  font-size: 14px;
+  padding: 14px 16px;
+  font-size: 13.5px;
   color: var(--color-on-surface);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: 1px solid var(--color-outline);
 }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: var(--color-surface-dim); }
 
-.data-table th.text-center, .data-table td.text-center {
-  text-align: center;
-}
-
-.mono {
-  font-family: var(--font-body);
-  font-variant-numeric: tabular-nums;
-}
-
+.mono { font-variant-numeric: tabular-nums; }
 .reason-cell {
-  max-width: 280px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  max-width: 260px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
 }
 
 .status-badge {
   display: inline-block;
-  padding: 4px 10px;
-  border-radius: 2px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em;
 }
-
 .status-badge.pending { background: #fef3c7; color: #b45309; }
-.status-badge.approved { background: #ecfdf5; color: #059669; }
-.status-badge.rejected { background: #fef2f2; color: #dc2626; }
+.status-badge.approved { background: #dcfce7; color: #15803d; }
+.status-badge.rejected { background: #fee2e2; color: #dc2626; }
+
+/* ── States ── */
+.loading-state, .empty-state {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 56px 0;
+  gap: 12px;
+  color: var(--color-on-surface-variant);
+}
+.loading-state p, .empty-state p { margin: 0; font-size: 14px; }
+.empty-state .material-symbols-outlined { font-size: 36px; color: var(--color-outline); }
+
+/* ── Info notice ── */
+.info-notice {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px 18px;
+  background: var(--color-surface-dim);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+}
+.info-notice .material-symbols-outlined { font-size: 18px; color: var(--color-primary); flex-shrink: 0; margin-top: 1px; }
+.info-notice p { margin: 0; font-size: 13px; color: var(--color-on-surface-variant); line-height: 1.5; }
 
 @keyframes spin { 100% { transform: rotate(360deg); } }
-.spinner { animation: spin 1s linear infinite; font-size: 24px; }
+.spinner { font-size: 24px; animation: spin 1s linear infinite; color: var(--color-on-surface-variant); }
 </style>

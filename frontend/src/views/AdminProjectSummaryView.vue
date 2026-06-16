@@ -1,187 +1,237 @@
 <template>
   <AppLayout>
+    <!-- Page Header -->
     <div class="page-header">
-      <div>
-        <h1 class="page-title">Project Summary</h1>
-        <p class="page-sub">Employee spend and partner remuneration by project</p>
+      <div class="page-header__left">
+        <button class="back-btn" @click="goBack">
+          <span class="material-symbols-outlined">arrow_back</span>
+        </button>
+        <div>
+          <h1 class="page-title">Project Summary</h1>
+          <p class="page-sub">Employee spend and partner remuneration</p>
+        </div>
+      </div>
+      <div class="page-header__actions" v-if="summaryProjectMeta">
+        <button class="btn-outline" @click="editProject">
+          <span class="material-symbols-outlined">edit</span>
+          Edit Project
+        </button>
       </div>
     </div>
 
-    <div class="split-layout">
-      <aside class="col-left">
-        <ProjectSelector v-model:selectedProjectId="selectedProjectId" />
-      </aside>
-      <section class="col-right">
-        <transition name="fade-panel" mode="out-in">
-          <div v-if="!selectedProjectId" key="empty" class="empty-center">
-            <span class="material-symbols-outlined empty-ic">summarize</span>
-            <p>Select a project to view its summary</p>
-          </div>
+    <!-- Loading skeleton -->
+    <div v-if="summaryLoading" class="detail-skeleton">
+      <div class="sk-h1" />
+      <div class="sk-sub" />
+      <div class="sk-table" />
+    </div>
 
-          <div v-else-if="summaryLoading" key="load" class="detail-skeleton">
-            <div class="sk-h1" />
-            <div class="sk-sub" />
-            <div class="sk-table" />
-          </div>
+    <!-- Error -->
+    <div v-else-if="summaryError" class="empty-center text-error">
+      <span class="material-symbols-outlined" style="font-size:36px;margin-bottom:8px;opacity:0.5;">error_outline</span>
+      {{ summaryError }}
+    </div>
 
-          <div v-else-if="summaryError" key="err" class="empty-center text-error">
-            {{ summaryError }}
-          </div>
+    <!-- Main content -->
+    <div v-else-if="selectedProjectId" class="detail-content">
 
-          <div v-else key="content" class="detail-content">
-            <div class="detail-toolbar">
-              <div class="header-block">
-                <h2 class="detail-title">{{ apiSummary.project_name }}</h2>
-                <p class="detail-sub">
-                  {{ summaryProjectMeta?.project_number }} · {{ summaryProjectMeta?.year || '—' }}
-                </p>
-                <div class="header-meta">
-                  <span class="dot" :style="{ background: summaryProjectMeta?.color || '#287475' }" />
-                  <span class="stage-badge" :class="stageClass(summaryProjectMeta?.current_stage)">
-                    {{ summaryProjectMeta?.current_stage || 'N/A' }}
-                  </span>
+      <!-- Project identity header -->
+      <div class="project-header">
+        <div class="project-header__left">
+          <div class="project-color-dot" :style="{ background: summaryProjectMeta?.color || 'var(--color-primary)' }" />
+          <div>
+            <h2 class="detail-title">{{ apiSummary.project_name }}</h2>
+            <p class="detail-sub">
+              {{ summaryProjectMeta?.project_number }}
+              <template v-if="summaryProjectMeta?.year"> · {{ summaryProjectMeta.year }}</template>
+            </p>
+          </div>
+        </div>
+        <span class="stage-badge" :class="stageClass(summaryProjectMeta?.current_stage)">
+          {{ summaryProjectMeta?.current_stage || 'N/A' }}
+        </span>
+      </div>
+
+            <!-- Section: Project Financials -->
+            <div class="section-block">
+              <div class="section-header">
+                <span class="material-symbols-outlined section-icon">payments</span>
+                <span class="section-title">Project Financials</span>
+                <span class="type-tag neutral">BUDGET</span>
+              </div>
+
+              <div class="partner-card">
+                <div class="partner-grid">
+                  <div class="partner-metric">
+                    <span class="metric-label">Total Project Cost</span>
+                    <div class="metric-value">{{ summaryProjectMeta?.project_remuneration ? formatInr(summaryProjectMeta.project_remuneration, 0) : '—' }}</div>
+                  </div>
+                  <div class="partner-metric">
+                    <span class="metric-label">Employee Remuneration</span>
+                    <div class="metric-value">{{ summaryProjectMeta?.employee_remuneration ? formatInr(summaryProjectMeta.employee_remuneration, 0) : '—' }}</div>
+                  </div>
+                  <div class="partner-metric">
+                    <span class="metric-label">Partner Remuneration</span>
+                    <div class="metric-value">{{ summaryProjectMeta?.partner_remuneration ? formatInr(summaryProjectMeta.partner_remuneration, 0) : '—' }}</div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div class="table-card">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Employee</th>
-                    <th>Designation</th>
-                    <th class="num">Base Pay/mo</th>
-                    <th class="num">Rate/hr</th>
-                    <th class="num">Hours Worked</th>
-                    <th class="num">Total Spent</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-if="!shownRows.length">
-                    <td colspan="6" class="empty-row">No approved timesheet hours on this project yet.</td>
-                  </tr>
-                  <tr v-for="row in shownRows" :key="row.employee_id">
-                    <td>{{ row.name }}</td>
-                    <td>{{ row.designation || '—' }}</td>
-                    <td class="num tab">{{ formatInr(row.base_pay, 0) }}</td>
-                    <td class="num tab">{{ formatInrPerHour(row.hourly_rate) }}</td>
-                    <td class="num tab">{{ formatHours(row.hours_worked) }}</td>
-                    <td class="num tab">{{ formatInr(row.display_spent, 0) }}</td>
-                  </tr>
-                </tbody>
-                <tfoot>
-                  <tr class="total-row">
-                    <td colspan="2"><strong>TOTAL</strong></td>
-                    <td class="num">—</td>
-                    <td class="num">—</td>
-                    <td class="num tab"><strong>{{ formatHours(displayTotals.total_hours) }}</strong></td>
-                    <td class="num tab"><strong>{{ formatInr(displayTotals.total_spent, 0) }}</strong></td>
-                  </tr>
-                </tfoot>
-              </table>
+            <!-- Section: Employee Spend -->
+            <div class="section-block">
+              <div class="section-header">
+                <span class="material-symbols-outlined section-icon">people</span>
+                <span class="section-title">Employee Spend</span>
+                <span class="type-tag expense">EXPENSE</span>
+              </div>
+
+              <div class="table-card">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Employee</th>
+                      <th>Designation</th>
+                      <th class="num">Base Pay/mo</th>
+                      <th class="num">Rate/hr</th>
+                      <th class="num">Hours Worked</th>
+                      <th class="num">Total Spent</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-if="!shownRows.length">
+                      <td colspan="6" class="empty-row">
+                        <span class="material-symbols-outlined" style="font-size:20px;opacity:0.3;vertical-align:middle;margin-right:6px;">schedule</span>
+                        No approved timesheet hours on this project yet.
+                      </td>
+                    </tr>
+                    <tr v-for="row in shownRows" :key="row.employee_id">
+                      <td class="cell-name">{{ row.name }}</td>
+                      <td class="cell-muted">{{ row.designation || '—' }}</td>
+                      <td class="num tab">{{ formatInr(row.base_pay, 0) }}</td>
+                      <td class="num tab">{{ formatInrPerHour(row.hourly_rate) }}</td>
+                      <td class="num tab">{{ formatHours(row.hours_worked) }}</td>
+                      <td class="num tab cell-amount">{{ formatInr(row.display_spent, 0) }}</td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr class="total-row">
+                      <td colspan="2"><strong>TOTAL</strong></td>
+                      <td class="num">—</td>
+                      <td class="num">—</td>
+                      <td class="num tab"><strong>{{ formatHours(displayTotals.total_hours) }}</strong></td>
+                      <td class="num tab cell-amount"><strong>{{ formatInr(displayTotals.total_spent, 0) }}</strong></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
 
-            <div class="tag-row">
-              <span class="tag-label expense">Total Employee Spend</span>
-              <span class="type-tag expense">EXPENSE</span>
-            </div>
-
-            <div class="partner-card">
-              <div class="partner-head">
-                <span class="tag-label profit">Partner Remuneration</span>
+            <!-- Section: Partner Remuneration -->
+            <div class="section-block">
+              <div class="section-header">
+                <span class="material-symbols-outlined section-icon section-icon--profit">handshake</span>
+                <span class="section-title">Partner Remuneration</span>
                 <span class="type-tag profit">PROFIT</span>
               </div>
-              <div class="partner-grid">
-                <div>
-                  <span class="muted">Partner Rate</span>
-                  <div v-if="!editingPartnerRate" class="val rate-cell">
-                    {{ partnerRateSet ? formatInrPerHour(displayPartnerHourly) : '—' }}
-                    <button type="button" class="btn-edit-rate" @click="startEditPartnerRate" title="Edit partner rate">
-                      <span class="material-symbols-outlined">edit</span>
-                    </button>
-                  </div>
-                  <div v-else class="inline-rate compact">
-                    <span class="rupee">₹</span>
-                    <input v-model.number="partnerRateInput" type="number" min="0" step="1" class="rate-inp" />
-                    <span class="per">/hr</span>
-                    <button type="button" class="btn-primary sm" :disabled="savingPartnerRate" @click="savePartnerRate">
-                      {{ savingPartnerRate ? '…' : 'Save' }}
-                    </button>
-                    <button type="button" class="btn-ghost sm" @click="editingPartnerRate = false">Cancel</button>
-                  </div>
-                </div>
-                <div>
-                  <span class="muted">Total Hours (from table above)</span>
-                  <div class="val">{{ formatHours(displayTotals.total_hours) }}</div>
-                </div>
-                <div>
-                  <span class="muted">Partner Cost</span>
-                  <div class="val">{{ formatInr(displayPartnerCost, 0) }}</div>
-                </div>
-              </div>
 
-              <div v-if="!partnerRateSet && !editingPartnerRate" class="partner-warn">
-                <span class="material-symbols-outlined">warning</span>
-                Partner rate not set
+              <div class="partner-card">
+                <div class="partner-grid">
+                  <div class="partner-metric">
+                    <span class="metric-label">Partner Rate</span>
+                    <div v-if="!editingPartnerRate" class="metric-value rate-cell">
+                      {{ partnerRateSet ? formatInrPerHour(displayPartnerHourly) : '—' }}
+                      <button type="button" class="btn-edit-rate" @click="startEditPartnerRate" title="Edit partner rate">
+                        <span class="material-symbols-outlined">edit</span>
+                      </button>
+                    </div>
+                    <div v-else class="inline-rate compact">
+                      <span class="rupee">₹</span>
+                      <input v-model.number="partnerRateInput" type="number" min="0" step="1" class="rate-inp" />
+                      <span class="per">/hr</span>
+                      <button type="button" class="btn-primary sm" :disabled="savingPartnerRate" @click="savePartnerRate">
+                        {{ savingPartnerRate ? '…' : 'Save' }}
+                      </button>
+                      <button type="button" class="btn-ghost sm" @click="editingPartnerRate = false">Cancel</button>
+                    </div>
+                  </div>
+                  <div class="partner-metric">
+                    <span class="metric-label">Total Hours</span>
+                    <div class="metric-value">{{ formatHours(displayTotals.total_hours) }}</div>
+                  </div>
+                  <div class="partner-metric partner-metric--highlight">
+                    <span class="metric-label">Partner Cost</span>
+                    <div class="metric-value metric-value--large">{{ formatInr(displayPartnerCost, 0) }}</div>
+                  </div>
+                </div>
+
+                <div v-if="!partnerRateSet && !editingPartnerRate" class="partner-warn">
+                  <span class="material-symbols-outlined">warning</span>
+                  Partner rate not set — click the edit icon above to configure it.
+                </div>
               </div>
             </div>
 
-            <div class="grand-total">
-              <div class="grand-line" />
-              <div class="grand-row">
-                <span>Grand Total</span>
-                <strong>{{ formatInr(displayGrandTotal, 0) }}</strong>
+            <!-- Grand Total -->
+            <div class="grand-total-block">
+              <div class="grand-total-inner">
+                <div class="grand-total-label">
+                  <span class="material-symbols-outlined" style="font-size:18px;">calculate</span>
+                  Grand Total
+                </div>
+                <div class="grand-total-value">{{ formatInr(displayGrandTotal, 0) }}</div>
               </div>
               <p class="grand-note">Employee Spend + Partner Remuneration</p>
-              <div class="grand-line" />
             </div>
 
-            <!-- ── PROJECT RESERVES ───────────────────────────── -->
-            <div v-if="showReserveSection" class="reserve-card" :class="{ 'reserve-card--depleted': reserveDepleted }">
-              <div class="reserve-head">
-                <span class="material-symbols-outlined reserve-icon">account_balance_wallet</span>
-                <span class="reserve-title">Project Reserves</span>
+            <!-- Section: Project Reserves -->
+            <div v-if="showReserveSection" class="section-block">
+              <div class="section-header">
+                <span class="material-symbols-outlined section-icon" :class="reserveDepleted ? 'section-icon--error' : ''">account_balance_wallet</span>
+                <span class="section-title">Project Reserves</span>
                 <span v-if="reserveDepleted" class="reserve-badge-warn">
                   <span class="material-symbols-outlined">warning</span>
                   Reserve Depleted
                 </span>
               </div>
-              <div class="reserve-rows">
-                <div class="reserve-row">
-                  <span class="reserve-label">Billed Till Date</span>
-                  <span class="reserve-val">{{ formatInr(apiSummary.advance_amount, 0) }}</span>
-                </div>
-                <div class="reserve-row">
-                  <span class="reserve-label">
-                    <span class="reserve-op">+</span> Invoices Generated
-                  </span>
-                  <span class="reserve-val">{{ formatInr(apiSummary.total_invoiced, 0) }}</span>
-                </div>
-                <div class="reserve-row">
-                  <span class="reserve-label">
-                    <span class="reserve-op">−</span> Total Spend
-                  </span>
-                  <span class="reserve-val">{{ formatInr(displayGrandTotal, 0) }}</span>
-                </div>
-                <div class="reserve-divider" />
-                <div class="reserve-row reserve-balance-row" :class="{ negative: reserveDepleted }">
-                  <span class="reserve-label reserve-label--bold">Reserve Balance</span>
-                  <strong class="reserve-balance-val">
-                    {{ reserveDepleted ? '−' : '' }}{{ formatInr(Math.abs(reserveBalance), 0) }}
-                  </strong>
+
+              <div class="reserve-card" :class="{ 'reserve-card--depleted': reserveDepleted }">
+                <div class="summary-rows">
+                  <div class="summary-row">
+                    <span class="summary-row__label">Total Invoiced</span>
+                    <span class="summary-row__value">{{ formatInr(apiSummary.total_invoiced, 0) }}</span>
+                  </div>
+                  <div class="summary-row">
+                    <span class="summary-row__label">
+                      <span class="op-badge op-badge--minus">−</span>
+                      Total Spend
+                    </span>
+                    <span class="summary-row__value">{{ formatInr(displayGrandTotal, 0) }}</span>
+                  </div>
+                  <div class="summary-divider" />
+                  <div class="summary-row summary-row--total" :class="{ 'summary-row--negative': reserveDepleted }">
+                    <span class="summary-row__label summary-row__label--bold">Reserve Balance</span>
+                    <strong class="summary-row__value summary-row__value--xl">
+                      {{ reserveDepleted ? '−' : '' }}{{ formatInr(Math.abs(reserveBalance), 0) }}
+                    </strong>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <!-- ── PROJECTED COST ─────────────────────────────── -->
-            <div class="projected-card">
-              <div class="projected-head">
-                <span class="material-symbols-outlined projected-icon">trending_up</span>
-                <span class="projected-title">Projected Cost</span>
-                <span class="projected-sub">Based on tasks scheduled in calendar</span>
+            <!-- Section: Projected Cost -->
+            <div class="section-block">
+              <div class="section-header">
+                <span class="material-symbols-outlined section-icon">trending_up</span>
+                <span class="section-title">Projected Cost</span>
+                <span class="section-subtitle">Based on tasks scheduled in calendar</span>
               </div>
 
-              <div v-if="projectedLoading" class="projected-loading">Loading…</div>
+              <div v-if="projectedLoading" class="projected-loading">
+                <span class="material-symbols-outlined spin">refresh</span>
+                Loading projected data…
+              </div>
+
               <div v-else-if="projectedData && projectedData.rows && projectedData.rows.length">
                 <div class="table-card">
                   <table class="data-table">
@@ -196,11 +246,11 @@
                     </thead>
                     <tbody>
                       <tr v-for="row in projectedData.rows" :key="row.employee_id">
-                        <td>{{ row.name }}</td>
-                        <td>{{ row.designation }}</td>
+                        <td class="cell-name">{{ row.name }}</td>
+                        <td class="cell-muted">{{ row.designation }}</td>
                         <td class="num tab">{{ row.projected_hours }} hrs</td>
                         <td class="num tab">{{ formatInrPerHour(row.hourly_rate) }}</td>
-                        <td class="num tab">{{ formatInr(row.projected_cost, 0) }}</td>
+                        <td class="num tab cell-amount">{{ formatInr(row.projected_cost, 0) }}</td>
                       </tr>
                     </tbody>
                     <tfoot>
@@ -208,39 +258,38 @@
                         <td colspan="2"><strong>Employee Total</strong></td>
                         <td class="num tab"><strong>{{ projectedData.total_projected_hours }} hrs</strong></td>
                         <td></td>
-                        <td class="num tab"><strong>{{ formatInr(projectedData.total_employee_projected, 0) }}</strong></td>
+                        <td class="num tab cell-amount"><strong>{{ formatInr(projectedData.total_employee_projected, 0) }}</strong></td>
                       </tr>
                     </tfoot>
                   </table>
                 </div>
 
-                <div class="projected-summary">
-                  <div class="projected-sum-row">
-                    <span>Total Employee Projected</span>
-                    <span>{{ formatInr(projectedData.total_employee_projected, 0) }}</span>
-                  </div>
-                  <div class="projected-sum-row">
-                    <span>Partner Projected</span>
-                    <span>{{ formatInr(projectedData.partner_projected_cost, 0) }}</span>
-                  </div>
-                  <div class="projected-divider" />
-                  <div class="projected-sum-row projected-grand">
-                    <span><strong>Total Projected Cost</strong></span>
-                    <strong>{{ formatInr(projectedData.grand_projected, 0) }}</strong>
+                <div class="projected-summary-block">
+                  <div class="summary-rows">
+                    <div class="summary-row">
+                      <span class="summary-row__label">Total Employee Projected</span>
+                      <span class="summary-row__value">{{ formatInr(projectedData.total_employee_projected, 0) }}</span>
+                    </div>
+                    <div class="summary-row">
+                      <span class="summary-row__label">Partner Projected</span>
+                      <span class="summary-row__value">{{ formatInr(projectedData.partner_projected_cost, 0) }}</span>
+                    </div>
+                    <div class="summary-divider" />
+                    <div class="summary-row summary-row--total">
+                      <span class="summary-row__label summary-row__label--bold">Total Projected Cost</span>
+                      <strong class="summary-row__value summary-row__value--xl">{{ formatInr(projectedData.grand_projected, 0) }}</strong>
+                    </div>
                   </div>
                 </div>
               </div>
+
               <div v-else class="projected-empty">
-                <span class="material-symbols-outlined" style="font-size:32px;opacity:0.3;">calendar_today</span>
+                <span class="material-symbols-outlined">calendar_today</span>
                 <p>No tasks scheduled for this project yet.</p>
               </div>
             </div>
-          </div>
-        </transition>
-      </section>
+
     </div>
-
-
 
     <ToastNotification
       v-if="toastMsg"
@@ -252,14 +301,26 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
-import ProjectSelector from '../components/projects/ProjectSelector.vue'
 import ToastNotification from '../components/ToastNotification.vue'
 import { projectsAPI } from '../api/projects'
 import { usersAPI } from '../api/users'
 import { weeklyTimesheetsAPI } from '../api/weekly_timesheets'
 import { formatInr, formatInrPerHour, previewHourlyFromBasePay } from '../utils/currency'
+
+const route = useRoute()
+const router = useRouter()
+
+function goBack() {
+  router.push('/admin/projects')
+}
+
+function editProject() {
+  if (!selectedProjectId.value) return
+  router.push({ path: '/admin/projects', query: { edit: selectedProjectId.value } })
+}
 
 // ── Projected cost ───────────────────────────────────────────────────────────
 const projectedData = ref(null)
@@ -372,15 +433,12 @@ const employeeBaseRows = computed(() => {
   })
 
   return uids.map((uid) => {
-    const apiRow = apiRows.find((r) => r.employee_id === uid)
+      const apiRow = apiRows.find((r) => r.employee_id === uid)
     const assign = assignments.find((a) => (a.user_id ?? a.user?.id) === uid)
     const u = users.find((x) => x.id === uid)
     const hours = H.get(uid) || 0
-    const basePay = Number(apiRow?.base_pay ?? assign?.base_pay ?? 0) || 0
-    let hourly = Number(apiRow?.hourly_rate ?? assign?.hourly_rate)
-    if (Number.isNaN(hourly) || hourly <= 0) {
-      hourly = previewHourlyFromBasePay(basePay) || 0
-    }
+    const basePay = Number(apiRow?.base_pay ?? u?.salary_month ?? assign?.base_pay ?? 0) || 0
+    const hourly = previewHourlyFromBasePay(basePay) || 0
     const totalSpent = hourly * hours
     return {
       employee_id: uid,
@@ -419,16 +477,11 @@ const displayGrandTotal = computed(() => displayTotals.value.total_spent + displ
 
 // ── Reserve Balance computed ─────────────────────────────────────────────────
 const reserveBalance = computed(() => {
-  const adv = Number(apiSummary.value.advance_amount) || 0
   const inv = Number(apiSummary.value.total_invoiced) || 0
-  return adv + inv - displayGrandTotal.value
+  return inv - displayGrandTotal.value
 })
 const reserveDepleted = computed(() => reserveBalance.value < 0)
-const showReserveSection = computed(
-  () =>
-    (Number(apiSummary.value.advance_amount) || 0) > 0 ||
-    (Number(apiSummary.value.total_invoiced) || 0) > 0
-)
+const showReserveSection = computed(() => (Number(apiSummary.value.total_invoiced) || 0) > 0)
 
 
 
@@ -476,6 +529,13 @@ async function loadAllForProject(id) {
     summaryLoading.value = false
   }
 }
+
+onMounted(() => {
+  const id = route.params.id
+  if (id) {
+    selectedProjectId.value = Number(id)
+  }
+})
 
 watch(selectedProjectId, (id) => {
   if (!id) {
@@ -540,160 +600,357 @@ async function savePartnerRate() {
 </script>
 
 <style scoped>
+/* ── Base ─────────────────────────────────────────────────────────────────── */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* ── Back Button ─────────────────────────────────────────────────────────── */
+.back-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-outline);
+  background: var(--color-surface);
+  color: var(--color-on-surface-variant);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.back-btn:hover { background: var(--color-surface-dim); color: var(--color-on-surface); }
+.back-btn .material-symbols-outlined { font-size: 20px; }
+
+/* ── Page Header ──────────────────────────────────────────────────────────── */
 .page-header {
-  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+.page-header__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .page-title {
   font-family: var(--font-display);
-  font-size: 28px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 800;
   color: var(--color-on-surface);
-  margin: 0 0 4px;
-  letter-spacing: -0.02em;
+  margin: 0 0 2px;
+  letter-spacing: -0.01em;
 }
 .page-sub {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--color-on-surface-variant);
 }
-
-.split-layout {
-  display: flex;
-  gap: 24px;
-  align-items: stretch;
-  min-height: calc(100vh - 220px);
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  cursor: pointer;
+  transition: background 0.15s;
 }
+.btn-outline:hover { background: var(--color-surface-dim); }
+.btn-outline .material-symbols-outlined { font-size: 17px; }
 
-.col-left {
-  flex: 0 0 30%;
-  max-width: 360px;
-  min-width: 240px;
-}
-
-.col-right {
-  flex: 1;
-  min-width: 0;
-}
-
+/* ── State panels ─────────────────────────────────────────────────────────── */
 .empty-center {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   min-height: 400px;
-  background: #fff;
+  background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   color: var(--color-on-surface-variant);
   font-size: 14px;
+  box-shadow: var(--shadow-sm);
 }
-.empty-ic {
-  font-size: 48px;
-  margin-bottom: 12px;
-  opacity: 0.35;
-}
+.text-error { color: var(--color-error); }
 
+/* Skeleton */
 .detail-skeleton {
-  background: #fff;
+  background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
-  border-radius: var(--radius-lg);
-  padding: 24px;
+  border-radius: var(--radius-xl);
+  padding: 28px;
+  box-shadow: var(--shadow-sm);
 }
-.sk-h1 {
-  height: 28px;
-  width: 55%;
-  background: #e2e8f0;
-  border-radius: 4px;
-  margin-bottom: 12px;
-  animation: pulse 1.2s ease-in-out infinite;
-}
-.sk-sub {
-  height: 16px;
-  width: 30%;
-  background: #f1f5f9;
-  border-radius: 4px;
-  margin-bottom: 24px;
-  animation: pulse 1.2s ease-in-out infinite;
-}
-.sk-table {
-  height: 200px;
-  background: #f8fafc;
-  border-radius: 8px;
-  animation: pulse 1.2s ease-in-out infinite;
-}
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.55;
-  }
-}
+.sk-h1   { height: 28px; width: 55%; background: #e2e8f0; border-radius: 4px; margin-bottom: 12px; animation: pulse 1.2s ease-in-out infinite; }
+.sk-sub  { height: 16px; width: 30%; background: #f1f5f9; border-radius: 4px; margin-bottom: 24px; animation: pulse 1.2s ease-in-out infinite; }
+.sk-table{ height: 200px; background: var(--color-surface-dim); border-radius: var(--radius-md); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
+/* ── Detail content wrapper ───────────────────────────────────────────────── */
 .detail-content {
-  background: #fff;
+  background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
-  border-radius: var(--radius-lg);
-  padding: 24px;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
-.detail-toolbar {
+/* ── Project header strip ─────────────────────────────────────────────────── */
+.project-header {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-start;
   gap: 16px;
-  margin-bottom: 20px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-outline-variant);
+  background: var(--color-surface-dim);
   flex-wrap: wrap;
 }
-
+.project-header__left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.project-color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
 .detail-title {
   font-family: var(--font-display);
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
-  margin: 0 0 4px;
+  margin: 0 0 2px;
   color: var(--color-on-surface);
 }
 .detail-sub {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 13px;
   color: var(--color-on-surface-variant);
 }
-.header-meta {
+
+/* Stage badge */
+.stage-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.stage-active { background: #d4edee; color: #113b3c; }
+.stage-done   { background: #dcfce7; color: #166534; }
+.stage-warn   { background: #fef3c7; color: #92400e; }
+.stage-na     { background: #f1f5f9; color: #64748b; }
+
+/* ── Section blocks ───────────────────────────────────────────────────────── */
+.section-block {
+  padding: 20px 24px 0;
+}
+.section-block + .section-block {
+  margin-top: 8px;
+}
+.section-block:last-child {
+  padding-bottom: 24px;
+}
+
+.section-header {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 14px;
 }
-.dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
+.section-icon {
+  font-size: 18px;
+  color: var(--color-primary);
+}
+.section-icon--profit { color: var(--color-success); }
+.section-icon--error  { color: var(--color-error); }
+
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-on-surface);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.section-subtitle {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  margin-left: 2px;
 }
 
-.stage-badge {
-  display: inline-block;
-  padding: 3px 8px;
-  border-radius: 2px;
+/* Type tags */
+.type-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+.type-tag.expense { background: rgba(220, 38, 38, 0.1); color: var(--color-error); }
+.type-tag.profit  { background: rgba(22, 163, 74, 0.12); color: var(--color-success); }
+.type-tag.neutral { background: rgba(100, 116, 139, 0.1); color: #475569; }
+
+/* ── Table ────────────────────────────────────────────────────────────────── */
+.table-card {
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+  overflow: auto;
+  margin-bottom: 8px;
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.data-table th {
+  text-align: left;
+  padding: 10px 14px;
   font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-dim);
+  border-bottom: 1px solid var(--color-outline-variant);
+  white-space: nowrap;
 }
-.stage-active {
-  background: #d4edee;
-  color: #113b3c;
+.data-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-outline-variant);
+  color: var(--color-on-surface);
 }
-.stage-done {
-  background: #dcfce7;
-  color: #166534;
+.data-table tbody tr:last-child td { border-bottom: none; }
+.data-table tbody tr:hover { background: var(--color-surface-dim); }
+.data-table .num { text-align: right; }
+.tab  { font-variant-numeric: tabular-nums; }
+.cell-name   { font-weight: 500; }
+.cell-muted  { color: var(--color-on-surface-variant); }
+.cell-amount { font-weight: 600; color: var(--color-on-surface); }
+.total-row td {
+  background: var(--color-outline-variant);
+  font-size: 13px;
+  font-weight: 600;
+  border-bottom: none;
 }
-.stage-warn {
-  background: #fef3c7;
-  color: #92400e;
-}
-.stage-na {
-  background: #f1f5f9;
-  color: #64748b;
+.empty-row {
+  text-align: center;
+  color: var(--color-on-surface-variant);
+  padding: 28px 14px !important;
+  font-size: 13px;
 }
 
+/* ── Partner card ─────────────────────────────────────────────────────────── */
+.partner-card {
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  background: var(--color-surface-dim);
+}
+.partner-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.partner-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.partner-metric--highlight {
+  background: var(--color-primary-light);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin: -10px -14px -10px -14px;
+}
+.metric-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+}
+.metric-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.metric-value--large {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--color-primary);
+}
+.rate-cell { display: inline-flex; align-items: center; gap: 8px; }
+
+.btn-edit-rate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--color-outline-variant);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  transition: background 0.15s, color 0.15s;
+}
+.btn-edit-rate:hover { background: var(--color-primary-light); color: var(--color-primary); }
+.btn-edit-rate .material-symbols-outlined { font-size: 15px; }
+
+.inline-rate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.inline-rate.compact { margin-top: 0; }
+.rate-inp {
+  width: 110px;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+}
+.rupee, .per { font-size: 13px; font-weight: 600; color: var(--color-on-surface-variant); }
+
+.partner-warn {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: #fefce8;
+  border: 1px solid #fde047;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #854d0e;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
 .btn-primary {
   padding: 10px 18px;
   border: none;
@@ -706,434 +963,63 @@ async function savePartnerRate() {
   cursor: pointer;
   transition: opacity 0.15s;
 }
-.btn-primary:hover {
-  opacity: 0.92;
-}
-.btn-primary.sm {
-  padding: 6px 12px;
-  font-size: 13px;
-}
+.btn-primary:hover  { opacity: 0.9; }
+.btn-primary.sm     { padding: 6px 12px; font-size: 13px; }
 .btn-ghost {
   padding: 8px 14px;
   border: 1px solid var(--color-outline);
   border-radius: var(--radius-lg);
-  background: #fff;
+  background: var(--color-surface);
   font-size: 14px;
   cursor: pointer;
-}
-.btn-ghost.sm {
-  padding: 6px 10px;
-  font-size: 13px;
-}
-
-.info-banner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
-  margin-bottom: 16px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: var(--radius-lg);
-  font-size: 13px;
-  color: #1e40af;
-}
-
-.info-banner.subtle {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-  color: var(--color-on-surface-variant);
-}
-
-.empty-row {
-  text-align: center;
-  color: var(--color-on-surface-variant);
-  padding: 24px !important;
-}
-
-.table-card {
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--radius-lg);
-  overflow: auto;
-  margin-bottom: 12px;
-}
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.data-table th {
-  text-align: left;
-  padding: 10px 12px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--color-on-surface-variant);
-  background: #f8fafc;
-  border-bottom: 1px solid var(--color-outline-variant);
-}
-.data-table td {
-  padding: 10px 12px;
-  border-bottom: 1px solid #e2e8f0;
-}
-.data-table tbody tr:nth-child(even) {
-  background: #fafafa;
-}
-.data-table .num {
-  text-align: right;
-}
-.tab {
-  font-variant-numeric: tabular-nums;
-}
-.total-row td {
-  background: #f1f5f9;
-  font-size: 14px;
-}
-
-.tag-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-.tag-label {
-  font-size: 13px;
-  font-weight: 600;
-}
-.tag-label.expense {
-  color: #b91c1c;
-}
-.type-tag {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  padding: 2px 8px;
-  border-radius: 2px;
-}
-.type-tag.expense {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-}
-.type-tag.profit {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
-}
-.tag-label.profit {
-  color: #15803d;
-}
-
-.partner-card {
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  margin-bottom: 24px;
-  background: #fafafa;
-}
-.partner-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-.partner-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-.muted {
-  display: block;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-on-surface-variant);
-  margin-bottom: 4px;
-}
-.val {
-  font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 600;
   color: var(--color-on-surface);
 }
-.rate-cell {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+.btn-ghost.sm { padding: 6px 10px; font-size: 13px; }
+
+/* ── Grand Total block ────────────────────────────────────────────────────── */
+.grand-total-block {
+  margin: 0 24px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, var(--color-primary-light) 0%, #f0fafa 100%);
+  border: 1px solid rgba(40,116,117,0.2);
+  border-radius: var(--radius-lg);
+  margin-bottom: 4px;
 }
-.btn-edit-rate {
-  display: inline-flex;
+.grand-total-inner {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--color-outline-variant);
-  background: #fff;
-  border-radius: 6px;
-  cursor: pointer;
-  color: var(--color-on-surface-variant);
+  justify-content: space-between;
+  gap: 12px;
 }
-.btn-edit-rate:hover {
-  background: #f1f5f9;
+.grand-total-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--color-primary);
 }
-.btn-edit-rate .material-symbols-outlined {
-  font-size: 16px;
-}
-.inline-rate.compact {
-  margin-top: 0;
-}
-
-.partner-warn {
-  margin-top: 16px;
-  padding: 12px;
-  background: #fefce8;
-  border: 1px solid #fde047;
-  border-radius: var(--radius-lg);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #854d0e;
-}
-.btn-inline {
-  margin-left: auto;
-  padding: 6px 12px;
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-lg);
-  font-weight: 600;
-  cursor: pointer;
-}
-.inline-rate {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  margin-top: 8px;
-}
-.rate-inp {
-  width: 120px;
-  height: 36px;
-  padding: 0 8px;
-  border: 1px solid var(--color-outline);
-  border-radius: var(--radius-lg);
-}
-.rupee,
-.per {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.grand-total {
-  max-width: 480px;
-}
-.grand-line {
-  height: 1px;
-  background: var(--color-outline-variant);
-  margin: 8px 0;
-}
-.grand-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 16px;
-  padding: 4px 0;
+.grand-total-value {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
 }
 .grand-note {
-  margin: 4px 0 8px;
-  font-size: 12px;
+  margin: 4px 0 0;
+  font-size: 11px;
   color: var(--color-on-surface-variant);
 }
 
-.fade-panel-enter-active,
-.fade-panel-leave-active {
-  transition: opacity 0.2s ease;
-}
-.fade-panel-enter-from,
-.fade-panel-leave-to {
-  opacity: 0;
-}
-
-.text-error {
-  color: var(--color-error);
-}
-
-/* Modal */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-}
-.modal {
-  width: 440px;
-  max-width: 94vw;
-  background: #fff;
-  border-radius: var(--radius-lg);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-  border: 1px solid var(--color-outline-variant);
-}
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--color-outline-variant);
-}
-.modal-title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 18px;
-}
-.modal-close {
-  border: none;
-  background: none;
-  cursor: pointer;
-  color: var(--color-on-surface-variant);
-}
-.modal-body {
-  padding: 20px;
-}
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 20px;
-}
-.form-field {
-  margin-bottom: 16px;
-}
-.form-field label {
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-  margin-bottom: 6px;
-  color: var(--color-on-surface-variant);
-}
-.field-input {
-  width: 100%;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid var(--color-outline);
-  border-radius: var(--radius-lg);
-  font-size: 14px;
-}
-.dropdown-list {
-  max-height: 200px;
-  overflow-y: auto;
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--radius-lg);
-  margin-top: 8px;
-}
-.dd-item {
-  width: 100%;
-  text-align: left;
-  padding: 10px 12px;
-  border: none;
-  background: #fff;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  border-bottom: 1px solid #f1f5f9;
-}
-.dd-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.dd-rate {
-  font-size: 12px;
-  color: var(--color-on-surface-variant);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.dd-item:hover {
-  background: #f8fafc;
-}
-.dd-item.picked {
-  background: rgba(40, 116, 117, 0.12);
-}
-.strong {
-  font-weight: 600;
-  font-size: 14px;
-}
-.sub {
-  font-size: 12px;
-  color: var(--color-on-surface-variant);
-}
-.dd-empty {
-  padding: 16px;
-  text-align: center;
-  font-size: 13px;
-  color: var(--color-on-surface-variant);
-}
-.preview {
-  margin: 8px 0 0;
-  font-size: 13px;
-  color: var(--color-on-surface-variant);
-}
-
-.material-symbols-outlined {
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-}
-
-@media (max-width: 960px) {
-  .split-layout {
-    flex-direction: column;
-  }
-  .col-left {
-    flex: none;
-    max-width: none;
-    width: 100%;
-  }
-  .partner-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ── Project Reserves card ─────────────────────────────────────────────────── */
+/* ── Summary rows (reserves / projected) ─────────────────────────────────── */
 .reserve-card {
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--radius-lg);
-  padding: 20px;
-  margin-bottom: 24px;
-  background: #fafafa;
-  transition: border-color 0.2s, background 0.2s;
+  overflow: hidden;
+  transition: border-color 0.2s;
 }
-
-.reserve-card--depleted {
-  border-color: #fca5a5;
-  background: #fff5f5;
-}
-
-.reserve-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
-.reserve-icon {
-  font-size: 20px;
-  color: var(--color-primary);
-}
-
-.reserve-card--depleted .reserve-icon {
-  color: #ef4444;
-}
-
-.reserve-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--color-on-surface);
-  letter-spacing: 0.02em;
-}
+.reserve-card--depleted { border-color: #fca5a5; }
 
 .reserve-badge-warn {
   display: inline-flex;
@@ -1142,161 +1028,113 @@ async function savePartnerRate() {
   padding: 3px 10px;
   background: #fee2e2;
   border: 1px solid #fca5a5;
-  border-radius: 20px;
+  border-radius: var(--radius-full);
   font-size: 11px;
   font-weight: 700;
   color: #b91c1c;
   letter-spacing: 0.04em;
   margin-left: auto;
 }
+.reserve-badge-warn .material-symbols-outlined { font-size: 13px; }
 
-.reserve-badge-warn .material-symbols-outlined {
-  font-size: 14px;
-}
-
-.reserve-rows {
-  max-width: 480px;
-}
-
-.reserve-row {
+.summary-rows { padding: 4px 0; }
+.summary-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 0;
-  font-size: 14px;
+  padding: 10px 16px;
+  font-size: 13px;
   color: var(--color-on-surface-variant);
+  transition: background 0.1s;
 }
-
-.reserve-label {
+.summary-row:nth-child(even) { background: var(--color-surface-dim); }
+.summary-row__label {
   display: flex;
   align-items: center;
   gap: 6px;
 }
-
-.reserve-op {
-  display: inline-block;
-  width: 14px;
-  font-weight: 700;
-  color: var(--color-on-surface-variant);
-  font-size: 16px;
-}
-
-.reserve-val {
+.summary-row__value {
   font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--color-on-surface);
 }
-
-.reserve-divider {
+.summary-divider {
   height: 1px;
   background: var(--color-outline-variant);
-  margin: 8px 0;
+  margin: 4px 16px;
 }
-
-.reserve-card--depleted .reserve-divider {
-  background: #fca5a5;
-}
-
-.reserve-balance-row {
-  font-size: 16px;
+.summary-row--total {
+  padding: 12px 16px;
+  background: var(--color-surface-dim) !important;
   font-weight: 600;
+  font-size: 14px;
   color: var(--color-on-surface);
-  padding: 8px 0;
 }
-
-.reserve-label--bold {
-  font-weight: 700;
-  font-size: 15px;
-}
-
-.reserve-balance-val {
+.summary-row--negative .summary-row__label--bold,
+.summary-row--negative .summary-row__value--xl { color: var(--color-error); }
+.summary-row__label--bold { font-weight: 700; font-size: 13px; }
+.summary-row__value--xl {
   font-family: var(--font-display);
   font-size: 18px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
-.reserve-balance-row.negative .reserve-balance-val,
-.reserve-balance-row.negative .reserve-label--bold {
-  color: #b91c1c;
-}
-
-/* ── Projected Cost card ────────────────────────────────────────────────────── */
-.projected-card {
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  margin-bottom: 24px;
-  background: #fafafa;
-}
-
-.projected-head {
-  display: flex;
+.op-badge--minus {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
-.projected-icon {
-  font-size: 20px;
-  color: var(--color-primary);
-}
-
-.projected-title {
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(220,38,38,0.1);
+  color: var(--color-error);
   font-size: 14px;
   font-weight: 700;
-  color: var(--color-on-surface);
-  letter-spacing: 0.02em;
+  line-height: 1;
 }
 
-.projected-sub {
-  font-size: 12px;
-  color: var(--color-on-surface-variant);
-  margin-left: 4px;
+/* ── Projected summary ────────────────────────────────────────────────────── */
+.projected-summary-block {
+  margin-top: 12px;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  max-width: 480px;
 }
-
 .projected-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 13px;
   color: var(--color-on-surface-variant);
   padding: 16px 0;
 }
-
 .projected-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 32px;
+  padding: 36px;
   color: var(--color-on-surface-variant);
   font-size: 13px;
   gap: 8px;
-}
-
-.projected-summary {
-  margin-top: 16px;
-  max-width: 420px;
-  padding: 16px;
-  background: #fff;
-  border: 1px solid var(--color-outline-variant);
+  background: var(--color-surface-dim);
   border-radius: var(--radius-lg);
 }
+.projected-empty .material-symbols-outlined { font-size: 32px; opacity: 0.3; }
 
-.projected-sum-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 14px;
-  color: var(--color-on-surface-variant);
-  padding: 4px 0;
-}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
 
-.projected-divider {
-  height: 1px;
-  background: var(--color-outline-variant);
-  margin: 8px 0;
-}
+/* ── Transitions ──────────────────────────────────────────────────────────── */
+.fade-panel-enter-active,
+.fade-panel-leave-active { transition: opacity 0.2s ease; }
+.fade-panel-enter-from,
+.fade-panel-leave-to     { opacity: 0; }
 
-.projected-grand {
-  font-size: 15px;
-  color: var(--color-on-surface);
-  padding-top: 4px;
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+@media (max-width: 960px) {
+  .partner-grid  { grid-template-columns: 1fr; }
 }
 </style>

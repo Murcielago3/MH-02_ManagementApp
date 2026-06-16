@@ -47,7 +47,7 @@
               <div class="emp-meta">
                 <span class="emp-name">{{ emp.name }}</span>
                 <span class="emp-hours" :class="hrsClass(emp.id)">
-                  <template v-if="isOverloaded(emp.id)">{{ getAssignedHours(emp.id) - 8 }}h over</template>
+                  <template v-if="isOverloaded(emp.id)">{{ Math.round((getAssignedHours(emp.id) - 8) * 10) / 10 }}h over</template>
                   <template v-else-if="getRemaining(emp.id) > 0">{{ getRemaining(emp.id) }}h left</template>
                   <template v-else>0h ✓</template>
                 </span>
@@ -356,19 +356,20 @@ const displayEmployees = computed(() => props.filterEmployeeId ? props.employees
 function getAssignedHours(eid) {
   if (isEmpLeave(eid, todayStr)) return 0
   let h = 0
-  for (const t of props.tasks) { 
-    if (t.assigned_to === eid) { 
-      const e = t.end_date || t.date; 
+  for (const t of props.tasks) {
+    if (t.assigned_to === eid && t.status !== 'completed') {
+      const e = t.end_date || t.date
+      // Does this task cover today?
       if (t.date <= todayStr && e >= todayStr) {
-        const spanDays = daysBetween(t.date, e) + 1;
-        const dailyHrs = t.duration_hours != null ? (t.duration_hours / spanDays) : 8;
-        h += dailyHrs;
+        // duration_hours = daily hours for this task (e.g. 2 = 2h/day)
+        // If not set, assume full 8-hour day
+        h += (t.duration_hours != null && t.duration_hours > 0) ? t.duration_hours : 8
       }
-    } 
+    }
   }
-  return h
+  return Math.round(h * 10) / 10
 }
-function getRemaining(eid) { return Math.max(0, 8 - getAssignedHours(eid)) }
+function getRemaining(eid) { return Math.round(Math.max(0, 8 - getAssignedHours(eid)) * 10) / 10 }
 function isOverloaded(eid) { return getAssignedHours(eid) > 8 }
 function hrsClass(eid) { if (isOverloaded(eid)) return 'hrs-over'; const r = getRemaining(eid); if (r === 0) return 'hrs-done'; if (r <= 3) return 'hrs-busy'; return 'hrs-ok' }
 
@@ -398,7 +399,7 @@ function empRibbons(eid) {
 function rowMinH(eid) { const rbs = empRibbons(eid); const ml = rbs.length ? Math.max(...rbs.map(r => r.lane)) : -1; return Math.max(56, 28 + (ml + 1) * 28) }
 
 function rbStyle(rb) {
-  return { left: `${rb.left * COL_W + 2}px`, width: `${rb.width * COL_W - 4}px`, top: `${4 + rb.lane * 28}px`, background: rbColor(rb.task), height: '24px', borderRadius: '4px', opacity: rb.task.status === 'completed' ? '0.5' : '0.88' }
+  return { left: `${rb.left * COL_W + 2}px`, width: `${rb.width * COL_W - 4}px`, top: `${4 + rb.lane * 28}px`, background: rbColor(rb.task), height: '26px', borderRadius: '4px', opacity: rb.task.status === 'completed' ? '0.45' : '1', border: '1px solid rgba(0,0,0,0.18)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }
 }
 
 // Leave

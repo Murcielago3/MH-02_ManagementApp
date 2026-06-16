@@ -139,6 +139,67 @@ async def create_invoice(
     _invalidate_reserve()
     return invoice
 
+@router.put("/{invoice_id}")
+async def update_invoice(
+    invoice_id: int,
+    data: InvoiceCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_admin)
+):
+    from sqlalchemy.orm import selectinload
+    result = await db.execute(
+        select(Invoice)
+        .options(selectinload(Invoice.items))
+        .where(Invoice.id == invoice_id)
+    )
+    invoice = result.scalar_one_or_none()
+    if not invoice:
+        raise HTTPException(404, "Invoice not found")
+
+    tax_type = determine_tax_type(data.bill_to_gstin)
+    totals = calculate_totals(data.items, tax_type)
+
+    invoice.invoice_type = data.invoice_type
+    invoice.invoice_number = data.invoice_number
+    invoice.invoice_date = data.invoice_date or date.today()
+    invoice.place_of_supply = data.place_of_supply
+    invoice.bill_to_name = data.bill_to_name
+    invoice.bill_to_address = data.bill_to_address
+    invoice.bill_to_gstin = data.bill_to_gstin
+    invoice.ship_to_name = data.ship_to_name
+    invoice.ship_to_address = data.ship_to_address
+    invoice.ship_to_gstin = data.ship_to_gstin
+    invoice.subject = data.subject
+    invoice.project_id = data.project_id
+    invoice.client_id = data.client_id
+    invoice.bank_account_id = data.bank_account_id
+    invoice.tax_type = tax_type
+    invoice.subtotal = totals["subtotal"]
+    invoice.cgst = totals["cgst"]
+    invoice.sgst = totals["sgst"]
+    invoice.igst = totals["igst"]
+    invoice.total = totals["total"]
+
+    for old_item in invoice.items:
+        await db.delete(old_item)
+    await db.flush()
+
+    for item_data in data.items:
+        item = InvoiceItem(
+            invoice_id=invoice.id,
+            description=item_data.description,
+            hsn_sac=item_data.hsn_sac,
+            amount=item_data.amount
+        )
+        db.add(item)
+
+    await db.commit()
+    await db.refresh(invoice)
+    from app.routers.projects import _invalidate_reserve
+    _invalidate_reserve()
+    return invoice
+
+
 @router.delete("/{invoice_id}", status_code=204)
 async def delete_invoice(
     invoice_id: int,
@@ -342,6 +403,10 @@ def render_invoice_html(invoice, settings=None) -> str:
             <td>{bank.account_holder_name}</td>
         </tr>
         <tr>
+            <td class="bank-label">Account Number</td>
+            <td>{bank.account_number}</td>
+        </tr>
+        <tr>
             <td class="bank-label">IFSC Code</td>
             <td>{bank.ifsc_code}</td>
         </tr>
@@ -397,7 +462,7 @@ def render_invoice_html(invoice, settings=None) -> str:
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   html, body {{
     font-family: Arial, sans-serif;
-    font-size: 11px;
+    font-size: 9px;
     color: #000;
     line-height: 1.25;
     width: 194mm;
@@ -425,23 +490,23 @@ def render_invoice_html(invoice, settings=None) -> str:
   .hdr-right {{ width: 40%; padding: 5mm 8mm 5mm 5mm !important; vertical-align: middle !important; text-align: right; }}
   .logo-img {{ width: 80px; height: 80px; object-fit: contain; display: block; }}
   .firm-name {{ font-size: 12px; font-weight: bold; margin-bottom: 2px; }}
-  .firm-details {{ font-size: 11.5px; line-height: 1.4; color: #222; }}
+  .firm-details {{ font-size: 9.5px; line-height: 1.4; color: #222; }}
   .invoice-type {{ font-size: 18px; font-weight: bold; letter-spacing: 0.6px; }}
-  .invoice-num {{ font-size: 10px; margin-top: 4px; color: #333; }}
+  .invoice-num {{ font-size: 8px; margin-top: 4px; color: #333; }}
 
   /* ===== META ===== */
-  .meta-label {{ font-size: 9.5px; color: #555; margin-bottom: 2px; }}
-  .meta-val-bold {{ font-weight: bold; font-size: 11.5px; margin-bottom: 2px; }}
+  .meta-label {{ font-size: 7.5px; color: #555; margin-bottom: 2px; }}
+  .meta-val-bold {{ font-weight: bold; font-size: 9.5px; margin-bottom: 2px; }}
   .meta-cell {{ padding: 5px 8px; }}
 
   /* ===== ITEMS ===== */
   .items-head td {{
     background: #f5f5f5;
     padding: 5px 6px;
-    font-size: 11px;
+    font-size: 9px;
     font-weight: 600;
   }}
-  .items-row td {{ padding: 5px 6px; font-size: 11px; }}
+  .items-row td {{ padding: 5px 6px; font-size: 9px; }}
   .col-num  {{ width: 32px; text-align: center; }}
   .col-hsn  {{ width: 95px; }}
   .col-amt  {{ width: 110px; text-align: right; }}
@@ -449,13 +514,13 @@ def render_invoice_html(invoice, settings=None) -> str:
   /* ===== FOOTER (bank + totals) ===== */
   .foot-left {{ width: 55%; padding: 8px 10px; }}
   .foot-right {{ width: 45%; padding: 8px 10px; }}
-  .bank-tbl td {{ padding: 2px 0; font-size: 11px; }}
+  .bank-tbl td {{ padding: 2px 0; font-size: 9px; }}
   .bank-label {{ width: 130px; color: #444; font-weight: 600; }}
-  .totals-tbl td {{ padding: 3px 6px; font-size: 11px; }}
+  .totals-tbl td {{ padding: 3px 6px; font-size: 9px; }}
   .tot-val {{ text-align: right; }}
   .total-final td {{
     font-weight: bold;
-    font-size: 12px;
+    font-size: 10px;
     border-top: 1.5px solid #000 !important;
     padding-top: 5px;
   }}
@@ -463,19 +528,19 @@ def render_invoice_html(invoice, settings=None) -> str:
     margin-top: 8px;
     padding-top: 6px;
     border-top: 1px solid #ccc;
-    font-size: 10.5px;
+    font-size: 8.5px;
     font-style: italic;
     color: #333;
   }}
   .words-label {{ font-weight: bold; font-style: normal; margin-bottom: 2px; }}
 
   /* ===== T&C + SIGNATORY ===== */
-  .tc-cell {{ padding: 6px 10px; font-size: 10px; line-height: 1.4; }}
-  .tc-label {{ font-weight: bold; font-size: 11px; margin-bottom: 3px; }}
-  .sig-cell {{ padding: 8px 10px; font-size: 11px; }}
-  .sig-name {{ font-weight: bold; font-size: 12px; margin-top: 22mm; }}
+  .tc-cell {{ padding: 6px 10px; font-size: 8px; line-height: 1.4; }}
+  .tc-label {{ font-weight: bold; font-size: 9px; margin-bottom: 3px; }}
+  .sig-cell {{ padding: 8px 10px; font-size: 9px; }}
+  .sig-name {{ font-weight: bold; font-size: 10px; margin-top: 22mm; }}
   .sig-role {{ color: #444; margin-top: 2px; }}
-  .auth-label {{ font-size: 10px; color: #555; }}
+  .auth-label {{ font-size: 8px; color: #555; }}
 </style>
 </head>
 <body>
@@ -519,7 +584,7 @@ def render_invoice_html(invoice, settings=None) -> str:
       <td style=\"padding:5px 8px;\">
         <div class=\"meta-label\">Bill To</div>
         <div class=\"meta-val-bold\">{invoice.bill_to_name or ''}</div>
-        <div style=\"font-size:11.5px; line-height:1.4; margin-top:2px;\">
+        <div style=\"font-size:9.5px; line-height:1.4; margin-top:2px;\">
           {(invoice.bill_to_address or '').replace(chr(10), '<br>')}
           {'<br>GSTIN ' + invoice.bill_to_gstin if invoice.bill_to_gstin else ''}
         </div>
@@ -527,7 +592,7 @@ def render_invoice_html(invoice, settings=None) -> str:
       <td style=\"padding:5px 8px;\">
         <div class=\"meta-label\">Ship To</div>
         <div class=\"meta-val-bold\">{invoice.ship_to_name or ''}</div>
-        <div style=\"font-size:11.5px; line-height:1.4; margin-top:2px;\">
+        <div style=\"font-size:9.5px; line-height:1.4; margin-top:2px;\">
           {(invoice.ship_to_address or '').replace(chr(10), '<br>')}
           {'<br>GSTIN ' + invoice.ship_to_gstin if invoice.ship_to_gstin else ''}
         </div>

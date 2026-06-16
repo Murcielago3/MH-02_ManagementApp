@@ -11,6 +11,10 @@
           <option value="">All Years</option>
           <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
         </select>
+        <select v-model="filterClient" class="year-select">
+          <option value="">All Clients</option>
+          <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.name }}</option>
+        </select>
       </div>
       <button class="add-btn" @click="openAddModal">
         <span class="material-symbols-outlined">add</span>
@@ -37,10 +41,10 @@
           <tr v-if="loading">
             <td :colspan="8" class="empty-cell"><div class="loading-text">Loading projects…</div></td>
           </tr>
-          <tr v-else-if="paginated.length === 0">
+          <tr v-else-if="filtered.length === 0">
             <td :colspan="8" class="empty-cell">No projects found.</td>
           </tr>
-          <tr v-for="p in paginated" :key="p.id" class="proj-row" @click="openDetailModal(p)">
+          <tr v-for="p in filtered" :key="p.id" class="proj-row" @click="goToSummary(p)">
             <td class="mono"><span class="proj-num">{{ p.project_number }}</span></td>
             <td>
               <span class="proj-name">
@@ -77,12 +81,8 @@
 
       <div class="table-footer">
         <span class="page-info">
-          Showing {{ filtered.length === 0 ? 0 : startIdx + 1 }} to {{ endIdx }} of {{ filtered.length }} entries
+          {{ filtered.length }} {{ filtered.length === 1 ? 'project' : 'projects' }}
         </span>
-        <div class="page-btns">
-          <button class="page-btn" :disabled="currentPage === 1" @click="currentPage--">Prev</button>
-          <button class="page-btn" :disabled="currentPage >= totalPages" @click="currentPage++">Next</button>
-        </div>
       </div>
     </div>
 
@@ -98,6 +98,14 @@
           </div>
 
           <form @submit.prevent="handleSubmit" class="modal-body">
+            <!-- Draft restore banner -->
+            <div v-if="showDraftBanner" class="draft-banner">
+              <span class="material-symbols-outlined">history</span>
+              <span>You have an unsaved draft from a previous session.</span>
+              <button type="button" class="draft-restore-btn" @click="restoreProjectDraft">Restore</button>
+              <button type="button" class="draft-discard-btn" @click="discardProjectDraft">Discard</button>
+            </div>
+
             <div class="form-grid">
               <!-- Project Number -->
               <div class="form-field">
@@ -173,12 +181,20 @@
                 <input v-model.number="form.total_assigned_hours" type="number" step="0.5" placeholder="e.g. 500" />
               </div>
 
-              <!-- Billed Till Date -->
-              <div class="form-field span-2">
-                <label>Billed Till Date (₹)</label>
-                <input v-model.number="form.advance_amount" type="number" min="0" step="1000" placeholder="0" />
-                <p class="field-hint">Amount already billed for this project before being tracked in this system. Seeds the project reserve.</p>
+              <!-- Remuneration Fields -->
+              <div class="form-field">
+                <label>Total Project Cost (₹)</label>
+                <input v-model.number="form.project_remuneration" type="number" step="0.01" min="0" placeholder="₹ 0.00" />
               </div>
+              <div class="form-field">
+                <label>Employee Remuneration (₹)</label>
+                <input v-model.number="form.employee_remuneration" type="number" step="0.01" min="0" placeholder="₹ 0.00" />
+              </div>
+              <div class="form-field span-2">
+                <label>Partner Remuneration (₹)</label>
+                <input v-model.number="form.partner_remuneration" type="number" step="0.01" min="0" placeholder="₹ 0.00" />
+              </div>
+
             </div>
 
             <div v-if="formError" class="form-error">
@@ -220,125 +236,6 @@
       </div>
     </Teleport>
 
-    <!-- Project Detail Modal -->
-    <Teleport to="body">
-      <div v-if="detailModalOpen" class="modal-backdrop" @click.self="closeDetailModal">
-        <div class="modal modal-xl">
-          <div class="modal-header">
-            <h3 class="modal-title">{{ detailProject?.name }}</h3>
-            <button class="modal-close" @click="closeDetailModal">
-              <span class="material-symbols-outlined">close</span>
-            </button>
-          </div>
-
-          <div class="modal-body">
-
-
-            <div class="detail-grid">
-              <!-- Project Info -->
-              <div class="detail-section info-section">
-                <h4 class="section-title">Project Information</h4>
-                <div class="info-grid">
-                  <div class="info-item">
-                    <label>Project Number</label>
-                    <input v-if="isAdmin" v-model="detailProject.project_number" type="text" />
-                    <span v-else>{{ detailProject?.project_number }}</span>
-                  </div>
-                  <div class="info-item">
-                    <label>Name</label>
-                    <input v-if="isAdmin" v-model="detailProject.name" type="text" />
-                    <span v-else>{{ detailProject?.name }}</span>
-                  </div>
-                  <div class="info-item">
-                    <label>Location</label>
-                    <input v-if="isAdmin" v-model="detailProject.location" type="text" />
-                    <span v-else>{{ detailProject?.location || '—' }}</span>
-                  </div>
-                  <div class="info-item">
-                    <label>Google Maps</label>
-                    <input v-if="isAdmin" v-model="detailProject.gmap_link" type="url" placeholder="https://..." />
-                    <span v-else-if="detailProject?.gmap_link">
-                      <a :href="detailProject.gmap_link" target="_blank">View Map</a>
-                    </span>
-                    <span v-else>—</span>
-                  </div>
-                  <div class="info-item">
-                    <label>Year</label>
-                    <input v-if="isAdmin" v-model.number="detailProject.year" type="number" />
-                    <span v-else>{{ detailProject?.year || '—' }}</span>
-                  </div>
-                  <div class="info-item">
-                    <label>Stage</label>
-                    <select v-if="isAdmin" v-model="detailProject.current_stage">
-                      <option v-for="s in stages" :key="s" :value="s">{{ s }}</option>
-                    </select>
-                    <span v-else>{{ detailProject?.current_stage || '—' }}</span>
-                  </div>
-                  <div class="info-item">
-                    <label>Billing Status</label>
-                    <select v-if="isAdmin" v-model="detailProject.is_billed">
-                      <option value="unbilled">Unbilled</option>
-                      <option value="billed">Billed</option>
-                      <option value="partial">Partial</option>
-                    </select>
-                    <span v-else>{{ detailProject?.is_billed }}</span>
-                  </div>
-                  <div class="info-item">
-                    <label>Client</label>
-                    <select v-if="isAdmin" v-model="detailProject.client_id">
-                      <option :value="null">No Client</option>
-                      <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.name }}</option>
-                    </select>
-                    <span v-else>{{ getClientName(detailProject?.client_id) }}</span>
-                  </div>
-                </div>
-
-
-              </div>
-
-
-
-
-
-              <!-- Teams -->
-              <div class="detail-section" v-if="isAdmin && detailProject?.id">
-                <ProjectTeamsPanel
-                  :project-id="detailProject.id"
-                  :all-users="users"
-                  @error="(m) => toast(m, 'error')"
-                />
-              </div>
-
-              <!-- Work Orders -->
-              <div class="detail-section">
-                <h4 class="section-title">Work Orders</h4>
-                <div v-if="detailProject?.work_order_urls" class="workorders-list">
-                  <div v-for="url in detailProject.work_order_urls.split(';')" :key="url" class="workorder-item">
-                    <a :href="url" target="_blank">View Work Order</a>
-                  </div>
-                </div>
-                <div v-else class="empty-state">No work orders uploaded yet.</div>
-
-                <!-- Upload Work Order -->
-                <div class="upload-form">
-                  <input type="file" ref="uploadInput" @change="uploadFile = $event.target.files[0]" accept=".pdf,.jpg,.jpeg,.png" />
-                  <button class="btn-upload" :disabled="!uploadFile || uploadSubmitting" @click="uploadWorkorder">
-                    {{ uploadSubmitting ? 'Uploading…' : 'Upload' }}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer" v-if="isAdmin">
-            <button class="btn-cancel" @click="closeDetailModal">Cancel</button>
-            <button class="btn-submit" :disabled="submitting" @click="saveDetailChanges">
-              {{ submitting ? 'Saving...' : 'Save All Changes' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-
     <ToastNotification
       v-if="toastMsg"
       :message="toastMsg"
@@ -350,18 +247,23 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 import EmployeeLayout from '../components/EmployeeLayout.vue'
 import CurrencyInput from '../components/CurrencyInput.vue'
 import ToastNotification from '../components/ToastNotification.vue'
-import ProjectTeamsPanel from '../components/projects/ProjectTeamsPanel.vue'
 import { useAuthStore } from '../stores/auth'
 import { projectsAPI } from '../api/projects'
 import { clientsAPI } from '../api/clients'
 import { usersAPI } from '../api/users'
+import { useDraftStorage } from '../composables/useDraftStorage'
+
+const route = useRoute()
+const router = useRouter()
 
 
 const authStore = useAuthStore()
+const { draft: projectDraft, saveDraft: saveProjectDraft, clearDraft: clearProjectDraft, hasDraft: hasProjectDraft } = useDraftStorage('project_create')
 
 const layout = computed(() => {
   return authStore.role === 'admin' ? AppLayout : EmployeeLayout
@@ -375,8 +277,7 @@ const users = ref([])
 const loading = ref(true)
 const searchQuery = ref('')
 const filterYear = ref('')
-const currentPage = ref(1)
-const perPage = 10
+const filterClient = ref('')
 
 const modalOpen = ref(false)
 const isEditing = ref(false)
@@ -385,11 +286,6 @@ const submitting = ref(false)
 const formError = ref('')
 const deleteTarget = ref(null)
 
-const detailModalOpen = ref(false)
-const detailProject = ref(null)
-const uploadFile = ref(null)
-const uploadSubmitting = ref(false)
-const uploadInput = ref(null)
 
 const toastMsg = ref('')
 const toastType = ref('success')
@@ -415,25 +311,58 @@ const form = reactive({
   is_billed: 'unbilled',
   client_id: null,
   total_assigned_hours: null,
-  color: '#B5EAD7',
-  advance_amount: 0,
+  project_remuneration: null,
+  employee_remuneration: null,
+  partner_remuneration: null,
+  color: '#60A5FA',
 })
 
-// Pastel-only palette — admins can only assign soft/pastel colors to projects.
+// Project color palette — medium-saturation, clearly visible on calendar
 const projectPresets = [
-  '#FADADD', // pastel pink
-  '#FFD8B1', // pastel peach
-  '#FFF1B6', // pastel yellow
-  '#D4F0C0', // pastel mint
-  '#B5EAD7', // pastel teal
-  '#C7E9F1', // pastel sky
-  '#B8D8F8', // pastel blue
-  '#D7C4F2', // pastel lavender
-  '#E8C7E8', // pastel mauve
-  '#F4C2C2', // pastel rose
-  '#E2D5C7', // pastel sand
-  '#CDE7BE', // pastel sage
+  '#F87171', // red
+  '#FB923C', // orange
+  '#FBBF24', // amber
+  '#FDE047', // yellow
+  '#A3E635', // lime
+  '#4ADE80', // green
+  '#34D399', // emerald
+  '#2DD4BF', // teal
+  '#22D3EE', // cyan
+  '#38BDF8', // sky blue
+  '#60A5FA', // blue
+  '#818CF8', // indigo
+  '#A78BFA', // violet
+  '#C084FC', // purple
+  '#E879F9', // fuchsia
+  '#F472B6', // pink
+  '#94A3B8', // slate
+  '#86EFAC', // light green
+  '#7DD3FC', // light blue
+  '#FCA5A5', // light red/coral
 ]
+
+const showDraftBanner = ref(false)
+
+// Auto-save draft when form changes (only during add, not edit)
+watch(() => ({ ...form }), (val) => {
+  if (modalOpen.value && !isEditing.value) {
+    saveProjectDraft({ ...val })
+  }
+}, { deep: true })
+
+function restoreProjectDraft() {
+  if (!projectDraft.value) return
+  const d = projectDraft.value
+  Object.keys(form).forEach(k => {
+    if (d[k] !== undefined) form[k] = d[k]
+  })
+  showDraftBanner.value = false
+}
+
+function discardProjectDraft() {
+  clearProjectDraft()
+  showDraftBanner.value = false
+}
 
 async function fetchAll() {
   loading.value = true
@@ -460,7 +389,15 @@ async function fetchAll() {
   }
 }
 
-onMounted(fetchAll)
+onMounted(async () => {
+  await fetchAll()
+  const editId = route.query.edit
+  if (editId) {
+    const p = projects.value.find(proj => proj.id === Number(editId))
+    if (p) openEditModal(p)
+    router.replace({ query: {} })
+  }
+})
 
 const yearOptions = computed(() => {
   const years = [...new Set(projects.value.map(p => p.year).filter(Boolean))].sort((a, b) => b - a)
@@ -476,6 +413,7 @@ const filtered = computed(() => {
   })
   
   if (filterYear.value) list = list.filter(p => p.year === Number(filterYear.value))
+  if (filterClient.value) list = list.filter(p => p.client_id === Number(filterClient.value))
   const q = searchQuery.value.toLowerCase()
   if (q) list = list.filter(p =>
     p.name.toLowerCase().includes(q) ||
@@ -485,10 +423,6 @@ const filtered = computed(() => {
   return list
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filtered.value.length / perPage)))
-const startIdx = computed(() => (currentPage.value - 1) * perPage)
-const endIdx = computed(() => Math.min(startIdx.value + perPage, filtered.value.length))
-const paginated = computed(() => filtered.value.slice(startIdx.value, endIdx.value))
 
 function resetForm() {
   form.project_number = ''
@@ -500,8 +434,10 @@ function resetForm() {
   form.is_billed = 'unbilled'
   form.client_id = null
   form.total_assigned_hours = null
+  form.project_remuneration = null
+  form.employee_remuneration = null
+  form.partner_remuneration = null
   form.color = '#B5EAD7'
-  form.advance_amount = 0
   formError.value = ''
 }
 
@@ -510,7 +446,7 @@ async function openAddModal() {
   isEditing.value = false
   editingId.value = null
   modalOpen.value = true
-  
+
   try {
     const res = await projectsAPI.getNextNumber()
     if (res.data?.next_number) {
@@ -518,6 +454,11 @@ async function openAddModal() {
     }
   } catch (e) {
     console.error('Failed to fetch next project number', e)
+  }
+
+  // Show draft banner if a saved draft exists
+  if (hasProjectDraft.value) {
+    showDraftBanner.value = true
   }
 }
 
@@ -533,80 +474,20 @@ function openEditModal(p) {
   form.is_billed = p.is_billed || 'unbilled'
   form.client_id = p.client_id || null
   form.total_assigned_hours = p.total_assigned_hours ? Number(p.total_assigned_hours) : null
+  form.project_remuneration = p.project_remuneration ? Number(p.project_remuneration) : null
+  form.employee_remuneration = p.employee_remuneration ? Number(p.employee_remuneration) : null
+  form.partner_remuneration = p.partner_remuneration ? Number(p.partner_remuneration) : null
   form.color = p.color || '#B5EAD7'
-  form.advance_amount = Number(p.advance_amount) || 0
   formError.value = ''
   modalOpen.value = true
 }
 
 function closeModal() { modalOpen.value = false }
 
-async function openDetailModal(p) {
-  try {
-    const res = await projectsAPI.getProject(p.id)
-    detailProject.value = res.data
-    detailModalOpen.value = true
-  } catch (e) {
-    toast(e.response?.data?.detail || 'Could not load project.', 'error')
-    console.error(e)
-  }
+function goToSummary(p) {
+  router.push(`/admin/projects/summary/${p.id}`)
 }
 
-function closeDetailModal() {
-  detailModalOpen.value = false
-}
-
-async function saveDetailChanges() {
-  if (!detailProject.value) return
-  submitting.value = true
-  try {
-    const payload = {
-      project_number: detailProject.value.project_number,
-      name: detailProject.value.name,
-      location: detailProject.value.location || null,
-      gmap_link: detailProject.value.gmap_link || null,
-      year: detailProject.value.year || null,
-      current_stage: detailProject.value.current_stage || null,
-      is_billed: detailProject.value.is_billed,
-      client_id: detailProject.value.client_id || null,
-      start_date: detailProject.value.start_date || null,
-      end_date: detailProject.value.end_date || null,
-      color: detailProject.value.color,
-    }
-    await projectsAPI.updateProject(detailProject.value.id, payload)
-    toast('Project details saved.')
-    await fetchAll()
-  } catch (err) {
-    toast(err.response?.data?.detail || 'Save failed.', 'error')
-  } finally {
-    submitting.value = false
-  }
-}
-
-async function uploadWorkorder() {
-  if (!uploadFile.value) return
-  uploadSubmitting.value = true
-  try {
-    const formData = new FormData()
-    formData.append('file', uploadFile.value)
-    // Use client directly for upload
-    const client = (await import('../api/client')).default
-    await client.post(`/uploads/project/${detailProject.value.id}/workorder`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
-    uploadFile.value = null
-    uploadInput.value.value = ''
-    // Refresh detail
-    const res = await projectsAPI.getProject(detailProject.value.id)
-    detailProject.value = res.data
-    toast('Work order uploaded.')
-  } catch (e) {
-    toast(e.response?.data?.detail || 'Upload failed.', 'error')
-    console.error(e)
-  } finally {
-    uploadSubmitting.value = false
-  }
-}
 
 async function handleSubmit() {
   formError.value = ''
@@ -622,14 +503,17 @@ async function handleSubmit() {
       is_billed: form.is_billed,
       client_id: form.client_id || null,
       total_assigned_hours: form.total_assigned_hours,
+      project_remuneration: form.project_remuneration,
+      employee_remuneration: form.employee_remuneration,
+      partner_remuneration: form.partner_remuneration,
       color: form.color,
-      advance_amount: Number(form.advance_amount) || 0,
     }
     if (isEditing.value) {
       await projectsAPI.updateProject(editingId.value, payload)
     } else {
       await projectsAPI.createProject(payload)
     }
+    if (!isEditing.value) clearProjectDraft()
     closeModal()
     toast(isEditing.value ? 'Project updated.' : 'Project created.')
     await fetchAll()
@@ -677,507 +561,665 @@ function getClientName(clientId) {
 }
 
 
-const remainingHours = computed(() => {
-  const assigned = Number(detailProject.value?.total_assigned_hours) || 0
-  const worked = Number(detailProject.value?.total_worked_hours) || 0
-  return (assigned - worked).toFixed(1)
-})
-
-const progressPercent = computed(() => {
-  const assigned = Number(detailProject.value?.total_assigned_hours) || 0
-  if (assigned <= 0) return 0
-  const worked = Number(detailProject.value?.total_worked_hours) || 0
-  return Math.round((worked / assigned) * 100)
-})
 
 </script>
 
 <style scoped>
+/* ─── Material Symbols ─── */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
 /* ─── Page Actions ─── */
 .page-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 20px;
 }
 .actions-left { display: flex; gap: 8px; align-items: center; }
+
+/* Search */
 .search-box { position: relative; }
 .search-icon {
-  position: absolute; left: 8px; top: 50%;
-  transform: translateY(-50%); color: var(--color-on-surface-variant); font-size: 18px;
+  position: absolute; left: 10px; top: 50%;
+  transform: translateY(-50%); color: var(--color-on-surface-variant); font-size: 16px;
+  pointer-events: none;
 }
 .search-input {
-  padding: 8px 8px 8px 32px; background: #fff; border: 1px solid var(--color-outline);
-  border-radius: var(--radius-lg); font-family: var(--font-display); font-size: 13px;
-  color: var(--color-on-surface); width: 256px; outline: none; transition: border 0.15s;
-}
-.search-input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 1px var(--color-primary); }
-.search-input::placeholder { color: var(--color-on-surface-variant); }
-.year-select {
-  height: 36px; padding: 0 10px; border: 1px solid var(--color-outline); border-radius: var(--radius-lg);
-  font-family: var(--font-display); font-size: 13px; color: var(--color-on-surface);
-  background: #fff; outline: none; cursor: pointer;
-}
-.add-btn {
-  display: flex; align-items: center; gap: 4px; padding: 8px 16px;
-  background: var(--color-primary); color: #fff; border: none; border-radius: var(--radius-lg);
-  font-family: var(--font-display); font-size: 14px; font-weight: 600;
-  cursor: pointer; transition: opacity 0.15s;
-}
-.add-btn:hover { opacity: 0.9; }
-.add-btn .material-symbols-outlined { font-size: 18px; }
-
-/* ─── Table ─── */
-.table-card {
-  background: #fff; border: 1px solid var(--color-outline); border-radius: var(--radius-lg); overflow: hidden;
-}
-.proj-table { width: 100%; border-collapse: collapse; text-align: left; }
-.proj-table thead { background: var(--color-surface-container); border-bottom: 1px solid var(--color-outline); }
-.proj-table th {
-  padding: 8px 16px; font-size: 11px; font-weight: 600;
-  letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-on-surface-variant);
-}
-.proj-table tbody tr { border-bottom: 1px solid #e5e1e3; transition: background 0.1s; }
-.proj-table tbody tr:last-child { border-bottom: none; }
-.proj-row:hover { background: var(--color-background); }
-.proj-table td { padding: 8px 16px; font-size: 13px; color: var(--color-on-surface); }
-.proj-num {
-  font-family: 'Courier New', monospace; font-size: 12px;
-  background: var(--color-surface-container-high); padding: 2px 6px; border-radius: var(--radius);
-}
-.proj-name { font-weight: 600; }
-.mono { font-variant-numeric: tabular-nums; }
-.muted { color: var(--color-on-surface-variant); }
-.text-right { text-align: right; }
-.text-center { text-align: center; }
-.col-actions { width: 96px; }
-
-/* Stage badges */
-.stage-badge {
-  display: inline-block; padding: 3px 8px; border-radius: var(--radius);
-  font-size: 11px; font-weight: 600; text-transform: capitalize;
-}
-.stage-active { background: #d5e3fd; color: var(--color-primary); }
-.stage-done { background: #c8f5d0; color: #145a23; }
-.stage-const { background: #f2e1b7; color: #7a4f00; }
-.stage-na { background: var(--color-surface-container-high); color: var(--color-on-surface-variant); }
-
-/* Billing badges */
-.billing-badge {
-  display: inline-block; padding: 3px 8px; border-radius: var(--radius);
-  font-size: 11px; font-weight: 600; text-transform: capitalize;
-}
-.billed { background: #c8f5d0; color: #145a23; }
-.unbilled { background: #ffdad6; color: #93000a; }
-
-/* Row actions */
-.row-actions {
-  display: flex; align-items: center; justify-content: center;
-  gap: 4px; opacity: 0; transition: opacity 0.15s;
-}
-.proj-row:hover .row-actions { opacity: 1; }
-.action-btn {
-  padding: 4px; border: none; background: none;
-  border-radius: var(--radius); cursor: pointer; color: var(--color-on-surface-variant); transition: all 0.15s;
-}
-.action-btn .material-symbols-outlined { font-size: 18px; }
-.edit-btn:hover { color: var(--color-primary); background: var(--color-surface-container); }
-.delete-btn:hover { color: #ba1a1a; background: #ffdad6; }
-.empty-cell { padding: 24px; text-align: center; color: var(--color-on-surface-variant); }
-.loading-text { animation: pulse 1.5s ease-in-out infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-
-/* Pagination */
-.table-footer {
-  padding: 8px 16px; border-top: 1px solid var(--color-outline); background: var(--color-surface-container);
-  display: flex; justify-content: space-between; align-items: center;
-}
-.page-info { font-size: 13px; color: var(--color-on-surface-variant); }
-.page-btns { display: flex; gap: 4px; }
-.page-btn {
-  padding: 4px 8px; border: 1px solid var(--color-outline); border-radius: var(--radius);
-  background: #fff; font-family: var(--font-display); font-size: 13px;
-  color: var(--color-on-surface); cursor: pointer; transition: background 0.15s;
-}
-.page-btn:hover:not(:disabled) { background: var(--color-surface-container); }
-.page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* ─── Modal ─── */
-.modal-backdrop {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.4);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 100; animation: fadeIn 0.15s ease;
-}
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.modal {
-  background: #fff; border-radius: var(--radius-lg); width: 600px; max-width: 95vw;
-  max-height: 90vh; overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.15); animation: slideUp 0.2s ease;
-}
-.modal-wide { width: 760px; }
-.modal-sm { width: 400px; }
-@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-.modal-header {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 20px 24px; border-bottom: 1px solid #e5e1e3;
-}
-.modal-title { font-size: 18px; font-weight: 600; color: var(--color-on-surface); margin: 0; }
-.modal-close {
-  background: none; border: none; color: var(--color-on-surface-variant); cursor: pointer;
-  padding: 4px; border-radius: var(--radius);
-}
-.modal-close:hover { background: var(--color-surface-container); }
-.modal-body { padding: 24px; }
-.modal-body p { font-size: 14px; line-height: 22px; color: var(--color-on-surface-variant); margin: 0; }
-
-/* Form grid */
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.form-field { display: flex; flex-direction: column; gap: 6px; }
-.span-2 { grid-column: span 2; }
-.form-field label { font-size: 13px; font-weight: 600; color: var(--color-on-surface-variant); }
-.form-field input,
-.form-field select {
-  height: 40px; padding: 0 12px; border: 1px solid var(--color-outline);
-  border-radius: var(--radius-lg); font-family: var(--font-display); font-size: 14px;
-  color: var(--color-on-surface); outline: none; transition: border 0.15s; background: #fff;
-}
-.form-field input:focus,
-.form-field select:focus { border-color: var(--color-primary); box-shadow: 0 0 0 1px var(--color-primary); }
-.form-field input::placeholder { color: var(--color-on-surface-variant); }
-.form-field input:disabled { background: var(--color-surface-container); color: var(--color-on-surface-variant); cursor: not-allowed; }
-
-/* Modern Color Picker */
-.modern-color-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background: var(--color-background);
-  padding: 16px;
+  padding: 9px 12px 9px 34px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--color-outline-variant);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-on-surface);
+  width: 240px;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
 }
-
-.presets-grid {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 8px;
+.search-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
 }
+.search-input::placeholder { color: var(--color-on-surface-variant); }
 
-.color-preset-btn {
-  width: 100%;
-  aspect-ratio: 1;
-  border: 2px solid transparent;
-  border-radius: 6px;
+/* Year filter */
+.year-select {
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-on-surface);
+  background: var(--color-surface);
+  outline: none;
   cursor: pointer;
-  transition: transform 0.15s, border-color 0.15s;
+  transition: border-color var(--transition);
 }
+.year-select:focus { border-color: var(--color-primary); }
 
-.color-preset-btn:hover { transform: scale(1.1); }
-.color-preset-btn.active { border-color: #000; box-shadow: 0 0 0 2px #fff inset; }
-
-.custom-color-wrap {
-  display: flex;
+/* Add button */
+.add-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--color-outline-variant);
-}
-
-.custom-color-input {
-  width: 32px;
-  height: 32px;
-  padding: 0;
+  gap: 6px;
+  padding: 9px 18px;
+  background: var(--color-primary);
+  color: #fff;
   border: none;
-  background: none;
-  cursor: pointer;
-}
-
-.color-hex {
-  font-family: 'Courier New', monospace;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
   font-size: 13px;
   font-weight: 600;
-  color: var(--color-on-surface-variant);
-  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity var(--transition), box-shadow var(--transition);
+  box-shadow: var(--shadow-sm);
+}
+.add-btn:hover { opacity: 0.88; box-shadow: var(--shadow-md); }
+.add-btn .material-symbols-outlined { font-size: 16px; }
+
+/* ─── Table Card ─── */
+.table-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
+.proj-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+/* thead */
+.proj-table thead { background: #f8fafc; }
+.proj-table th {
+  padding: 12px 16px;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+  border-bottom: 1px solid var(--color-outline);
+  white-space: nowrap;
+}
+
+/* tbody */
+.proj-table tbody tr {
+  border-bottom: 1px solid var(--color-outline-variant);
+  transition: background var(--transition);
+  cursor: pointer;
+}
+.proj-table tbody tr:last-child { border-bottom: none; }
+.proj-row:hover { background: #fafbfc; }
+.proj-table td {
+  padding: 12px 16px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-on-surface);
+  vertical-align: middle;
+}
+
+/* Project number pill */
+.proj-num {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--color-outline-variant);
+  color: var(--color-on-surface-variant);
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+}
+
+/* Project name with color dot */
+.proj-name {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
 .color-dot {
   display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  margin-right: 8px;
+  margin-right: 7px;
   flex-shrink: 0;
 }
 
-.field-hint {
-  margin: 0;
-  font-size: 11px;
-  color: var(--color-on-surface-variant);
-  line-height: 1.4;
-}
+.mono { font-variant-numeric: tabular-nums; }
+.muted { color: var(--color-on-surface-variant); }
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+.col-actions { width: 90px; }
 
-.form-error {
-  display: flex; align-items: center; gap: 8px; padding: 12px;
-  background: #ffdad6; border-radius: var(--radius-lg); color: #93000a;
-  font-size: 14px; margin-top: 16px;
-}
-.form-error .material-symbols-outlined { font-size: 18px; flex-shrink: 0; }
-
-.modal-footer {
-  display: flex; justify-content: flex-end; gap: 8px;
-  padding: 20px 24px; border-top: 1px solid #e5e1e3;
-}
-form .modal-footer { margin-top: 24px; padding: 0; border-top: none; }
-
-.btn-cancel {
-  padding: 8px 16px; border: 1px solid var(--color-outline); border-radius: var(--radius-lg);
-  background: #fff; font-family: var(--font-display); font-size: 14px;
-  color: var(--color-on-surface); cursor: pointer;
-}
-.btn-cancel:hover { background: var(--color-surface-container); }
-.btn-submit {
-  padding: 8px 20px; border: none; border-radius: var(--radius-lg);
-  background: var(--color-primary); color: #fff; font-family: var(--font-display);
-  font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
-}
-.btn-submit:hover:not(:disabled) { opacity: 0.9; }
-.btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-danger {
-  padding: 8px 20px; border: none; border-radius: var(--radius-lg);
-  background: #ba1a1a; color: #fff; font-family: var(--font-display);
-  font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
-}
-.btn-danger:hover:not(:disabled) { opacity: 0.9; }
-.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.material-symbols-outlined {
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-}
-
-/* ─── Detail Modal ─── */
-.modal-xl { width: 1200px; max-width: 98vw; height: 95vh; display: flex; flex-direction: column; }
-.modal-xl .modal-body { flex: 1; overflow-y: auto; padding: 32px; }
-.detail-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 32px;
-}
-.detail-section { margin-bottom: 32px; }
-.section-title {
-  font-family: var(--font-display); font-size: 16px; font-weight: 600;
-  color: var(--color-on-surface); margin-bottom: 16px;
-}
-.info-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
-}
-.info-item {
-  display: flex; flex-direction: column; gap: 4px;
-}
-.info-item label {
-  font-family: var(--font-display); font-size: 12px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-on-surface-variant);
-}
-.info-item span {
-  font-family: var(--font-body); font-size: 14px; color: var(--color-on-surface);
-}
-.info-item input, .info-item select {
-  height: 36px; padding: 0 8px; border: 1px solid var(--color-outline-variant);
-  border-radius: 4px; font-family: var(--font-body); font-size: 13px; outline: none;
-  background: var(--color-surface-dim);
-}
-.info-item input:focus, .info-item select:focus {
-  border-color: var(--color-primary); background: #fff;
-}
-.mt-4 { margin-top: 16px; }
-.assignments-list {
-  margin-bottom: 16px;
-}
-.assignment-item {
-  padding: 12px 16px; background: var(--color-surface-dim); border-radius: var(--radius-lg);
-  margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;
-  border: 1px solid var(--color-outline-variant);
-}
-.assign-main { flex: 1; display: flex; justify-content: space-between; align-items: center; }
-.assign-info { display: flex; flex-direction: column; gap: 2px; }
-.assign-name { font-family: var(--font-display); font-size: 14px; font-weight: 600; color: var(--color-on-surface); }
-.assign-role { font-size: 11px; color: var(--color-on-surface-variant); text-transform: uppercase; letter-spacing: 0.02em; }
-.assign-stats { display: flex; gap: 24px; }
-.stat-item { display: flex; flex-direction: column; gap: 2px; }
-.stat-item label { font-size: 9px; text-transform: uppercase; color: var(--color-on-surface-variant); font-weight: 700; }
-.stat-val { font-family: var(--font-body); font-size: 13px; font-weight: 600; color: var(--color-on-surface); }
-.assign-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  align-items: stretch;
-  margin-top: 16px;
-}
-.assign-form select {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid var(--color-surface-container-high);
-  border-radius: var(--radius);
-  font-family: var(--font-display);
-  font-size: 13px;
-}
-.assign-pay-block {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.assign-pay-label {
+/* Stage badges */
+.stage-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-on-surface-variant);
 }
-.assign-base-input {
-  width: 100%;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid var(--color-surface-container-high);
-  border-radius: var(--radius-lg);
-  font-size: 14px;
-}
-.assign-hourly-preview {
-  margin: 0;
-  font-size: 13px;
-  color: var(--color-on-surface-variant);
-}
-.btn-assign {
-  align-self: flex-start;
-  padding: 8px 16px; background: var(--color-primary); color: #fff; border: none;
-  border-radius: var(--radius); font-family: var(--font-display); font-size: 13px;
-  cursor: pointer; transition: background 0.15s;
-}
-.btn-assign:hover:not(:disabled) { background: #2a2a3e; }
-.btn-assign:disabled { opacity: 0.5; cursor: not-allowed; }
-.workorders-list {
-  margin-bottom: 16px;
-}
-.workorder-item {
-  padding: 8px 12px; background: var(--color-background); border-radius: var(--radius);
-  margin-bottom: 8px;
-}
-.workorder-item a {
-  font-family: var(--font-display); font-size: 13px; color: var(--color-primary);
-  text-decoration: none;
-}
-.workorder-item a:hover { text-decoration: underline; }
-.upload-form {
-  display: flex; gap: 12px; align-items: center;
-}
-.upload-form input {
-  flex: 1; padding: 8px 12px; border: 1px solid var(--color-surface-container-high);
-  border-radius: var(--radius); font-family: var(--font-display); font-size: 13px;
-}
-.btn-upload {
-  padding: 8px 16px; background: var(--color-primary); color: #fff; border: none;
-  border-radius: var(--radius); font-family: var(--font-display); font-size: 13px;
-  cursor: pointer; transition: background 0.15s;
-}
-.btn-upload:hover:not(:disabled) { background: #0a7a6a; }
-.btn-upload:disabled { opacity: 0.5; cursor: not-allowed; }
-.empty-state {
-  padding: 16px; text-align: center; color: var(--color-on-surface-variant);
-  font-family: var(--font-display); font-size: 13px;
-}
+.stage-active  { background: #dbeafe; color: #1d4ed8; }
+.stage-done    { background: #dcfce7; color: #15803d; }
+.stage-const   { background: #fef3c7; color: #92400e; }
+.stage-na      { background: var(--color-outline-variant); color: var(--color-on-surface-variant); }
 
-/* Color dot in table */
-.color-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+/* Billing badges */
+.billing-badge {
   display: inline-block;
-  margin-right: 6px;
-  vertical-align: middle;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
 }
+.billed   { background: #dcfce7; color: #15803d; }
+.unbilled { background: #fee2e2; color: #b91c1c; }
 
-/* Color picker in form */
-.color-picker-row {
+/* Row actions — visible on hover */
+.row-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--transition);
 }
-.color-preview {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: 2px solid var(--color-outline-variant);
-  flex-shrink: 0;
-}
-.color-input {
-  width: 48px;
-  height: 36px;
-  padding: 0;
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 4px;
-  cursor: pointer;
+.proj-row:hover .row-actions { opacity: 1; }
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
   background: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  transition: background var(--transition), color var(--transition);
 }
-/* Highlight Section (Tracking) */
-.highlight-section {
-  background: var(--color-surface-container-lowest);
-  padding: 20px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-outline-variant);
-  grid-column: span 2;
+.action-btn .material-symbols-outlined { font-size: 17px; }
+.edit-btn:hover   { color: var(--color-primary); background: var(--color-primary-light); }
+.delete-btn:hover { color: var(--color-error);   background: #fee2e2; }
+
+/* Empty / loading */
+.empty-cell {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--color-on-surface-variant);
+  font-size: 13px;
+}
+.loading-text { animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* ─── Table Footer / Pagination ─── */
+.table-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--color-outline);
+  background: #f8fafc;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.page-info {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+.page-btns { display: flex; gap: 6px; }
+.page-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.page-btn:hover:not(:disabled) { background: var(--color-outline-variant); }
+.page-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ─── Modal ─── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  animation: fadeIn 0.15s ease;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.modal {
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  width: 600px;
+  max-width: 95vw;
+  max-height: 92vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
+  animation: slideUp 0.2s ease;
+}
+.modal-wide { width: 760px; }
+.modal-sm   { width: 420px; }
+@keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-outline);
+}
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-on-surface);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.modal-close:hover { background: var(--color-outline-variant); }
+
+.modal-body { padding: 24px; }
+.modal-body p {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-on-surface-variant);
+  margin: 0;
 }
 
-.hours-track-grid {
+/* ─── Form ─── */
+.form-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
-  margin-bottom: 20px;
+}
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.span-2 { grid-column: span 2; }
+
+.form-field label {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--color-on-surface-variant);
+}
+.form-field input,
+.form-field select {
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-on-surface);
+  background: var(--color-surface);
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.form-field input:focus,
+.form-field select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+.form-field input::placeholder { color: var(--color-on-surface-variant); }
+.form-field input:disabled {
+  background: var(--color-outline-variant);
+  color: var(--color-on-surface-variant);
+  cursor: not-allowed;
 }
 
-.track-item {
+/* Color picker */
+.modern-color-picker {
+  background: var(--color-surface-dim);
+  padding: 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-outline);
+}
+.presets-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+.color-preset-btn {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.color-preset-btn:hover { transform: scale(1.12); }
+.color-preset-btn.active {
+  border-color: var(--color-on-surface);
+  box-shadow: 0 0 0 2px var(--color-surface) inset;
+}
+
+/* Form error */
+.form-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
+  color: #b91c1c;
+  font-family: var(--font-body);
+  font-size: 13px;
+  margin-top: 16px;
+}
+.form-error .material-symbols-outlined { font-size: 16px; flex-shrink: 0; }
+
+/* Modal footer */
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 18px 24px;
+  border-top: 1px solid var(--color-outline);
+  background: #f8fafc;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+}
+form .modal-footer {
+  margin-top: 24px;
+  padding: 0;
+  border-top: none;
+  background: none;
+  border-radius: 0;
+}
+
+/* Buttons */
+.btn-cancel {
+  padding: 9px 18px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.btn-cancel:hover { background: var(--color-outline-variant); }
+
+.btn-submit {
+  padding: 9px 18px;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--color-primary);
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+.btn-submit:hover:not(:disabled) { opacity: 0.88; }
+.btn-submit:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-danger {
+  padding: 9px 18px;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--color-error);
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+.btn-danger:hover:not(:disabled) { opacity: 0.88; }
+.btn-danger:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ─── Detail Modal ─── */
+.modal-xl {
+  width: 1100px;
+  max-width: 98vw;
+  height: 94vh;
+  display: flex;
+  flex-direction: column;
+}
+.modal-xl .modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 32px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+}
+.detail-section { margin-bottom: 0; }
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--color-on-surface-variant);
+  margin: 0 0 14px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.info-item {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
-
-.track-item label {
-  font-size: 11px;
+.info-item label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
-  font-weight: 700;
+  letter-spacing: .05em;
   color: var(--color-on-surface-variant);
-  letter-spacing: 0.05em;
 }
-
-.track-val {
-  font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 700;
+.info-item span {
+  font-family: var(--font-body);
+  font-size: 13px;
   color: var(--color-on-surface);
 }
-
-.progress-container {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.info-item input,
+.info-item select {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 13px;
+  outline: none;
+  background: var(--color-surface-dim);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.info-item input:focus,
+.info-item select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+  background: var(--color-surface);
 }
 
+/* Work orders */
+.workorders-list { margin-bottom: 12px; }
+.workorder-item {
+  padding: 8px 12px;
+  background: var(--color-surface-dim);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  margin-bottom: 6px;
+}
+.workorder-item a {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+.workorder-item a:hover { text-decoration: underline; }
+
+.upload-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 8px;
+}
+.upload-form input {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 12px;
+  outline: none;
+}
+.btn-upload {
+  padding: 8px 14px;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--transition);
+  white-space: nowrap;
+}
+.btn-upload:hover:not(:disabled) { opacity: 0.88; }
+.btn-upload:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.empty-state {
+  padding: 20px;
+  text-align: center;
+  color: var(--color-on-surface-variant);
+  font-family: var(--font-body);
+  font-size: 13px;
+}
+
+/* Draft banner */
+.draft-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  margin-bottom: 18px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: #92400e;
+}
+.draft-banner .material-symbols-outlined { font-size: 18px; flex-shrink: 0; }
+.draft-restore-btn {
+  margin-left: auto;
+  padding: 5px 12px;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.draft-restore-btn:hover { opacity: 0.88; }
+.draft-discard-btn {
+  padding: 5px 12px;
+  background: none;
+  border: 1px solid #d97706;
+  color: #d97706;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.draft-discard-btn:hover { background: #fef3c7; }
+
+/* Utility */
+.mt-4 { margin-top: 16px; }
+.text-primary { color: var(--color-primary); }
+.text-success  { color: var(--color-success); }
+.text-danger   { color: var(--color-error); }
+
+/* Progress bar */
+.progress-container { display: flex; flex-direction: column; gap: 6px; }
 .progress-bar {
-  height: 10px;
-  background: var(--color-surface-container-high);
-  border-radius: 5px;
+  height: 8px;
+  background: var(--color-outline-variant);
+  border-radius: var(--radius-full);
   overflow: hidden;
 }
-
 .progress-fill {
   height: 100%;
-  border-radius: 5px;
+  border-radius: var(--radius-full);
   transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
 .progress-labels {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--color-on-surface-variant);
 }
-
-.text-primary { color: var(--color-primary); }
-.text-success { color: #145a23; }
-.text-danger { color: #ba1a1a; }
 </style>

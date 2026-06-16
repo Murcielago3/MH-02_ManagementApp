@@ -16,7 +16,7 @@
             {{ formatStatus(selectedWeek.status) }}
           </span>
         </div>
-        <p class="week-subtitle">5 working days · 40 hours</p>
+        <p class="week-subtitle">Mon – Sun · 7 days</p>
       </div>
 
       <div class="panel-body">
@@ -60,7 +60,7 @@ const formattedWeekRange = computed(() => {
   const optionsShort = { day: '2-digit', month: 'short' }
   const optionsLong = { day: '2-digit', month: 'short', year: 'numeric' }
   
-  return `Week of Mon ${start.toLocaleDateString('en-GB', optionsShort)} – Fri ${end.toLocaleDateString('en-GB', optionsLong)}`
+  return `Week of Mon ${start.toLocaleDateString('en-GB', optionsShort)} – Sun ${end.toLocaleDateString('en-GB', optionsLong)}`
 })
 
 function formatStatus(status) {

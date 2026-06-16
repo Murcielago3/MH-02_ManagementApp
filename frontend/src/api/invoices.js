@@ -10,6 +10,9 @@ export const invoicesAPI = {
   createInvoice(data) {
     return client.post('/invoices/', data)
   },
+  updateInvoice(id, data) {
+    return client.put(`/invoices/${id}`, data)
+  },
   deleteInvoice(id) {
     return client.delete(`/invoices/${id}`)
   },

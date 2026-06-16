@@ -1,13 +1,46 @@
 <template>
   <AppLayout>
+    <!-- Page Header -->
     <div class="page-header">
-      <h2>Invoices</h2>
+      <div class="header-left">
+        <h1 class="page-title">Invoices</h1>
+        <p class="page-subtitle">Manage and download all generated invoices</p>
+      </div>
       <router-link to="/admin/invoices/new" class="btn-primary">
         <span class="material-symbols-outlined">add</span>
         New Invoice
       </router-link>
     </div>
 
+    <!-- Drafts Section -->
+    <div v-if="hasDrafts" class="drafts-card">
+      <div class="drafts-header">
+        <div class="drafts-header-left">
+          <span class="material-symbols-outlined drafts-icon">edit_note</span>
+          <span class="drafts-title">Saved Drafts</span>
+          <span class="drafts-count">{{ drafts.length }}</span>
+        </div>
+      </div>
+      <div class="drafts-list">
+        <div v-for="d in drafts" :key="d.id" class="draft-item">
+          <div class="draft-info">
+            <span class="draft-label">{{ d.label }}</span>
+            <span class="draft-meta">Last edited {{ formatDraftDate(d.updatedAt) }}</span>
+          </div>
+          <div class="draft-actions">
+            <router-link :to="{ path: '/admin/invoices/new', query: { draft: d.id } }" class="draft-resume-btn">
+              <span class="material-symbols-outlined">edit</span>
+              Resume
+            </router-link>
+            <button class="draft-delete-btn" @click="handleDeleteDraft(d.id)" title="Delete draft">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table Card -->
     <div class="table-card">
       <table class="data-table">
         <thead>
@@ -23,32 +56,40 @@
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="7" class="text-center loading-text">Loading invoices...</td>
+            <td colspan="7" class="state-cell">
+              <span class="material-symbols-outlined spin-icon">progress_activity</span>
+              Loading invoices…
+            </td>
           </tr>
           <tr v-else-if="invoices.length === 0">
-            <td colspan="7" class="text-center empty-state">No invoices yet. Create your first invoice.</td>
+            <td colspan="7" class="state-cell">
+              <span class="material-symbols-outlined empty-icon">receipt_long</span>
+              <span>No invoices yet. <router-link to="/admin/invoices/new" class="inline-link">Create your first invoice</router-link></span>
+            </td>
           </tr>
-          <tr v-for="inv in invoices" :key="inv.id">
-            <td class="font-mono">{{ inv.invoice_type === 'tax' ? inv.invoice_number : '—' }}</td>
+          <tr v-for="inv in invoices" :key="inv.id" class="data-row">
+            <td class="font-mono inv-num">{{ inv.invoice_type === 'tax' ? inv.invoice_number : '—' }}</td>
             <td>
               <span class="badge" :class="inv.invoice_type === 'tax' ? 'badge-teal' : 'badge-grey'">
                 {{ inv.invoice_type === 'tax' ? 'Tax Invoice' : 'Proforma' }}
               </span>
             </td>
-            <td>{{ formatDate(inv.invoice_date) }}</td>
+            <td class="text-muted">{{ formatDate(inv.invoice_date) }}</td>
             <td class="font-medium">{{ inv.bill_to_name || '—' }}</td>
             <td class="text-muted">{{ inv.project?.name || inv.subject || '—' }}</td>
             <td class="text-right font-mono font-medium">₹{{ formatAmount(inv.total) }}</td>
-            <td class="actions-cell text-center">
-              <router-link :to="`/admin/invoices/${inv.id}`" class="icon-btn" title="View">
-                <span class="material-symbols-outlined">visibility</span>
-              </router-link>
-              <button class="icon-btn" @click="downloadPDF(inv.id)" title="Download PDF">
-                <span class="material-symbols-outlined">download</span>
-              </button>
-              <button class="icon-btn text-danger" @click="confirmDelete(inv)" title="Delete">
-                <span class="material-symbols-outlined">delete</span>
-              </button>
+            <td class="text-center">
+              <div class="action-group">
+                <router-link :to="`/admin/invoices/${inv.id}`" class="icon-btn" title="View">
+                  <span class="material-symbols-outlined">visibility</span>
+                </router-link>
+                <button class="icon-btn" @click="downloadPDF(inv.id)" title="Download PDF">
+                  <span class="material-symbols-outlined">download</span>
+                </button>
+                <button class="icon-btn icon-btn--danger" @click="confirmDelete(inv)" title="Delete">
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -58,21 +99,29 @@
     <!-- Delete Confirmation Modal -->
     <Teleport to="body">
       <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null">
-        <div class="modal delete-modal">
+        <div class="modal">
           <div class="modal-header">
-            <h3>Delete Invoice</h3>
-            <button class="icon-btn-close" @click="deleteTarget = null">
+            <div class="modal-icon-wrap danger">
+              <span class="material-symbols-outlined">delete_forever</span>
+            </div>
+            <button class="modal-close" @click="deleteTarget = null">
               <span class="material-symbols-outlined">close</span>
             </button>
           </div>
           <div class="modal-body">
-            <p>Are you sure you want to delete this invoice ({{ deleteTarget.invoice_type === 'tax' ? deleteTarget.invoice_number : 'Proforma' }})?</p>
-            <div class="modal-footer">
-              <button class="btn-secondary" @click="deleteTarget = null">Cancel</button>
-              <button class="btn-danger" :disabled="submitting" @click="handleDelete">
-                {{ submitting ? 'Deleting...' : 'Delete' }}
-              </button>
-            </div>
+            <h3 class="modal-title">Delete Invoice</h3>
+            <p class="modal-desc">
+              Are you sure you want to permanently delete
+              <strong>{{ deleteTarget.invoice_type === 'tax' ? deleteTarget.invoice_number : 'this Proforma' }}</strong>?
+              This action cannot be undone.
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-outline" @click="deleteTarget = null">Cancel</button>
+            <button class="btn-danger" :disabled="submitting" @click="handleDelete">
+              <span v-if="submitting" class="material-symbols-outlined spin-icon">progress_activity</span>
+              {{ submitting ? 'Deleting…' : 'Delete Invoice' }}
+            </button>
           </div>
         </div>
       </div>
@@ -87,6 +136,9 @@ import { ref, onMounted } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import ToastNotification from '../components/ToastNotification.vue'
 import { invoicesAPI } from '../api/invoices'
+import { useInvoiceDrafts } from '../composables/useInvoiceDrafts'
+
+const { drafts, hasDrafts, deleteDraft, refresh: refreshDrafts } = useInvoiceDrafts()
 
 const invoices = ref([])
 const loading = ref(true)
@@ -105,7 +157,12 @@ const fetchInvoices = async () => {
   loading.value = true
   try {
     const res = await invoicesAPI.getInvoices()
-    invoices.value = res.data.sort((a, b) => new Date(b.created_at || b.invoice_date) - new Date(a.created_at || a.invoice_date))
+    invoices.value = res.data.sort((a, b) => {
+      const numA = parseInt((a.invoice_number || '0').replace(/\D/g, '')) || 0
+      const numB = parseInt((b.invoice_number || '0').replace(/\D/g, '')) || 0
+      if (numB !== numA) return numB - numA
+      return new Date(b.created_at || b.invoice_date) - new Date(a.created_at || a.invoice_date)
+    })
   } catch (err) {
     showToast('Failed to load invoices', 'error')
   } finally {
@@ -113,7 +170,10 @@ const fetchInvoices = async () => {
   }
 }
 
-onMounted(fetchInvoices)
+onMounted(() => {
+  fetchInvoices()
+  refreshDrafts()
+})
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '—'
@@ -143,6 +203,24 @@ const confirmDelete = (inv) => {
   deleteTarget.value = inv
 }
 
+function handleDeleteDraft(draftId) {
+  deleteDraft(draftId)
+  showToast('Draft deleted')
+}
+
+function formatDraftDate(isoStr) {
+  if (!isoStr) return ''
+  const d = new Date(isoStr)
+  const now = new Date()
+  const diffMs = now - d
+  const diffMins = Math.floor(diffMs / 60000)
+  if (diffMins < 1) return 'just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  const diffHrs = Math.floor(diffMins / 60)
+  if (diffHrs < 24) return `${diffHrs}h ago`
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+}
+
 const handleDelete = async () => {
   if (!deleteTarget.value) return
   submitting.value = true
@@ -160,44 +238,59 @@ const handleDelete = async () => {
 </script>
 
 <style scoped>
+/* ── Page Header ── */
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
+  align-items: flex-start;
+  margin-bottom: 28px;
+  gap: 16px;
 }
 
-.page-header h2 {
+.page-title {
   font-family: var(--font-display);
   font-size: 24px;
-  margin: 0;
+  font-weight: 800;
+  color: var(--color-on-surface);
+  margin: 0 0 4px;
+  letter-spacing: -0.01em;
 }
 
+.page-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+}
+
+/* ── Primary Button ── */
 .btn-primary {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   background: var(--color-primary);
-  color: white;
+  color: #fff;
   border: none;
-  padding: 8px 16px;
-  border-radius: var(--radius);
+  padding: 10px 18px;
+  border-radius: var(--radius-lg);
   font-family: var(--font-display);
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   text-decoration: none;
   cursor: pointer;
-  transition: opacity 0.2s;
+  white-space: nowrap;
+  transition: opacity 0.18s;
+  box-shadow: 0 2px 8px rgba(40,116,117,0.18);
 }
+.btn-primary:hover { opacity: 0.88; }
+.btn-primary .material-symbols-outlined { font-size: 18px; }
 
-.btn-primary:hover {
-  opacity: 0.9;
-}
-
+/* ── Table Card ── */
 .table-card {
-  background: white;
+  background: var(--color-surface);
   border: 1px solid var(--color-outline);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .data-table {
@@ -205,53 +298,54 @@ const handleDelete = async () => {
   border-collapse: collapse;
 }
 
-.data-table th, .data-table td {
-  padding: 12px 16px;
-  text-align: left;
-  border-bottom: 1px solid var(--color-outline-variant);
-}
-
 .data-table th {
-  background: var(--color-surface-container);
-  font-size: 11px;
+  background: var(--color-surface-dim);
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.07em;
   color: var(--color-on-surface-variant);
-  font-weight: 600;
+  border-bottom: 1px solid var(--color-outline);
 }
 
-.data-table tr:hover {
-  background: var(--color-background);
+.data-table td {
+  padding: 13px 16px;
+  font-size: 13px;
+  color: var(--color-on-surface);
+  border-bottom: 1px solid var(--color-outline);
 }
 
+.data-row:last-child td { border-bottom: none; }
+.data-row:hover td { background: #fafbfc; }
+
+/* ── Cell Helpers ── */
 .text-right { text-align: right; }
 .text-center { text-align: center; }
-.font-mono { font-family: 'Courier New', Courier, monospace; }
+.font-mono { font-family: 'Courier New', Courier, monospace; letter-spacing: 0.02em; }
 .font-medium { font-weight: 600; }
 .text-muted { color: var(--color-on-surface-variant); }
+.inv-num { font-size: 12px; color: var(--color-on-surface-variant); }
 
+/* ── Badge ── */
 .badge {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
+.badge-teal { background: var(--color-primary-light); color: var(--color-primary); }
+.badge-grey { background: #f1f5f9; color: #64748b; }
 
-.badge-teal {
-  background: #e0f2f1;
-  color: #00796b;
-}
-
-.badge-grey {
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface-variant);
-}
-
-.actions-cell {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
+/* ── Action Buttons ── */
+.action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .icon-btn {
@@ -259,97 +353,250 @@ const handleDelete = async () => {
   border: none;
   cursor: pointer;
   color: var(--color-on-surface-variant);
-  padding: 4px;
-  border-radius: 4px;
+  padding: 6px;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  transition: background 0.15s, color 0.15s;
 }
+.icon-btn .material-symbols-outlined { font-size: 18px; }
+.icon-btn:hover { background: var(--color-surface-dim); color: var(--color-primary); }
+.icon-btn--danger:hover { background: #fef2f2; color: var(--color-error); }
 
-.icon-btn:hover {
-  background: var(--color-surface-container);
-  color: var(--color-primary);
-}
-
-.text-danger:hover {
-  color: var(--color-error);
-  background: #ffdad6;
-}
-
-.empty-state, .loading-text {
-  padding: 40px;
+/* ── Empty / Loading states ── */
+.state-cell {
+  text-align: center;
+  padding: 56px 16px;
   color: var(--color-on-surface-variant);
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
 }
+.empty-icon { font-size: 36px; opacity: 0.35; }
+.inline-link { color: var(--color-primary); font-weight: 600; text-decoration: none; }
+.inline-link:hover { text-decoration: underline; }
 
-/* Modals */
+/* ── Spinner ── */
+.spin-icon { animation: spin 0.8s linear infinite; font-size: 20px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Modal ── */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.4);
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  padding: 16px;
 }
 
 .modal {
-  background: white;
-  width: 400px;
-  max-width: 90vw;
-  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  width: 420px;
+  max-width: 100%;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
   overflow: hidden;
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+  padding: 24px 24px 0;
+}
+
+.modal-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  display: flex;
   align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--color-outline-variant);
+  justify-content: center;
 }
-
-.modal-header h3 {
-  margin: 0;
-  font-family: var(--font-display);
+.modal-icon-wrap.danger {
+  background: #fef2f2;
+  color: var(--color-error);
 }
+.modal-icon-wrap .material-symbols-outlined { font-size: 24px; }
 
-.icon-btn-close {
+.modal-close {
   background: none;
   border: none;
   cursor: pointer;
   color: var(--color-on-surface-variant);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  line-height: 1;
 }
+.modal-close:hover { background: var(--color-surface-dim); }
+.modal-close .material-symbols-outlined { font-size: 20px; }
 
 .modal-body {
-  padding: 20px;
+  padding: 16px 24px 0;
+}
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 800;
+  margin: 0 0 8px;
+  color: var(--color-on-surface);
+}
+.modal-desc {
+  font-size: 14px;
+  color: var(--color-on-surface-variant);
+  line-height: 1.55;
+  margin: 0;
 }
 
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  margin-top: 24px;
+  gap: 10px;
+  padding: 24px;
 }
 
-.btn-secondary {
-  padding: 8px 16px;
-  background: white;
+.btn-outline {
+  padding: 9px 18px;
+  background: var(--color-surface);
   border: 1px solid var(--color-outline);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-on-surface);
   cursor: pointer;
+  transition: background 0.15s;
 }
-
-.btn-secondary:hover {
-  background: var(--color-surface-container);
-}
+.btn-outline:hover { background: var(--color-surface-dim); }
 
 .btn-danger {
-  padding: 8px 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 18px;
   background: var(--color-error);
-  color: white;
+  color: #fff;
   border: none;
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+  transition: opacity 0.15s;
 }
+.btn-danger:hover { opacity: 0.88; }
+.btn-danger:disabled { opacity: 0.55; cursor: not-allowed; }
 
-.btn-danger:hover {
-  opacity: 0.9;
+/* ── Drafts Section ── */
+.drafts-card {
+  background: #fffdf7;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
 }
+.drafts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 18px;
+  background: #fefce8;
+  border-bottom: 1px solid #fde68a;
+}
+.drafts-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.drafts-icon {
+  font-size: 18px;
+  color: #b45309;
+}
+.drafts-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 800;
+  color: #92400e;
+}
+.drafts-count {
+  font-size: 11px;
+  font-weight: 700;
+  background: #fbbf24;
+  color: #78350f;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+}
+.drafts-list {
+  padding: 6px 10px;
+}
+.draft-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 8px;
+  border-bottom: 1px solid #fef3c7;
+  gap: 12px;
+}
+.draft-item:last-child { border-bottom: none; }
+.draft-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.draft-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.draft-meta {
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+}
+.draft-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.draft-resume-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.draft-resume-btn:hover { opacity: 0.88; }
+.draft-resume-btn .material-symbols-outlined { font-size: 14px; }
+.draft-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  transition: background 0.15s, color 0.15s;
+}
+.draft-delete-btn:hover { background: #fee2e2; color: var(--color-error); }
+.draft-delete-btn .material-symbols-outlined { font-size: 16px; }
 </style>

@@ -9,8 +9,8 @@ from app.database import get_db
 from app.models.project import Project, ProjectAssignment
 from app.models.user import User
 from app.models.weekly_timesheet import WeeklyTimesheet, WeeklyTimesheetEntry
-from app.auth import require_admin, require_manager
-from sqlalchemy import text, bindparam
+from app.auth import require_admin, require_manager, require_employee
+from sqlalchemy import text
 from app.utils.cache import TTLCache
 
 # Reserve-status is an org-wide aggregation (every project, every approved
@@ -50,15 +50,12 @@ def user_rates(user, salary_months_per_year: float = 13.0, working_hours_per_mon
 
     Returns: (base_pay_monthly, hourly_rate)
       - base_pay = user.salary_month
-      - hourly_rate = user.salary_hour if set,
-                      else (base_pay * salary_months_per_year / 12) / working_hours_per_month
+      - hourly_rate = (base_pay * 13 / 12) / 160
     """
     if user is None:
         return 0.0, 0.0
     base_pay = float(user.salary_month or 0)
-    if user.salary_hour:
-        hourly_rate = float(user.salary_hour)
-    elif base_pay > 0 and working_hours_per_month > 0:
+    if base_pay > 0:
         hourly_rate = round((base_pay * salary_months_per_year / 12) / working_hours_per_month, 2)
     else:
         hourly_rate = 0.0
@@ -148,19 +145,19 @@ async def get_next_project_number(
     result = await db.execute(select(Project.project_number))
     numbers = result.scalars().all()
 
-    max_num = 0
-    for sn in numbers:
-        if not sn: continue
-        try:
-            # Extract only digits from the whole string or after hyphen
-            num_part = ''.join(filter(str.isdigit, sn))
-            if num_part:
-                max_num = max(max_num, int(num_part))
-        except:
-            continue
+    from datetime import date as _date
+    year_prefix = str(_date.today().year)[2:]  # e.g. "26" for 2026
 
-    next_num = max_num + 1
-    return {"next_number": f"MH - {next_num:03d}"}
+    max_seq = 0
+    for sn in numbers:
+        if not sn:
+            continue
+        sn = sn.strip()
+        # Match numbers in the new format: YY### (5 chars, starts with current year)
+        if len(sn) == 5 and sn[:2] == year_prefix and sn[2:].isdigit():
+            max_seq = max(max_seq, int(sn[2:]))
+
+    return {"next_number": f"{year_prefix}{max_seq + 1:03d}"}
 
 
 @router.get("/reserve-status")
@@ -171,7 +168,7 @@ async def get_reserve_status(
 ):
     """
     Returns reserve balance for every project in a single optimised SQL query.
-    Formula: advance_amount + SUM(invoices.total) - employee_spend - partner_cost
+    Formula: advance_amount + SUM(invoices.subtotal) - employee_spend - partner_cost
 
     Employee hourly rate is computed live from user.salary_month using the
     admin-configurable settings (same source of truth as /summary). This keeps
@@ -191,7 +188,7 @@ async def get_reserve_status(
     smpy, whpm = await _rate_params(db)
     sql = text("""
         WITH inv_cte AS (
-            SELECT project_id, COALESCE(SUM(total), 0) AS total_invoiced
+            SELECT project_id, COALESCE(SUM(subtotal), 0) AS total_invoiced
             FROM invoices
             WHERE project_id IS NOT NULL
             GROUP BY project_id
@@ -199,17 +196,12 @@ async def get_reserve_status(
         rated_entries AS (
             SELECT wte.project_id,
                    wte.hours,
-                   COALESCE(
-                       u.salary_hour,
-                       CASE WHEN COALESCE(u.salary_month, 0) > 0
-                            THEN (u.salary_month * :smpy / 12.0) / :whpm
-                            ELSE 0 END
-                   ) AS hourly_rate
+                   CASE WHEN COALESCE(u.salary_month, 0) > 0
+                        THEN (u.salary_month * :smpy / 12.0) / :whpm
+                        ELSE 0 END AS hourly_rate
             FROM weekly_timesheet_entries wte
             JOIN weekly_timesheets wt ON wt.id = wte.timesheet_id AND wt.status = 'approved'
             JOIN users u ON u.id = wt.employee_id
-            JOIN project_assignments pa
-                 ON pa.project_id = wte.project_id AND pa.user_id = wt.employee_id
         ),
         emp_cte AS (
             SELECT project_id,
@@ -220,13 +212,11 @@ async def get_reserve_status(
         )
         SELECT
             p.id AS project_id,
-            COALESCE(p.advance_amount, 0) AS advance_amount,
             COALESCE(inv.total_invoiced, 0) AS total_invoiced,
             COALESCE(ec.emp_cost, 0) AS emp_cost,
             COALESCE(ec.total_hours, 0) * COALESCE(p.partner_hourly_rate, 0) AS partner_cost,
             (
-                COALESCE(p.advance_amount, 0)
-                + COALESCE(inv.total_invoiced, 0)
+                COALESCE(inv.total_invoiced, 0)
                 - COALESCE(ec.emp_cost, 0)
                 - COALESCE(ec.total_hours, 0) * COALESCE(p.partner_hourly_rate, 0)
             ) AS reserve_balance
@@ -239,14 +229,10 @@ async def get_reserve_status(
     payload = [
         {
             "project_id": row.project_id,
-            "advance_amount": float(row.advance_amount),
             "total_invoiced": float(row.total_invoiced),
             "reserve_balance": round(float(row.reserve_balance), 2),
-            "reserve_depleted": (
-                (float(row.advance_amount) > 0 or float(row.total_invoiced) > 0)
-                and float(row.reserve_balance) < 0
-            ),
-            "has_reserve": float(row.advance_amount) > 0 or float(row.total_invoiced) > 0,
+            "reserve_depleted": float(row.total_invoiced) > 0 and float(row.reserve_balance) < 0,
+            "has_reserve": float(row.total_invoiced) > 0,
         }
         for row in rows
     ]
@@ -258,7 +244,7 @@ async def get_reserve_status(
 async def list_projects(
     year: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(require_manager)
+    current_user = Depends(require_employee)
 ):
     query = select(Project).options(selectinload(Project.client))
     if year:
@@ -503,50 +489,44 @@ async def get_project_summary(
     if not project:
         raise HTTPException(404, "Project not found")
 
-    # Get all assignments for this project
-    assign_result = await db.execute(
-        select(ProjectAssignment).where(
-            ProjectAssignment.project_id == project_id
+    # ── All employees with approved hours on this project (regardless of assignment) ──
+    hours_q = await db.execute(
+        select(WeeklyTimesheet.employee_id, func.sum(WeeklyTimesheetEntry.hours).label("hours"))
+        .join(WeeklyTimesheetEntry, WeeklyTimesheetEntry.timesheet_id == WeeklyTimesheet.id)
+        .where(
+            WeeklyTimesheetEntry.project_id == project_id,
+            WeeklyTimesheet.status == "approved",
         )
+        .group_by(WeeklyTimesheet.employee_id)
+    )
+    hours_by_uid = {row.employee_id: float(row.hours or 0) for row in hours_q.all()}
+
+    # Also include formally assigned employees (they may have 0 hours so far)
+    assign_result = await db.execute(
+        select(ProjectAssignment).where(ProjectAssignment.project_id == project_id)
     )
     assignments = assign_result.scalars().all()
+    assigned_user_ids = {a.user_id for a in assignments}
+    assignment_id_by_uid = {a.user_id: a.id for a in assignments}
 
-    # ── Batch-fetch users (was N+1) ──
-    user_ids = [a.user_id for a in assignments]
+    # Union: everyone with hours + everyone assigned
+    all_user_ids = list(set(hours_by_uid.keys()) | assigned_user_ids)
+
     users_by_id = {}
-    if user_ids:
-        users_result = await db.execute(select(User).where(User.id.in_(user_ids)))
+    if all_user_ids:
+        users_result = await db.execute(select(User).where(User.id.in_(all_user_ids)))
         users_by_id = {u.id: u for u in users_result.scalars().all()}
-
-    # ── Batch-fetch approved-hours per employee in one GROUP BY (was N+1) ──
-    hours_by_uid = {}
-    if user_ids:
-        hours_q = await db.execute(
-            text("""
-                SELECT wt.employee_id AS uid, COALESCE(SUM(wte.hours), 0) AS hours
-                FROM weekly_timesheet_entries wte
-                JOIN weekly_timesheets wt ON wte.timesheet_id = wt.id
-                WHERE wte.project_id = :project_id
-                  AND wt.status = 'approved'
-                  AND wt.employee_id IN :uids
-                GROUP BY wt.employee_id
-            """).bindparams(
-                bindparam("uids", expanding=True)
-            ),
-            {"project_id": project_id, "uids": user_ids},
-        )
-        hours_by_uid = {row.uid: float(row.hours or 0) for row in hours_q}
 
     employee_rows = []
     total_hours_all = 0
     total_spent_all = 0
     smpy, whpm = await _rate_params(db)
 
-    for assignment in assignments:
-        user = users_by_id.get(assignment.user_id)
+    for uid in all_user_ids:
+        user = users_by_id.get(uid)
         if not user:
             continue
-        hours_worked = hours_by_uid.get(assignment.user_id, 0.0)
+        hours_worked = hours_by_uid.get(uid, 0.0)
         base_pay, hourly_rate = user_rates(user, smpy, whpm)
         total_spent = round(hours_worked * hourly_rate, 2)
 
@@ -554,8 +534,8 @@ async def get_project_summary(
         total_spent_all += total_spent
 
         employee_rows.append({
-            "assignment_id": assignment.id,
-            "employee_id": assignment.user_id,
+            "assignment_id": assignment_id_by_uid.get(uid),
+            "employee_id": uid,
             "name": user.name,
             "designation": user.designation,
             "base_pay": base_pay,
@@ -569,16 +549,15 @@ async def get_project_summary(
     partner_cost = round(partner_hourly_rate * total_hours_all, 2)
     grand_total = total_spent_all + partner_cost
 
-    # Reserve balance: advance + all invoices billed to this project - actual spend
+    # Reserve balance: invoices billed to this project - actual spend
     from app.models.invoice import Invoice
     inv_result = await db.execute(
-        select(func.coalesce(func.sum(Invoice.total), 0))
+        select(func.coalesce(func.sum(Invoice.subtotal), 0))
         .where(Invoice.project_id == project_id)
     )
     total_invoiced = float(inv_result.scalar() or 0)
-    advance = float(project.advance_amount or 0)
-    reserve_balance = round(advance + total_invoiced - grand_total, 2)
-    has_reserve = advance > 0 or total_invoiced > 0
+    reserve_balance = round(total_invoiced - grand_total, 2)
+    has_reserve = total_invoiced > 0
 
     return {
         "project_id": project_id,
@@ -596,8 +575,6 @@ async def get_project_summary(
             "type": "profit"
         },
         "grand_total": grand_total,
-        # Reserve fields
-        "advance_amount": advance,
         "total_invoiced": total_invoiced,
         "reserve_balance": reserve_balance,
         "reserve_depleted": has_reserve and reserve_balance < 0,

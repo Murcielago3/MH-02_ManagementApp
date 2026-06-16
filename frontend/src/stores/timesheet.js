@@ -127,22 +127,25 @@ export const useTimesheetStore = defineStore('timesheet', () => {
         const overlapEnd = new Date(Math.min(tEnd, wEnd))
         
         if (overlapStart <= overlapEnd) {
-          // Task falls in this week. Count working days (Mon-Fri)
-          let workDays = 0
+          // Task falls in this week. Build daily hours array (Mon=0..Sun=6)
+          const daily = [0, 0, 0, 0, 0, 0, 0]
+          const hoursPerDay = t.duration_hours || 0
           let current = new Date(overlapStart)
           while (current <= overlapEnd) {
-            const day = current.getDay()
-            if (day !== 0 && day !== 6) { // Not Sunday or Saturday
-              workDays++
-            }
+            const jsDay = current.getDay() // 0=Sun, 1=Mon, ...
+            // Map JS day to Mon-based index: Mon=0, Tue=1, ..., Sun=6
+            const idx = jsDay === 0 ? 6 : jsDay - 1
+            daily[idx] = hoursPerDay
             current.setDate(current.getDate() + 1)
           }
-          
-          if (workDays > 0) {
+          const totalHours = daily.reduce((s, v) => s + v, 0)
+
+          if (totalHours > 0) {
             autoEntries.push({
               project_id: t.project_id,
-              hours: (t.duration_hours || 0) * workDays,
-              description: t.title, // Use task title as entry description
+              hours: totalHours,
+              daily: daily,
+              description: t.title,
               is_auto: true
             })
           }

@@ -32,8 +32,13 @@ class UserCreate(BaseModel):
     salary_month: Optional[float] = None
     salary_hour: Optional[float] = None
     leaves_allowed: int = 18
+    paid_leave_balance: Optional[float] = None
     pan_number: str
     aadhar_number: str
+    gender: Optional[str] = None
+    location: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_account_number: Optional[str] = None
     phone_number: Optional[str] = None
     emergency_contact_number: Optional[str] = None
     emergency_contact_relationship: Optional[str] = None
@@ -55,8 +60,13 @@ class UserUpdate(BaseModel):
     salary_month: Optional[float] = None
     salary_hour: Optional[float] = None
     leaves_allowed: Optional[int] = None
+    paid_leave_balance: Optional[float] = None
     pan_number: Optional[str] = None
     aadhar_number: Optional[str] = None
+    gender: Optional[str] = None
+    location: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_account_number: Optional[str] = None
     phone_number: Optional[str] = None
     emergency_contact_number: Optional[str] = None
     emergency_contact_relationship: Optional[str] = None
@@ -78,15 +88,24 @@ async def list_users(
     # The employee roster is read by many views; salary/profile changes
     # propagate within 20s. Trade-off for fewer round-trips.
     response.headers["Cache-Control"] = "private, max-age=20"
-    result = await db.execute(select(User).where(User.is_active == True))
+    result = await db.execute(
+        select(User)
+        .where(User.is_active == True)
+        .order_by(User.id.desc())
+    )
     users = result.scalars().all()
     return users
 
 @router.get("/me")
 async def get_my_profile(
     response: Response,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
+    # Keep the paid-leave balance current (idempotent monthly accrual)
+    from app.routers.leaves import accrue_all
+    await accrue_all(db)
+    await db.refresh(current_user)
     # AppLayout calls this on every page mount — short cache covers session navigation
     response.headers["Cache-Control"] = "private, max-age=60"
     return current_user
@@ -97,6 +116,8 @@ async def get_user(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db)
 ):
+    from app.routers.leaves import accrue_all
+    await accrue_all(db)
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
@@ -125,8 +146,13 @@ async def create_user(
         salary_month=data.salary_month,
         salary_hour=data.salary_hour,
         leaves_allowed=data.leaves_allowed,
+        paid_leave_balance=data.paid_leave_balance or 0,
         pan_number=data.pan_number,
         aadhar_number=data.aadhar_number,
+        gender=data.gender,
+        location=data.location,
+        bank_name=data.bank_name,
+        bank_account_number=data.bank_account_number,
         phone_number=data.phone_number,
         emergency_contact_number=data.emergency_contact_number,
         emergency_contact_relationship=data.emergency_contact_relationship,
@@ -165,8 +191,9 @@ async def update_user(
     # Restrict fields for employees (non-managers)
     if not is_manager:
         sensitive_fields = {
-            "role", "joining_date", "end_date", "salary_month", "salary_hour", 
-            "leaves_allowed", "pan_number", "aadhar_number", "manager_id", "is_active"
+            "role", "joining_date", "end_date", "salary_month", "salary_hour",
+            "leaves_allowed", "paid_leave_balance", "pan_number", "aadhar_number",
+            "manager_id", "is_active"
         }
         for field in sensitive_fields:
             if field in update_data:

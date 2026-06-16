@@ -61,23 +61,27 @@ async def get_pending_weeks(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    # Returns list of week_start dates that have no submitted timesheet
-    # Go back 8 weeks, check which are missing
+    # Returns all weeks that fall within the current calendar month
     today = date.today()
     weeks = []
-    
-    # Get start of current week (Monday)
+
+    # First day of current month, and Monday of that week
+    month_start = date(today.year, today.month, 1)
+    first_monday = month_start - timedelta(days=month_start.weekday())
+
+    # Monday of the current week (latest week to show)
     current_monday = today - timedelta(days=today.weekday())
-    
-    for i in range(2):
-        week_start = current_monday - timedelta(weeks=i)
-        week_end = week_start + timedelta(days=4)
-        
-        # Don't include future weeks or weeks before joining
-        if week_start > today or week_start < current_user.joining_date:
+
+    week_start = first_monday
+    while week_start <= current_monday:
+        week_end = week_start + timedelta(days=6)
+
+        # Skip weeks entirely before the employee's joining date
+        if week_end < current_user.joining_date:
+            week_start += timedelta(weeks=1)
             continue
-            
-        # Check if timesheet exists for this week
+
+        # Check if a timesheet already exists for this week
         result = await db.execute(
             select(WeeklyTimesheet).where(
                 WeeklyTimesheet.employee_id == current_user.id,
@@ -85,7 +89,7 @@ async def get_pending_weeks(
             )
         )
         existing = result.scalar_one_or_none()
-        
+
         if not existing:
             weeks.append({
                 "week_start": str(week_start),
@@ -99,7 +103,9 @@ async def get_pending_weeks(
                 "status": existing.status,
                 "timesheet_id": existing.id
             })
-    
+
+        week_start += timedelta(weeks=1)
+
     return weeks
 
 @router.post("/", status_code=201)

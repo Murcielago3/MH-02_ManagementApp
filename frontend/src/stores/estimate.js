@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { estimatesAPI } from '../api/estimates'
+import { useEstimateDrafts } from '../composables/useEstimateDrafts'
 
 // ─── Indian currency formatter ───────────────────────────────────────────────
 export const inrFormat = new Intl.NumberFormat('en-IN', {
@@ -140,13 +142,186 @@ export const useEstimateStore = defineStore('estimate', () => {
     if (emp) emp[field] = value
   }
 
+  // ── Saved estimate tracking (for updates vs create) ────────────────────────
+  const savedEstimateId = ref(null)
+  const saving = ref(false)
+  const savedEstimates = ref([])
+  const loadingEstimates = ref(false)
+
   function reset() {
+    // Detach from active draft without deleting it
+    activeDraftId.value = null
     step.value = 1
     projectName.value = ''
     startDate.value = ''
     endDate.value = ''
     employees.value = []
     partnerPayPerHour.value = null
+    savedEstimateId.value = null
+  }
+
+  // ── Multi-draft persistence via useEstimateDrafts ─────────────────────────
+  const { saveDraft: saveDraftToStorage, deleteDraft: deleteDraftFromStorage, getDraft: getDraftFromStorage } = useEstimateDrafts()
+  const activeDraftId = ref(null)
+
+  function getSnapshot() {
+    return {
+      step: step.value,
+      projectName: projectName.value,
+      startDate: startDate.value,
+      endDate: endDate.value,
+      employees: JSON.parse(JSON.stringify(employees.value)),
+      partnerPayPerHour: partnerPayPerHour.value,
+      savedEstimateId: savedEstimateId.value,
+    }
+  }
+
+  function saveDraft() {
+    if (projectName.value || startDate.value || employees.value.length > 0) {
+      activeDraftId.value = saveDraftToStorage(activeDraftId.value, getSnapshot())
+    }
+  }
+
+  function loadDraftById(draftId) {
+    const draft = getDraftFromStorage(draftId)
+    if (!draft) return false
+    const data = draft.data
+    if (!data.projectName && !data.startDate) return false
+    activeDraftId.value = draftId
+    step.value = data.step || 1
+    projectName.value = data.projectName || ''
+    startDate.value = data.startDate || ''
+    endDate.value = data.endDate || ''
+    partnerPayPerHour.value = data.partnerPayPerHour ?? null
+    savedEstimateId.value = data.savedEstimateId ?? null
+    if (data.employees && data.employees.length > 0) {
+      employees.value = data.employees
+      nextEmpId = Math.max(...data.employees.map(e => e.id), 0) + 1
+    }
+    return true
+  }
+
+  // Legacy compat — kept for the draft banner restore flow
+  function loadDraft() {
+    // No-op now; use loadDraftById instead
+    return false
+  }
+  function hasDraft() { return false }
+
+  function clearDraft() {
+    if (activeDraftId.value) {
+      deleteDraftFromStorage(activeDraftId.value)
+      activeDraftId.value = null
+    }
+  }
+
+  function saveAndGetDraftId() {
+    activeDraftId.value = saveDraftToStorage(activeDraftId.value, getSnapshot())
+    return activeDraftId.value
+  }
+
+  // Auto-save on changes
+  watch(
+    [step, projectName, startDate, endDate, employees, partnerPayPerHour],
+    () => {
+      if (projectName.value || startDate.value || employees.value.length > 0) {
+        saveDraft()
+      }
+    },
+    { deep: true }
+  )
+
+  // ── Server persistence ────────────────────────────────────────────────────
+  function buildPayload(overrides = {}) {
+    return {
+      project_name: projectName.value,
+      start_date: startDate.value,
+      end_date: endDate.value,
+      working_days: workingDays.value,
+      partner_pay_per_hour: Number(partnerPayPerHour.value) || 0,
+      partner_cost: overrides.partnerCost ?? partnerCost.value,
+      team_cost: overrides.teamCost ?? teamTotalCost.value,
+      grand_total: overrides.grandTotal ?? grandTotal.value,
+      project_color: overrides.projectColor || '#287475',
+      status: overrides.status || 'draft',
+      employees: employeesWithCost.value.map(e => ({
+        emp_type: e.type,
+        base_pay: Number(e.basePay) || 0,
+        hrs_per_day: Number(e.hrsPerDay) || 0,
+        pay_per_hour: e.payPerHour,
+        total_hours: e.totalHours,
+        total_cost: e.totalCost,
+      })),
+    }
+  }
+
+  async function saveEstimate(overrides = {}) {
+    saving.value = true
+    try {
+      const payload = buildPayload(overrides)
+      let res
+      if (savedEstimateId.value) {
+        res = await estimatesAPI.updateEstimate(savedEstimateId.value, payload)
+      } else {
+        res = await estimatesAPI.createEstimate(payload)
+        savedEstimateId.value = res.data.id
+      }
+      saveDraft() // update draft with the saved ID
+      return res.data
+    } catch (err) {
+      console.error('Failed to save estimate', err)
+      throw err
+    } finally {
+      saving.value = false
+    }
+  }
+
+  async function fetchSavedEstimates() {
+    loadingEstimates.value = true
+    try {
+      const res = await estimatesAPI.getEstimates()
+      savedEstimates.value = res.data
+    } catch (err) {
+      console.error('Failed to fetch estimates', err)
+    } finally {
+      loadingEstimates.value = false
+    }
+  }
+
+  function loadEstimate(est) {
+    projectName.value = est.project_name
+    startDate.value = est.start_date
+    endDate.value = est.end_date
+    partnerPayPerHour.value = est.partner_pay_per_hour || null
+    savedEstimateId.value = est.id
+
+    if (est.employees && est.employees.length > 0) {
+      employees.value = est.employees.map((e, i) => ({
+        id: i + 1,
+        label: `Employee ${i + 1}`,
+        type: e.emp_type,
+        basePay: e.base_pay,
+        hrsPerDay: e.hrs_per_day,
+      }))
+      nextEmpId = est.employees.length + 1
+    } else {
+      employees.value = []
+    }
+
+    step.value = 3 // Jump to summary (partner & summary step)
+  }
+
+  async function deleteEstimate(id) {
+    try {
+      await estimatesAPI.deleteEstimate(id)
+      savedEstimates.value = savedEstimates.value.filter(e => e.id !== id)
+      if (savedEstimateId.value === id) {
+        savedEstimateId.value = null
+      }
+    } catch (err) {
+      console.error('Failed to delete estimate', err)
+      throw err
+    }
   }
 
   return {
@@ -176,5 +351,22 @@ export const useEstimateStore = defineStore('estimate', () => {
     removeEmployee,
     updateEmployee,
     reset,
+    // draft persistence
+    activeDraftId,
+    saveDraft,
+    loadDraft,
+    loadDraftById,
+    hasDraft,
+    clearDraft,
+    saveAndGetDraftId,
+    // server persistence
+    savedEstimateId,
+    saving,
+    savedEstimates,
+    loadingEstimates,
+    saveEstimate,
+    fetchSavedEstimates,
+    loadEstimate,
+    deleteEstimate,
   }
 })

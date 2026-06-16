@@ -1,6 +1,6 @@
 <template>
   <div class="step-indicator">
-    <div v-for="n in 4" :key="n" class="step-wrapper">
+    <div v-for="n in 3" :key="n" class="step-wrapper">
       <!-- Connector line (before each step except first) -->
       <div v-if="n > 1" class="step-line" :class="{ filled: n <= currentStep }"></div>
 
@@ -33,7 +33,7 @@ defineProps({
   },
 })
 
-const labels = ['Project Details', 'Team Costs', 'Partner Pay', 'Final Estimate']
+const labels = ['Project Details', 'Team Costs', 'Partner & Summary']
 </script>
 
 <style scoped>

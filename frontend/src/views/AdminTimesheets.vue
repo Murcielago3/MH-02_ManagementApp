@@ -1,71 +1,105 @@
 <template>
   <AppLayout>
-    <!-- Page Actions -->
-    <div class="page-actions">
-      <div class="actions-left">
-        <select v-model="filterEmployee" class="emp-select">
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1 class="page-title">Timesheets</h1>
+        <p class="page-subtitle">Review and approve weekly employee timesheets</p>
+      </div>
+      <button class="btn-primary" @click="fetchTimesheets">
+        <span class="material-symbols-outlined">refresh</span>
+        Refresh
+      </button>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <div class="filter-bar-left">
+        <select v-model="filterEmployee" class="filter-select">
           <option value="">All Employees</option>
           <option v-for="emp in employees" :key="emp.id" :value="emp.id">{{ emp.name }}</option>
         </select>
-        <select v-model="filterStatus" class="emp-select">
+        <select v-model="filterStatus" class="filter-select">
           <option value="">All Statuses</option>
           <option value="submitted">Pending Review</option>
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
         </select>
+        <input
+          v-model="filterMonth"
+          type="month"
+          class="filter-select filter-month"
+          title="Filter by month"
+        />
+        <select v-model="filterWeek" class="filter-select">
+          <option value="">All Weeks</option>
+          <option v-for="w in availableWeeks" :key="w.value" :value="w.value">{{ w.label }}</option>
+        </select>
       </div>
-      <div class="actions-right">
-        <button class="today-btn" @click="fetchTimesheets">
-          <span class="material-symbols-outlined" style="font-size: 16px; margin-right: 4px;">refresh</span> Refresh
-        </button>
-      </div>
+      <button v-if="hasActiveFilters" class="btn-clear-filters" @click="clearFilters" title="Clear all filters">
+        <span class="material-symbols-outlined">filter_alt_off</span>
+        Clear
+      </button>
     </div>
 
-    <!-- Table -->
+    <!-- Table Card -->
     <div class="table-card">
-      <table class="proj-table">
+      <table class="data-table">
         <thead>
           <tr>
             <th>Employee</th>
             <th>Week</th>
-            <th class="text-center">Hours</th>
+            <th class="col-center">Hours</th>
             <th>Status</th>
-            <th>Action</th>
+            <th class="col-actions">Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="5" class="empty-cell"><div class="loading-text">Loading timesheets…</div></td>
+            <td colspan="5" class="empty-cell">
+              <div class="empty-state">
+                <span class="material-symbols-outlined empty-icon">hourglass_empty</span>
+                <p>Loading timesheets…</p>
+              </div>
+            </td>
           </tr>
           <tr v-else-if="filtered.length === 0">
-            <td colspan="5" class="empty-cell">No timesheet records found.</td>
+            <td colspan="5" class="empty-cell">
+              <div class="empty-state">
+                <span class="material-symbols-outlined empty-icon">schedule</span>
+                <p>No timesheet records found.</p>
+              </div>
+            </td>
           </tr>
-          <tr v-for="ts in paginated" :key="ts.id" class="proj-row">
+          <tr v-for="ts in filtered" :key="ts.id" class="data-row">
             <td>
-              <span class="proj-name" style="cursor: pointer;" @click="goToEmployeeProfile(ts.employee_id)">
+              <span class="row-name row-link" @click="goToEmployeeProfile(ts.employee_id)">
                 {{ getUserName(ts.employee_id) }}
               </span>
             </td>
-            <td class="mono">{{ formatDateShort(ts.week_start) }} – {{ formatDateShort(ts.week_end) }}</td>
-            <td class="text-center">
+            <td class="cell-mono cell-week">
+              <span class="material-symbols-outlined week-icon">date_range</span>
+              {{ formatDateShort(ts.week_start) }} – {{ formatDateShort(ts.week_end) }}
+            </td>
+            <td class="col-center">
               <span class="hours-badge">{{ ts.total_hours || 0 }}h</span>
             </td>
             <td>
-              <span class="status-badge" :class="`status-${ts.status}`">
+              <span class="badge" :class="`badge-${ts.status}`">
                 {{ formatTimesheetStatus(ts.status) }}
               </span>
             </td>
-            <td class="action-cell">
-              <div class="ts-actions">
-                <button class="btn-outline" @click="viewDetail(ts)">
+            <td>
+              <div class="row-actions">
+                <button class="btn-outline-sm" @click="viewDetail(ts)">
                   <span class="material-symbols-outlined">visibility</span>
                   Details
                 </button>
                 <template v-if="ts.status === 'submitted'">
-                  <button class="btn-approve" @click="handleAction(ts.id, 'approved')" :disabled="actionLoading === ts.id">
+                  <button class="icon-btn icon-btn-approve" title="Approve" @click="handleAction(ts.id, 'approved')" :disabled="actionLoading === ts.id">
                     <span class="material-symbols-outlined">check</span>
                   </button>
-                  <button class="btn-reject" @click="openRejectModal(ts.id)" :disabled="actionLoading === ts.id">
+                  <button class="icon-btn icon-btn-reject" title="Reject" @click="openRejectModal(ts.id)" :disabled="actionLoading === ts.id">
                     <span class="material-symbols-outlined">close</span>
                   </button>
                 </template>
@@ -77,37 +111,39 @@
 
       <div class="table-footer">
         <span class="page-info">
-          Showing {{ filtered.length === 0 ? 0 : startIdx + 1 }} to {{ endIdx }} of {{ filtered.length }} entries
+          {{ filtered.length }} {{ filtered.length === 1 ? 'timesheet' : 'timesheets' }}
         </span>
-        <div class="page-btns">
-          <button class="page-btn" :disabled="currentPage === 1" @click="currentPage--">Prev</button>
-          <button class="page-btn" :disabled="currentPage >= totalPages" @click="currentPage++">Next</button>
-        </div>
       </div>
     </div>
 
     <!-- Detail Modal -->
     <div v-if="showDetailModal" class="modal-backdrop" @click.self="closeDetailModal">
-      <div class="modal-content detail-modal">
+      <div class="modal modal-wide">
         <div class="modal-header">
-          <div class="header-info">
-            <h3>Timesheet Breakdown</h3>
-            <p>{{ getUserName(selectedTimesheet.employee_id) }} · {{ formatDateShort(selectedTimesheet.week_start) }} - {{ formatDateShort(selectedTimesheet.week_end) }}</p>
+          <div class="modal-header-info">
+            <h3 class="modal-title">Timesheet Breakdown</h3>
+            <p class="modal-subtitle">
+              {{ getUserName(selectedTimesheet.employee_id) }}
+              &nbsp;·&nbsp;
+              {{ formatDateShort(selectedTimesheet.week_start) }} – {{ formatDateShort(selectedTimesheet.week_end) }}
+            </p>
           </div>
-          <button class="btn-close" @click="closeDetailModal">
+          <button class="modal-close" @click="closeDetailModal">
             <span class="material-symbols-outlined">close</span>
           </button>
         </div>
 
         <div class="modal-body">
+          <!-- Entries Table -->
           <div class="detail-section">
+            <label class="section-label">Time Entries</label>
             <div class="detail-table-wrapper">
               <table class="detail-table">
                 <thead>
                   <tr>
                     <th>Project</th>
                     <th>Task Description</th>
-                    <th class="text-right">Hours</th>
+                    <th class="col-right">Hours</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -116,44 +152,74 @@
                       <span class="project-tag">{{ getProjectName(entry.project_id) }}</span>
                     </td>
                     <td class="col-desc">{{ entry.description }}</td>
-                    <td class="text-right mono">{{ entry.hours }}h</td>
+                    <td class="col-right cell-mono">{{ entry.hours }}h</td>
                   </tr>
                 </tbody>
                 <tfoot>
-                  <tr>
-                    <td colspan="2" class="text-right font-bold">Total Time</td>
-                    <td class="text-right font-bold total-val">{{ selectedTimesheet.total_hours }}h</td>
+                  <tr class="total-row">
+                    <td colspan="2" class="col-right total-label">Total Time</td>
+                    <td class="col-right total-val">{{ selectedTimesheet.total_hours }}h</td>
                   </tr>
                 </tfoot>
               </table>
             </div>
           </div>
 
+          <!-- Weekly Overview -->
           <div v-if="selectedTimesheet.description" class="detail-section">
-            <label>Weekly Overview</label>
+            <label class="section-label">Weekly Overview</label>
             <div class="overview-box">{{ selectedTimesheet.description }}</div>
           </div>
         </div>
 
         <div class="modal-footer" v-if="selectedTimesheet.status === 'submitted'">
-          <div class="footer-actions">
-            <button class="btn-reject-large" @click="openRejectModal(selectedTimesheet.id)">Reject</button>
-            <button class="btn-approve-large" @click="handleAction(selectedTimesheet.id, 'approved')">Approve Timesheet</button>
-          </div>
+          <button class="btn-cancel" @click="closeDetailModal">Close</button>
+          <button class="btn-reject-action" @click="openRejectModal(selectedTimesheet.id)">
+            <span class="material-symbols-outlined">close</span>
+            Reject
+          </button>
+          <button class="btn-submit" @click="handleAction(selectedTimesheet.id, 'approved')">
+            <span class="material-symbols-outlined">check</span>
+            Approve Timesheet
+          </button>
+        </div>
+        <div class="modal-footer" v-else>
+          <button class="btn-cancel" @click="closeDetailModal">Close</button>
         </div>
       </div>
     </div>
 
     <!-- Reject Modal -->
     <div v-if="rejectModalOpen" class="modal-backdrop" @click.self="closeRejectModal">
-      <div class="modal-content">
-        <h3>Reject Timesheet</h3>
-        <p>Please provide a reason for rejecting this timesheet.</p>
-        <textarea v-model="rejectReason" rows="3" placeholder="Reason..."></textarea>
-        <div class="modal-actions">
+      <div class="modal modal-sm">
+        <div class="modal-header">
+          <div>
+            <h3 class="modal-title">Reject Timesheet</h3>
+            <p class="modal-subtitle">Provide a reason for the employee</p>
+          </div>
+          <button class="modal-close" @click="closeRejectModal">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-field">
+            <label class="form-label">Rejection Reason *</label>
+            <textarea
+              v-model="rejectReason"
+              rows="4"
+              placeholder="Explain why this timesheet is being rejected..."
+              class="form-input"
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
           <button class="btn-cancel" @click="closeRejectModal">Cancel</button>
-          <button class="btn-reject-confirm" @click="confirmReject" :disabled="!rejectReason.trim() || actionLoading === rejectModalTarget">
-            Reject Timesheet
+          <button
+            class="btn-danger"
+            @click="confirmReject"
+            :disabled="!rejectReason.trim() || actionLoading === rejectModalTarget"
+          >
+            {{ actionLoading === rejectModalTarget ? 'Rejecting…' : 'Reject Timesheet' }}
           </button>
         </div>
       </div>
@@ -176,8 +242,8 @@ const employees = ref([])
 const loading = ref(true)
 const filterEmployee = ref('')
 const filterStatus = ref('')
-const currentPage = ref(1)
-const perPage = 10
+const filterMonth = ref('')
+const filterWeek = ref('')
 
 const actionLoading = ref(null)
 const rejectModalOpen = ref(false)
@@ -227,16 +293,76 @@ onMounted(async () => {
 })
 
 watch([filterEmployee, filterStatus], () => {
-  currentPage.value = 1
   fetchTimesheets()
 })
 
-const filtered = computed(() => timesheets.value)
+// Reset week filter when month changes (weeks are derived from month)
+watch(filterMonth, () => {
+  filterWeek.value = ''
+})
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filtered.value.length / perPage)))
-const startIdx = computed(() => (currentPage.value - 1) * perPage)
-const endIdx = computed(() => Math.min(startIdx.value + perPage, filtered.value.length))
-const paginated = computed(() => filtered.value.slice(startIdx.value, endIdx.value))
+const hasActiveFilters = computed(() => {
+  return filterEmployee.value || filterStatus.value || filterMonth.value || filterWeek.value
+})
+
+function clearFilters() {
+  filterEmployee.value = ''
+  filterStatus.value = ''
+  filterMonth.value = ''
+  filterWeek.value = ''
+  fetchTimesheets()
+}
+
+// Available weeks derived from current filter month or from all timesheets
+const availableWeeks = computed(() => {
+  let source = timesheets.value
+  // If a month is selected, only show weeks overlapping that month
+  if (filterMonth.value) {
+    const [y, m] = filterMonth.value.split('-').map(Number)
+    const monthStart = new Date(y, m - 1, 1)
+    const monthEnd = new Date(y, m, 0) // last day of month
+    source = source.filter(ts => {
+      const ws = new Date(ts.week_start)
+      const we = new Date(ts.week_end)
+      return ws <= monthEnd && we >= monthStart
+    })
+  }
+  const weekSet = new Map()
+  for (const ts of source) {
+    if (!weekSet.has(ts.week_start)) {
+      weekSet.set(ts.week_start, {
+        value: ts.week_start,
+        label: `${formatDateShort(ts.week_start)} – ${formatDateShort(ts.week_end)}`
+      })
+    }
+  }
+  // Sort newest first
+  return [...weekSet.values()].sort((a, b) => b.value.localeCompare(a.value))
+})
+
+const filtered = computed(() => {
+  let list = timesheets.value
+
+  // Month filter
+  if (filterMonth.value) {
+    const [y, m] = filterMonth.value.split('-').map(Number)
+    const monthStart = new Date(y, m - 1, 1)
+    const monthEnd = new Date(y, m, 0)
+    list = list.filter(ts => {
+      const ws = new Date(ts.week_start)
+      const we = new Date(ts.week_end)
+      return ws <= monthEnd && we >= monthStart
+    })
+  }
+
+  // Week filter
+  if (filterWeek.value) {
+    list = list.filter(ts => ts.week_start === filterWeek.value)
+  }
+
+  return list
+})
+
 
 // Helpers
 function getUserName(empId) {
@@ -318,183 +444,318 @@ function getProjectName(id) {
 </script>
 
 <style scoped>
-.page-actions {
+/* ── Page Header ── */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.page-header-left { display: flex; flex-direction: column; gap: 2px; }
+.page-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--color-on-surface);
+  margin: 0;
+}
+.page-subtitle {
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
+
+/* ── Primary Button ── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 18px;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.btn-primary:hover { background: #1f5c5d; }
+.btn-primary .material-symbols-outlined { font-size: 18px; }
+
+/* ── Filter Bar ── */
+.filter-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-xl);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
 }
-.actions-left { display: flex; gap: 8px; align-items: center; }
-.actions-right { display: flex; gap: 8px; align-items: center; }
-
-.emp-select {
-  padding: 8px 12px; background: #fff; border: 1px solid var(--color-outline);
-  border-radius: var(--radius-lg); font-family: var(--font-display); font-size: 13px;
-  color: var(--color-on-surface); outline: none; transition: border 0.15s;
+.filter-bar-left { display: flex; gap: 10px; align-items: center; }
+.filter-select {
+  padding: 8px 12px;
+  background: var(--color-surface-dim);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-on-surface);
+  outline: none;
+  transition: border var(--transition);
+  cursor: pointer;
 }
-.emp-select:focus { border-color: var(--color-primary); }
-
-.today-btn {
-  display: flex; align-items: center;
-  padding: 8px 16px; background: var(--color-primary); color: #fff; border: none;
-  border-radius: var(--radius-lg); font-family: var(--font-display); font-size: 13px;
-  font-weight: 500; cursor: pointer; transition: background 0.15s;
+.filter-select:focus { border-color: var(--color-primary); background: var(--color-surface); }
+.filter-month {
+  min-width: 160px;
 }
-.today-btn:hover { background: #0f766e; }
+.btn-clear-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 14px;
+  background: none;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.btn-clear-filters .material-symbols-outlined { font-size: 16px; }
+.btn-clear-filters:hover { background: #fee2e2; color: #dc2626; border-color: #fca5a5; }
 
+/* ── Table Card ── */
 .table-card {
-  background: #fff; border: 1px solid var(--color-surface-container-high); border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
-.proj-table {
-  width: 100%; border-collapse: collapse;
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
 }
-.proj-table th {
-  padding: 12px 16px; text-align: left; font-family: var(--font-display);
-  font-size: 11px; font-weight: 600; text-transform: uppercase;
-  letter-spacing: 0.05em; color: var(--color-on-surface-variant); border-bottom: 1px solid var(--color-surface-container-high);
-  background: var(--color-background);
+.data-table thead {
+  background: #f8fafc;
 }
-.proj-table td {
-  padding: 12px 16px; border-bottom: 1px solid var(--color-surface-container);
-  font-family: var(--font-display); font-size: 13px; color: var(--color-on-surface);
+.data-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-on-surface-variant);
+  border-bottom: 1px solid var(--color-outline);
 }
-.proj-row:hover { background: var(--color-background); }
-.proj-name { font-weight: 500; color: var(--color-primary); }
-.proj-name:hover { text-decoration: underline; }
+.data-table td {
+  padding: 12px 16px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-on-surface);
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+.data-row:last-child td { border-bottom: none; }
+.data-row:hover { background: #fafbfc; }
+.col-center { text-align: center; }
+.col-actions { width: 200px; }
 
-.muted { color: var(--color-on-surface-variant); }
-.mono { font-variant-numeric: tabular-nums; }
-.desc-cell { max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-name { font-weight: 600; }
+.row-link { color: var(--color-primary); cursor: pointer; }
+.row-link:hover { text-decoration: underline; }
+.cell-muted { color: var(--color-on-surface-variant); }
+.cell-mono { font-variant-numeric: tabular-nums; }
+.cell-week {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-on-surface-variant);
+}
+.week-icon { font-size: 16px; }
 
-.empty-cell {
-  text-align: center; padding: 48px 16px; color: var(--color-on-surface-variant);
-  font-family: var(--font-display); font-size: 13px;
-}
-.loading-text { color: var(--color-on-surface-variant); }
-
-.table-footer {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 16px; background: var(--color-background); border-top: 1px solid var(--color-surface-container-high);
-}
-.page-info {
-  font-family: var(--font-display); font-size: 13px; color: var(--color-on-surface-variant);
-}
-.page-btns { display: flex; gap: 4px; }
-.page-btn {
-  padding: 6px 12px; background: #fff; border: 1px solid var(--color-surface-container-high);
-  border-radius: var(--radius); font-family: var(--font-display); font-size: 13px;
-  color: var(--color-on-surface-variant); cursor: pointer; transition: all 0.15s;
-}
-.page-btn:hover:not(:disabled) { background: var(--color-surface-container); }
-.page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.status-badge {
-  padding: 4px 8px; border-radius: var(--radius-lg); font-size: 11px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.05em;
-}
-.status-badge.status-pending { background: #fef3c7; color: #92400e; }
-.status-badge.status-submitted { background: #fef3c7; color: #92400e; }
-.status-badge.status-approved { background: #dcfce7; color: #166534; }
-.status-badge.status-rejected { background: #fee2e2; color: #991b1b; }
-
-.ts-actions {
-  display: flex; gap: 8px;
-}
-.btn-approve, .btn-reject, .btn-outline {
-  display: flex; align-items: center; gap: 4px; padding: 4px 8px;
-  border-radius: 4px; font-size: 11px; font-weight: 700; cursor: pointer;
-  border: 1px solid transparent; transition: all 0.2s;
-}
-.btn-approve { background: var(--color-primary); color: #fff; }
-.btn-approve:hover:not(:disabled) { background: #1a4e4f; }
-.btn-reject { background: transparent; border-color: #ef4444; color: #ef4444; }
-.btn-reject:hover:not(:disabled) { background: #fef2f2; }
-.btn-outline { background: transparent; border-color: var(--color-outline); color: var(--color-on-surface); }
-.btn-outline:hover { background: var(--color-surface-container); }
-.btn-approve:disabled, .btn-reject:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* Modal Base */
-.modal-backdrop {
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0,0,0,0.5); display: flex; align-items: center;
-  justify-content: center; z-index: 1000;
-}
-.modal-content {
-  background: #fff; padding: 24px; border-radius: var(--radius-lg);
-  width: 100%; max-width: 400px;
-  display: flex; flex-direction: column; gap: 16px;
-}
-.modal-content h3 { margin: 0; font-family: var(--font-display); }
-.modal-content p { margin: 0; font-size: 14px; color: var(--color-on-surface-variant); }
-.modal-content textarea {
-  padding: 8px; border: 1px solid var(--color-outline-variant); border-radius: 4px;
-  font-family: var(--font-body); resize: vertical;
-}
-.modal-actions {
-  display: flex; justify-content: flex-end; gap: 8px;
-}
-.btn-cancel {
-  padding: 8px 16px; background: transparent; border: 1px solid var(--color-outline-variant);
-  border-radius: 4px; cursor: pointer;
-}
-.btn-reject-confirm {
-  padding: 8px 16px; background: #ef4444; color: #fff; border: none;
-  border-radius: 4px; cursor: pointer;
-}
-.btn-reject-confirm:disabled { opacity: 0.5; }
-
-.text-center { text-align: center; }
-.text-right { text-align: right; }
-.font-bold { font-weight: 700; }
-
+/* ── Hours Badge ── */
 .hours-badge {
-  padding: 4px 10px;
-  background: var(--color-surface-container);
-  border-radius: 99px;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  background: var(--color-primary-light);
+  border-radius: var(--radius-full);
   font-size: 13px;
   font-weight: 700;
   color: var(--color-primary);
 }
 
-/* Detail Modal Styles */
-.detail-modal {
-  max-width: 800px;
-  width: 90%;
-  padding: 0;
-  overflow: hidden;
+/* ── Status Badges ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.badge-submitted { background: #fef3c7; color: #92400e; }
+.badge-pending   { background: #fef3c7; color: #92400e; }
+.badge-approved  { background: #dcfce7; color: #166534; }
+.badge-rejected  { background: #fee2e2; color: #991b1b; }
+
+/* ── Row Actions ── */
+.row-actions { display: flex; gap: 6px; align-items: center; }
+.btn-outline-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: transparent;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.btn-outline-sm .material-symbols-outlined { font-size: 15px; }
+.btn-outline-sm:hover { background: var(--color-outline-variant); border-color: var(--color-on-surface-variant); }
+
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.icon-btn .material-symbols-outlined { font-size: 16px; }
+.icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.icon-btn-approve .material-symbols-outlined { color: var(--color-success); }
+.icon-btn-approve:hover:not(:disabled) { background: #dcfce7; border-color: #86efac; }
+.icon-btn-reject .material-symbols-outlined { color: var(--color-error); }
+.icon-btn-reject:hover:not(:disabled) { background: #fef2f2; border-color: #fca5a5; }
+
+/* ── Empty State ── */
+.empty-cell { text-align: center; padding: 0; }
+.empty-state {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 16px;
+  color: var(--color-on-surface-variant);
 }
+.empty-icon { font-size: 36px; opacity: 0.4; }
+.empty-state p { margin: 0; font-size: 13px; }
 
-.modal-header {
-  padding: 24px;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-outline-variant);
+/* ── Table Footer ── */
+.table-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-top: 1px solid var(--color-outline);
 }
-
-.header-info h3 {
-  margin: 0 0 4px 0;
-  font-family: var(--font-display);
-  font-size: 20px;
-}
-
-.header-info p {
-  margin: 0;
-  font-size: 14px;
+.page-info {
+  font-family: var(--font-body);
+  font-size: 13px;
   color: var(--color-on-surface-variant);
 }
-
-.btn-close {
-  background: none;
-  border: none;
+.page-btns { display: flex; gap: 6px; }
+.page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 13px;
   color: var(--color-on-surface-variant);
   cursor: pointer;
-  padding: 4px;
+  transition: all var(--transition);
 }
+.page-btn .material-symbols-outlined { font-size: 16px; }
+.page-btn:hover:not(:disabled) { background: var(--color-outline-variant); color: var(--color-on-surface); }
+.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Modals ── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal {
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.14);
+  max-width: 520px;
+  width: 92%;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.modal-wide { max-width: 800px; }
+.modal-sm { max-width: 460px; }
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 24px 24px 20px;
+  border-bottom: 1px solid var(--color-outline);
+}
+.modal-header-info { display: flex; flex-direction: column; gap: 2px; }
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-on-surface);
+  margin: 0;
+}
+.modal-subtitle {
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
+.modal-close {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition);
+  flex-shrink: 0;
+}
+.modal-close:hover { background: var(--color-outline-variant); }
+.modal-close .material-symbols-outlined { font-size: 18px; color: var(--color-on-surface-variant); }
 
 .modal-body {
   padding: 24px;
@@ -504,111 +765,178 @@ function getProjectName(id) {
   flex-direction: column;
   gap: 24px;
 }
-
-.detail-section {
+.modal-footer {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--color-outline);
+  background: #f8fafc;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
 }
 
-.detail-section label {
-  font-family: var(--font-display);
-  font-size: 12px;
+/* ── Detail Modal ── */
+.detail-section { display: flex; flex-direction: column; gap: 10px; }
+.section-label {
+  font-family: var(--font-body);
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--color-on-surface-variant);
 }
-
 .detail-table-wrapper {
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--color-outline);
   border-radius: var(--radius-md);
   overflow: hidden;
 }
-
 .detail-table {
   width: 100%;
   border-collapse: collapse;
 }
-
 .detail-table th {
-  background: var(--color-surface-container-low);
-  padding: 12px;
+  background: #f8fafc;
+  padding: 10px 14px;
   text-align: left;
-  font-size: 11px;
+  font-family: var(--font-body);
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--color-on-surface-variant);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: 1px solid var(--color-outline);
 }
-
 .detail-table td {
-  padding: 12px;
-  border-bottom: 1px solid var(--color-surface-container-high);
-  font-size: 14px;
+  padding: 10px 14px;
+  font-size: 13px;
+  border-bottom: 1px solid #f1f5f9;
+  color: var(--color-on-surface);
 }
-
+.detail-table tbody tr:last-child td { border-bottom: none; }
 .col-proj { width: 180px; }
 .col-desc { line-height: 1.5; }
+.col-right { text-align: right; }
+.cell-mono { font-variant-numeric: tabular-nums; }
+.total-row td { background: #f8fafc; border-top: 2px solid var(--color-outline); }
+.total-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+}
+.total-val {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--color-primary);
+}
 
 .project-tag {
-  display: inline-block;
-  padding: 4px 8px;
-  background: var(--color-surface-container);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 4px;
+  display: inline-flex;
+  padding: 3px 8px;
+  background: var(--color-primary-light);
+  border: 1px solid rgba(40, 116, 117, 0.2);
+  border-radius: var(--radius-md);
   font-size: 12px;
   font-weight: 600;
   color: var(--color-primary);
 }
 
-.total-val {
-  font-size: 16px;
-  color: var(--color-primary);
-}
-
 .overview-box {
-  padding: 16px;
-  background: var(--color-surface-container-low);
+  padding: 14px 16px;
+  background: var(--color-surface-dim);
+  border: 1px solid var(--color-outline);
   border-radius: var(--radius-md);
   font-size: 14px;
   line-height: 1.6;
   white-space: pre-wrap;
+  color: var(--color-on-surface);
 }
 
-.modal-footer {
-  padding: 20px 24px;
-  background: var(--color-surface-container-low);
-  border-top: 1px solid var(--color-outline-variant);
+/* ── Form ── */
+.form-field { display: flex; flex-direction: column; gap: 6px; }
+.form-label {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-on-surface-variant);
 }
-
-.footer-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
+.form-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-on-surface);
+  outline: none;
+  transition: border var(--transition);
+  box-sizing: border-box;
 }
+.form-input:focus { border-color: var(--color-primary); }
+textarea.form-input { resize: vertical; }
 
-.btn-approve-large {
-  padding: 10px 20px;
+/* ── Action Buttons ── */
+.btn-cancel {
+  padding: 8px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.btn-cancel:hover { background: var(--color-outline-variant); }
+.btn-submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 18px;
   background: var(--color-primary);
   color: #fff;
   border: none;
-  border-radius: var(--radius-md);
-  font-weight: 700;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+  transition: background var(--transition);
 }
-
-.btn-reject-large {
-  padding: 10px 20px;
-  background: #fff;
-  color: #dc2626;
-  border: 1px solid #dc2626;
-  border-radius: var(--radius-md);
-  font-weight: 700;
+.btn-submit .material-symbols-outlined { font-size: 16px; }
+.btn-submit:hover:not(:disabled) { background: #1f5c5d; }
+.btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-reject-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 18px;
+  background: var(--color-surface);
+  color: var(--color-error);
+  border: 1px solid #fca5a5;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+  transition: all var(--transition);
 }
-
-.btn-approve-large:hover { background: #1a4e4f; }
-.btn-reject-large:hover { background: #fef2f2; }
+.btn-reject-action .material-symbols-outlined { font-size: 16px; }
+.btn-reject-action:hover { background: var(--color-error); color: #fff; border-color: var(--color-error); }
+.btn-danger {
+  padding: 9px 18px;
+  background: var(--color-error);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.btn-danger:hover:not(:disabled) { background: #b91c1c; }
+.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
-

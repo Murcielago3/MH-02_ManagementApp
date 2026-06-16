@@ -116,19 +116,19 @@ const weeks = computed(() => {
     const week = {
       days: [],
       mondayDate: null,
-      fridayDate: null
+      sundayDate: null
     }
-    
+
     for (let d = 0; d < 7; d++) {
       const dateString = formatDate(currentDay)
       const isWeekend = d === 5 || d === 6 // Sat, Sun
       const isOtherMonth = currentDay.getMonth() !== currentMonth.value
-      
+
       // Check if it's actual today
       const isToday = currentDay.toDateString() === today.toDateString()
-      
+
       if (d === 0) week.mondayDate = dateString
-      if (d === 4) week.fridayDate = dateString
+      if (d === 6) week.sundayDate = dateString
       
       week.days.push({
         dayOfMonth: currentDay.getDate(),
@@ -204,7 +204,7 @@ function handleWeekClick(week) {
   
   let weekObj = {
     week_start: week.mondayDate,
-    week_end: week.fridayDate,
+    week_end: week.sundayDate,
     status: status
   }
   

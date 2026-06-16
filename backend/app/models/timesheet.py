@@ -7,7 +7,7 @@ class Timesheet(Base):
 
     id = Column(Integer, primary_key=True)
     employee_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
     date = Column(Date, nullable=False)
     hours_logged = Column(Numeric(5, 2), nullable=False)
     notes = Column(String, nullable=True)

@@ -12,6 +12,9 @@ class LeaveRequest(Base):
     reason = Column(String, nullable=True)
     status = Column(String, default="pending")  # pending, approved, rejected
     days_count = Column(Integer, nullable=False)
+    # Working-day split computed at approval time
+    paid_days = Column(Integer, default=0)
+    unpaid_days = Column(Integer, default=0)
 
     employee = relationship("User", foreign_keys=[employee_id])
 

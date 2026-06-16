@@ -41,7 +41,7 @@ class ProjectAssignment(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     base_pay = Column(Numeric(10, 2), nullable=True)
     hourly_rate = Column(Numeric(8, 2), nullable=True)
 
