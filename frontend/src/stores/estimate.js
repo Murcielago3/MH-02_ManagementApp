@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { estimatesAPI } from '../api/estimates'
-import { useEstimateDrafts } from '../composables/useEstimateDrafts'
+import { useEstimateDrafts, newEstimateDraftId } from '../composables/useEstimateDrafts'
 
 // ─── Indian currency formatter ───────────────────────────────────────────────
 export const inrFormat = new Intl.NumberFormat('en-IN', {
@@ -161,6 +161,9 @@ export const useEstimateStore = defineStore('estimate', () => {
   }
 
   // ── Multi-draft persistence via useEstimateDrafts ─────────────────────────
+  // Drafts are stored server-side per account (synced across devices). The id
+  // is claimed synchronously up front so the autosave (debounced + async) keeps
+  // upserting to the same draft instead of creating duplicates.
   const { saveDraft: saveDraftToStorage, deleteDraft: deleteDraftFromStorage, getDraft: getDraftFromStorage } = useEstimateDrafts()
   const activeDraftId = ref(null)
 
@@ -176,14 +179,27 @@ export const useEstimateStore = defineStore('estimate', () => {
     }
   }
 
-  function saveDraft() {
-    if (projectName.value || startDate.value || employees.value.length > 0) {
-      activeDraftId.value = saveDraftToStorage(activeDraftId.value, getSnapshot())
-    }
+  function hasContent() {
+    return !!(projectName.value || startDate.value || employees.value.length > 0)
   }
 
-  function loadDraftById(draftId) {
-    const draft = getDraftFromStorage(draftId)
+  function saveDraft() {
+    if (!hasContent()) return
+    if (!activeDraftId.value) activeDraftId.value = newEstimateDraftId()
+    // Fire-and-forget: the server upsert is idempotent on the draft id.
+    saveDraftToStorage(activeDraftId.value, getSnapshot())
+  }
+
+  // Debounce autosave so rapid edits collapse into a single network write.
+  let draftSaveTimer = null
+  function scheduleDraftSave() {
+    if (!hasContent()) return
+    if (draftSaveTimer) clearTimeout(draftSaveTimer)
+    draftSaveTimer = setTimeout(() => { draftSaveTimer = null; saveDraft() }, 800)
+  }
+
+  async function loadDraftById(draftId) {
+    const draft = await getDraftFromStorage(draftId)
     if (!draft) return false
     const data = draft.data
     if (!data.projectName && !data.startDate) return false
@@ -209,24 +225,24 @@ export const useEstimateStore = defineStore('estimate', () => {
   function hasDraft() { return false }
 
   function clearDraft() {
+    if (draftSaveTimer) { clearTimeout(draftSaveTimer); draftSaveTimer = null }
     if (activeDraftId.value) {
       deleteDraftFromStorage(activeDraftId.value)
       activeDraftId.value = null
     }
   }
 
-  function saveAndGetDraftId() {
-    activeDraftId.value = saveDraftToStorage(activeDraftId.value, getSnapshot())
+  async function saveAndGetDraftId() {
+    if (!activeDraftId.value) activeDraftId.value = newEstimateDraftId()
+    await saveDraftToStorage(activeDraftId.value, getSnapshot())
     return activeDraftId.value
   }
 
-  // Auto-save on changes
+  // Auto-save on changes (debounced)
   watch(
     [step, projectName, startDate, endDate, employees, partnerPayPerHour],
     () => {
-      if (projectName.value || startDate.value || employees.value.length > 0) {
-        saveDraft()
-      }
+      scheduleDraftSave()
     },
     { deep: true }
   )

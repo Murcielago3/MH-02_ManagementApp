@@ -165,7 +165,7 @@ const submitting = ref(false)
 const formError = ref('')
 const deleteTarget = ref(null)
 
-const { draft: clientDraft, saveDraft: saveClientDraft, clearDraft: clearClientDraft, hasDraft: hasClientDraft } = useDraftStorage('client_create')
+const { draft: clientDraft, saveDraft: saveClientDraft, clearDraft: clearClientDraft, hasDraft: hasClientDraft, load: loadClientDraft } = useDraftStorage('client_create')
 const showDraftBanner = ref(false)
 
 const form = reactive({
@@ -231,11 +231,13 @@ function discardClientDraft() {
   showDraftBanner.value = false
 }
 
-function openAddModal() {
+async function openAddModal() {
   resetForm()
   isEditing.value = false
   editingId.value = null
   modalOpen.value = true
+  // Pull the latest draft for this account (may have been saved on another device).
+  await loadClientDraft()
   if (hasClientDraft.value) showDraftBanner.value = true
 }
 

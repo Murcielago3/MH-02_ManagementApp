@@ -52,6 +52,7 @@
               v-for="emp in filteredEmployees"
               :key="emp.id"
               class="employee-card"
+              @click="goToProfile(emp)"
             >
               <div class="employee-card-top">
                 <div class="name-cell">
@@ -404,7 +405,7 @@ const form = reactive({
   emergency_contact_relationship: '',
 })
 
-const { draft: empDraft, saveDraft: saveEmpDraft, clearDraft: clearEmpDraft, hasDraft: hasEmpDraft } = useDraftStorage('employee_create')
+const { draft: empDraft, saveDraft: saveEmpDraft, clearDraft: clearEmpDraft, hasDraft: hasEmpDraft, load: loadEmpDraft } = useDraftStorage('employee_create')
 const showDraftBanner = ref(false)
 
 // Auto-save draft during add mode
@@ -513,13 +514,19 @@ function resetForm() {
   docFiles.other = null
 }
 
-function openAddModal(role = 'employee') {
+async function openAddModal(role = 'employee') {
   resetForm()
   isEditing.value = false
   editingId.value = null
   form.role = role  // pre-fill the Role dropdown for whichever button was clicked
   modalOpen.value = true
+  // Pull the latest draft for this account (may have been saved on another device).
+  await loadEmpDraft()
   if (hasEmpDraft.value) showDraftBanner.value = true
+}
+
+function goToProfile(emp) {
+  router.push(`/admin/employees/${emp.id}`)
 }
 
 function openEditModal(emp) {

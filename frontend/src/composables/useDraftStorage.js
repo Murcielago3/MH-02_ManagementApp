@@ -1,54 +1,82 @@
-import { ref, computed, watch, unref, isRef } from 'vue'
-import { useAuthStore } from '../stores/auth'
+import { ref, computed, watch, unref } from 'vue'
+import { draftsAPI } from '../api/drafts'
 
 /**
- * Reusable composable for localStorage draft persistence.
- * All keys are user-scoped: draft_{key}_{userId}
+ * Account-synced single-slot draft persistence (one draft per namespace).
  *
- * @param {string | Ref<string>} key - Unique key for this draft (e.g. 'timesheet_2026-05-26', 'project_create')
- * @returns {{ draft: Ref, saveDraft: Function, clearDraft: Function, hasDraft: ComputedRef<boolean> }}
+ * Previously backed by localStorage; now backed by the server so the draft
+ * follows the logged-in user across devices. The namespace doubles as the
+ * feature key — e.g. 'client_create', 'project_create', 'timesheet_2026-05-26'.
+ *
+ * Saves are debounced so an autosave watcher firing on every keystroke results
+ * in at most one network write per quiet period.
+ *
+ * @param {string | import('vue').Ref<string>} key - namespace for this draft.
+ * @returns {{ draft: Ref, saveDraft: Function, clearDraft: Function,
+ *            hasDraft: ComputedRef<boolean>, loaded: Ref<boolean>, load: Function }}
  */
-export function useDraftStorage(key) {
-  const authStore = useAuthStore()
-  const userId = computed(() => authStore.user?.id ?? 'anon')
-  const resolvedKey = computed(() => `draft_${unref(key)}_${userId.value}`)
+const SLOT_KEY = 'default'
+const SAVE_DEBOUNCE_MS = 600
 
-  function readFromStorage() {
+export function useDraftStorage(key) {
+  const namespace = computed(() => unref(key))
+  const draft = ref(null)
+  const loaded = ref(false)
+
+  let saveTimer = null
+  let pending = null   // latest { ns, data } not yet sent
+  let inflight = null  // promise of the PUT currently in flight
+
+  async function load() {
+    const ns = namespace.value
+    loaded.value = false
     try {
-      const raw = localStorage.getItem(resolvedKey.value)
-      if (raw) return JSON.parse(raw)
+      const res = await draftsAPI.list(ns)
+      // Drop a stale response if the (reactive) key changed mid-flight.
+      if (ns !== namespace.value) return
+      draft.value = res.data.length ? res.data[0].data : null
     } catch (e) {
-      console.warn(`[useDraftStorage] Failed to parse draft for "${resolvedKey.value}"`, e)
+      if (ns === namespace.value) draft.value = null
+    } finally {
+      if (ns === namespace.value) loaded.value = true
     }
-    return null
   }
 
-  const draft = ref(readFromStorage())
+  // Initial load, and reload whenever the key changes (e.g. switching weeks).
+  watch(namespace, () => { load() }, { immediate: true })
 
-  // Re-read if the storage key changes (userId change, or reactive key change)
-  watch(resolvedKey, () => {
-    draft.value = readFromStorage()
-  })
+  function flush() {
+    if (!pending) return inflight || Promise.resolve()
+    const { ns, data } = pending
+    pending = null
+    inflight = draftsAPI
+      .upsert(ns, SLOT_KEY, { label: null, data })
+      .catch(() => {})
+      .finally(() => { inflight = null })
+    return inflight
+  }
 
   function saveDraft(data) {
-    try {
-      localStorage.setItem(resolvedKey.value, JSON.stringify(data))
-      draft.value = data
-    } catch (e) {
-      console.warn(`[useDraftStorage] Failed to save draft for "${resolvedKey.value}"`, e)
-    }
+    draft.value = data
+    pending = { ns: namespace.value, data }
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => { saveTimer = null; flush() }, SAVE_DEBOUNCE_MS)
   }
 
-  function clearDraft() {
-    try {
-      localStorage.removeItem(resolvedKey.value)
-    } catch (e) {
-      // ignore
-    }
+  async function clearDraft() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null }
+    pending = null
+    const ns = namespace.value
     draft.value = null
+    try {
+      if (inflight) await inflight  // don't let a late save resurrect the draft
+      await draftsAPI.remove(ns, SLOT_KEY)
+    } catch (e) {
+      // ignore — clearing a draft is best-effort
+    }
   }
 
   const hasDraft = computed(() => draft.value !== null)
 
-  return { draft, saveDraft, clearDraft, hasDraft }
+  return { draft, saveDraft, clearDraft, hasDraft, loaded, load }
 }

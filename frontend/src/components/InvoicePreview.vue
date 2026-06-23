@@ -160,13 +160,13 @@ const formatAmount = (val) => {
 const formatInvoiceNumber = (inv) => {
   const numStr = inv.invoice_number
   if (!numStr) {
-    return `AO - ${String(inv.id || 0).padStart(4, '0')}`
+    return `AO - ${String(inv.id || 0).padStart(3, '0')}`
   }
   const digits = numStr.match(/\d+/g)
   if (digits) {
     const lastDigits = digits[digits.length - 1]
     const numVal = parseInt(lastDigits, 10)
-    return `AO - ${String(numVal).padStart(4, '0')}`
+    return `AO - ${String(numVal).padStart(3, '0')}`
   } else {
     const clean = numStr.replace('AO-', '').replace('AO -', '').trim()
     return `AO - ${clean}`

@@ -166,7 +166,7 @@
                       <input v-model="item.hsn_sac" type="text" placeholder="HSN" />
                     </td>
                     <td>
-                      <input v-model.number="item.amount" type="number" min="0" step="0.01" required />
+                      <CurrencyInput v-model="item.amount" required />
                     </td>
                     <td class="text-center">
                       <button type="button" class="remove-btn" @click="removeItem(idx)" :disabled="form.items.length <= 1">
@@ -273,11 +273,12 @@ import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 import ToastNotification from '../components/ToastNotification.vue'
+import CurrencyInput from '../components/CurrencyInput.vue'
 import { invoicesAPI } from '../api/invoices'
 import { bankAccountsAPI } from '../api/bankAccounts'
 import { projectsAPI } from '../api/projects'
 import { clientsAPI } from '../api/clients'
-import { useInvoiceDrafts } from '../composables/useInvoiceDrafts'
+import { useInvoiceDrafts, newInvoiceDraftId } from '../composables/useInvoiceDrafts'
 
 const route = useRoute()
 const router = useRouter()
@@ -370,11 +371,14 @@ function getFormSnapshot() {
 
 function autoSave() {
   if (isEditing.value) return
-  activeDraftId.value = saveDraftToStorage(activeDraftId.value, getFormSnapshot())
+  // Claim the id synchronously so repeated autosaves upsert the same draft.
+  if (!activeDraftId.value) activeDraftId.value = newInvoiceDraftId()
+  saveDraftToStorage(activeDraftId.value, getFormSnapshot())
 }
 
-function handleSaveDraft() {
-  activeDraftId.value = saveDraftToStorage(activeDraftId.value, getFormSnapshot())
+async function handleSaveDraft() {
+  if (!activeDraftId.value) activeDraftId.value = newInvoiceDraftId()
+  await saveDraftToStorage(activeDraftId.value, getFormSnapshot())
   showToast('Draft saved')
 }
 
@@ -406,7 +410,7 @@ onMounted(async () => {
       }
     } else if (activeDraftId.value) {
       // Resume draft mode
-      const draft = getDraft(activeDraftId.value)
+      const draft = await getDraft(activeDraftId.value)
       if (draft) {
         populateFormFromData(draft.data)
         // Resolve the client from the project
@@ -575,11 +579,11 @@ const submitInvoice = async () => {
       setTimeout(() => { router.push(`/admin/invoices/${editingId.value}`) }, 1000)
     } else {
       // Delete the draft on successful creation
+      if (autoSaveTimer) clearInterval(autoSaveTimer)
       if (activeDraftId.value) {
-        deleteDraft(activeDraftId.value)
+        await deleteDraft(activeDraftId.value)
         activeDraftId.value = null
       }
-      if (autoSaveTimer) clearInterval(autoSaveTimer)
       await invoicesAPI.createInvoice(payload)
       showToast('Invoice created successfully!')
       setTimeout(() => { router.push('/admin/invoices') }, 1000)

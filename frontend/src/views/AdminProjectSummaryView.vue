@@ -175,7 +175,7 @@
                     </div>
                     <div v-else class="inline-rate compact">
                       <span class="rupee">₹</span>
-                      <input v-model.number="partnerRateInput" type="number" min="0" step="1" class="rate-inp" />
+                      <CurrencyInput v-model="partnerRateInput" class="rate-inp" />
                       <span class="per">/hr</span>
                       <button type="button" class="btn-primary sm" :disabled="savingPartnerRate" @click="savePartnerRate">
                         {{ savingPartnerRate ? '…' : 'Save' }}
@@ -352,6 +352,7 @@ import { Chart, registerables } from 'chart.js'
 import AppLayout from '../components/AppLayout.vue'
 import ToastNotification from '../components/ToastNotification.vue'
 import AssignProjectModal from '../components/AssignProjectModal.vue'
+import CurrencyInput from '../components/CurrencyInput.vue'
 import { projectsAPI } from '../api/projects'
 import { usersAPI } from '../api/users'
 import { weeklyTimesheetsAPI } from '../api/weekly_timesheets'

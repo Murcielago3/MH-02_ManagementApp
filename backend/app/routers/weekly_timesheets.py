@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -7,7 +7,9 @@ from datetime import date, timedelta
 from pydantic import BaseModel
 from app.database import get_db
 from app.models.weekly_timesheet import WeeklyTimesheet, WeeklyTimesheetEntry
+from app.models.user import User
 from app.auth import get_current_user, require_admin, require_manager
+from app.services.slack import notify_event
 
 router = APIRouter(prefix="/weekly-timesheets", tags=["weekly-timesheets"])
 
@@ -111,6 +113,7 @@ async def get_pending_weeks(
 
 @router.post("/", status_code=201)
 async def submit_timesheet(
+    background_tasks: BackgroundTasks,
     data: WeeklyTimesheetCreate,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
@@ -158,6 +161,14 @@ async def submit_timesheet(
 
     await db.commit()
     await db.refresh(timesheet)
+
+    # Notify the team channel in Slack (fires after the response; never blocks it).
+    background_tasks.add_task(
+        notify_event,
+        "timesheet_uploaded",
+        f"📋 *{current_user.name}* submitted a timesheet for the week of "
+        f"{data.week_start} — {total_hours}h",
+    )
     return timesheet
 
 @router.get("/{timesheet_id}")
@@ -182,6 +193,7 @@ async def get_timesheet(
 async def action_timesheet(
     timesheet_id: int,
     data: TimesheetAction,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(require_admin)
 ):
@@ -201,6 +213,17 @@ async def action_timesheet(
 
     await db.commit()
     await db.refresh(timesheet)
+
+    # Notify the team channel in Slack of the decision (the employee sees it here).
+    emp_name = (await db.execute(
+        select(User.name).where(User.id == timesheet.employee_id)
+    )).scalar_one_or_none() or f"Employee #{timesheet.employee_id}"
+    verb = "approved ✅" if data.status == "approved" else "rejected ❌"
+    msg = f"🗂️ Timesheet *{verb}* — *{emp_name}*, week of {timesheet.week_start}"
+    if data.status == "rejected" and timesheet.rejection_reason:
+        msg += f"\nReason: _{timesheet.rejection_reason}_"
+    background_tasks.add_task(notify_event, "timesheet_decision", msg)
+
     # An approval/rejection changes which hours count toward employee cost,
     # which affects the reserve balance shown in the sidebar.
     from app.routers.projects import _invalidate_reserve

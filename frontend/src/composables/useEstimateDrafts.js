@@ -1,89 +1,77 @@
 import { ref, computed } from 'vue'
-import { useAuthStore } from '../stores/auth'
+import { draftsAPI } from '../api/drafts'
 
-const STORAGE_KEY_PREFIX = 'estimate_drafts_'
+const NAMESPACE = 'estimate'
 
-function getStorageKey() {
-  const authStore = useAuthStore()
-  const userId = authStore.user?.id ?? 'anon'
-  return `${STORAGE_KEY_PREFIX}${userId}`
+// Map a server draft row onto the shape the UI has always used.
+function mapDraft(row) {
+  return { id: row.key, label: row.label, data: row.data, updatedAt: row.updated_at }
 }
 
-function readDrafts() {
-  try {
-    const raw = localStorage.getItem(getStorageKey())
-    if (raw) return JSON.parse(raw)
-  } catch (e) {
-    console.warn('[useEstimateDrafts] Failed to parse drafts', e)
-  }
-  return []
-}
-
-function writeDrafts(drafts) {
-  try {
-    localStorage.setItem(getStorageKey(), JSON.stringify(drafts))
-  } catch (e) {
-    console.warn('[useEstimateDrafts] Failed to save drafts', e)
-  }
+/** Stable per-draft key. Generated up front so callers (autosave) can own the
+ *  id synchronously while the actual save happens asynchronously. */
+export function newEstimateDraftId() {
+  return 'est_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7)
 }
 
 /**
- * Composable for managing multiple estimate drafts in localStorage.
- * Each draft has: { id, label, data, updatedAt }
+ * Composable for managing multiple estimate drafts.
+ * Drafts now live on the server, scoped to the logged-in user, so they sync
+ * across devices. Each draft is { id, label, data, updatedAt }.
  */
 export function useEstimateDrafts() {
-  const drafts = ref(readDrafts())
+  const drafts = ref([])
 
-  function refresh() {
-    drafts.value = readDrafts()
+  async function refresh() {
+    try {
+      const res = await draftsAPI.list(NAMESPACE)
+      drafts.value = res.data.map(mapDraft)
+    } catch (e) {
+      console.warn('[useEstimateDrafts] Failed to load drafts', e)
+      drafts.value = []
+    }
   }
 
   /**
    * Save or update a draft.
-   * @param {string|null} draftId - Existing draft ID to update, or null to create new
-   * @param {object} snapshot - The estimate snapshot to save
-   * @returns {string} The draft ID
+   * @param {string|null} draftId - Existing draft id, or null to create a new one.
+   * @param {object} snapshot - The estimate snapshot to save.
+   * @returns {Promise<string>} The draft id.
    */
-  function saveDraft(draftId, snapshot) {
-    const list = readDrafts()
+  async function saveDraft(draftId, snapshot) {
+    const id = draftId || newEstimateDraftId()
     const label = snapshot.projectName || 'Untitled Estimate'
-    const now = new Date().toISOString()
-
-    if (draftId) {
-      const idx = list.findIndex(d => d.id === draftId)
-      if (idx !== -1) {
-        list[idx].data = { ...snapshot }
-        list[idx].label = label
-        list[idx].updatedAt = now
-      } else {
-        list.unshift({ id: draftId, label, data: { ...snapshot }, updatedAt: now })
-      }
-    } else {
-      draftId = generateId()
-      list.unshift({ id: draftId, label, data: { ...snapshot }, updatedAt: now })
+    try {
+      const res = await draftsAPI.upsert(NAMESPACE, id, { label, data: snapshot })
+      const mapped = mapDraft(res.data)
+      const idx = drafts.value.findIndex(d => d.id === id)
+      if (idx !== -1) drafts.value[idx] = mapped
+      else drafts.value.unshift(mapped)
+    } catch (e) {
+      console.warn('[useEstimateDrafts] Failed to save draft', e)
     }
-
-    writeDrafts(list)
-    drafts.value = list
-    return draftId
+    return id
   }
 
-  function deleteDraft(draftId) {
-    const list = readDrafts().filter(d => d.id !== draftId)
-    writeDrafts(list)
-    drafts.value = list
+  async function deleteDraft(draftId) {
+    try {
+      await draftsAPI.remove(NAMESPACE, draftId)
+    } catch (e) {
+      console.warn('[useEstimateDrafts] Failed to delete draft', e)
+    }
+    drafts.value = drafts.value.filter(d => d.id !== draftId)
   }
 
-  function getDraft(draftId) {
-    const list = readDrafts()
-    return list.find(d => d.id === draftId) || null
+  async function getDraft(draftId) {
+    try {
+      const res = await draftsAPI.get(NAMESPACE, draftId)
+      return mapDraft(res.data)
+    } catch (e) {
+      return null
+    }
   }
 
   const hasDrafts = computed(() => drafts.value.length > 0)
 
   return { drafts, hasDrafts, saveDraft, deleteDraft, getDraft, refresh }
-}
-
-function generateId() {
-  return 'est_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7)
 }

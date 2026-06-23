@@ -72,6 +72,24 @@ services:
       redis:
         condition: service_started
 
+  # Scheduler for the timed reminders (monthly report, weekly timesheet nudge).
+  # Run exactly one beat instance or messages get sent multiple times.
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A app.celery_app beat --loglevel=info
+    restart: always
+    volumes:
+      - backend_static:/app/static
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
   certbot:
     image: certbot/certbot
     volumes:

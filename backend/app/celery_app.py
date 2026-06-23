@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.schedules import crontab
 from app.config import settings
 
 celery_app = Celery(
@@ -13,5 +14,28 @@ celery_app.conf.accept_content = ["json"]
 celery_app.conf.result_serializer = "json"
 celery_app.conf.task_serializer = "json"
 
-# Auto-discover tasks in app modules if any are added later.
+# Run scheduled reminders in the studio's local time, not UTC.
+celery_app.conf.timezone = settings.TIMEZONE
+celery_app.conf.enable_utc = False
+
+# Make the task module importable by the worker and beat.
+celery_app.conf.imports = ("app.tasks",)
+
+# ─── Scheduled reminders (Celery Beat) ───
+# Requires the `beat` service to be running (see docker-compose*.yml). Run
+# exactly one beat instance, or messages get sent multiple times.
+celery_app.conf.beat_schedule = {
+    # Monthly report to the management channel — 1st of each month at 09:00.
+    "monthly-admin-report": {
+        "task": "app.tasks.monthly_admin_report",
+        "schedule": crontab(day_of_month="1", hour=9, minute=0),
+    },
+    # Timesheet nudge to the common channel — every Sunday at 12:00 noon.
+    "weekly-timesheet-reminder": {
+        "task": "app.tasks.weekly_timesheet_reminder",
+        "schedule": crontab(day_of_week="sun", hour=12, minute=0),
+    },
+}
+
+# Auto-discover tasks in app modules.
 celery_app.autodiscover_tasks(["app"])

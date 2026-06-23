@@ -3,17 +3,22 @@ from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
-from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips, holidays
+from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips, holidays, subtasks, drafts
 
 
 security = HTTPBearer()
 app = FastAPI(title="Studio MH02")
 
-# CORS – allow the Vite dev server to reach the API
+# CORS – allow the Vite dev server to reach the API.
+# allow_credentials=True is incompatible with allow_origins=["*"] (browsers
+# reject the wildcard when credentials are signalled). The app authenticates
+# via bearer tokens in the Authorization header, not cookies, so credentials
+# can stay off. allow_origin_regex matches any LAN/loopback origin so it
+# works from every PC on the network without listing each one.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origin_regex=r".*",
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["Content-Disposition"],
@@ -44,6 +49,9 @@ app.include_router(settings_router.router)
 app.include_router(estimates.router)
 app.include_router(salary_slips.router)
 app.include_router(holidays.router)
+app.include_router(subtasks.router)
+app.include_router(subtasks.single_router)
+app.include_router(drafts.router)
 
 
 @app.get("/health")
@@ -199,6 +207,48 @@ async def run_migrations():
                     name VARCHAR NOT NULL
                 )
             """))
+    except Exception:
+        pass
+
+    # Per-task subtasks
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS subtasks (
+                    id SERIAL PRIMARY KEY,
+                    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+                    title VARCHAR NOT NULL,
+                    description VARCHAR,
+                    duration_hours NUMERIC(6, 2),
+                    status VARCHAR DEFAULT 'pending',
+                    created_by INTEGER REFERENCES users(id),
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+    except Exception:
+        pass
+
+    # Per-user, account-synced drafts (estimates, invoices, autosave forms,
+    # timesheets). Replaces the old per-browser localStorage drafts so a user's
+    # in-progress work follows their account across devices.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS drafts (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    namespace VARCHAR NOT NULL,
+                    draft_key VARCHAR NOT NULL,
+                    label VARCHAR,
+                    data JSON,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW(),
+                    CONSTRAINT uq_draft_user_ns_key UNIQUE (user_id, namespace, draft_key)
+                )
+            """))
+            await conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_drafts_user_ns ON drafts (user_id, namespace)"
+            ))
     except Exception:
         pass
 

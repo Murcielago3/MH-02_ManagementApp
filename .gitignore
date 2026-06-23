@@ -17,6 +17,11 @@ backend/.env
 *.db
 *.sqlite3
 
+# ── DB dumps (data + password hashes — move via scp, never commit) ──
+*.sql
+*.sql.gz
+*.dump
+
 # ── OS / Editor ──
 .DS_Store
 .vscode/

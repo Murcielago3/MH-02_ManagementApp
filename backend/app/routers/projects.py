@@ -394,11 +394,34 @@ async def update_project(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    for field, value in data.dict(exclude_unset=True).items():
-        setattr(project, field, value)
+    # Pydantic v2: prefer model_dump over the deprecated .dict()
+    payload = data.model_dump(exclude_unset=True)
 
-    await db.commit()
-    await db.refresh(project)
+    # If project_number is being changed, enforce the uniqueness check
+    # ourselves so we return a clean 400 instead of letting Postgres raise
+    # an IntegrityError that bubbles up as a 500 with no CORS headers.
+    new_number = payload.get("project_number")
+    if new_number and new_number != project.project_number:
+        dupe = await db.execute(
+            select(Project).where(
+                Project.project_number == new_number,
+                Project.id != project_id,
+            )
+        )
+        if dupe.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="A project with this project number already exists.")
+
+    try:
+        for field, value in payload.items():
+            setattr(project, field, value)
+        await db.commit()
+        await db.refresh(project)
+    except Exception as e:
+        await db.rollback()
+        import logging, traceback
+        logging.error("update_project failed for id=%s: %s\n%s", project_id, e, traceback.format_exc())
+        raise HTTPException(status_code=400, detail=f"Failed to update project: {e}")
+
     _invalidate_reserve()
     return project
 

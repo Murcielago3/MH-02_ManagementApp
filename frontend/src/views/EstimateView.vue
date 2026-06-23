@@ -160,21 +160,21 @@ onMounted(() => {
   store.fetchSavedEstimates()
 })
 
-function resumeDraft(draftId) {
-  store.loadDraftById(draftId)
+async function resumeDraft(draftId) {
+  await store.loadDraftById(draftId)
 }
 
-function handleDeleteDraft(draftId) {
-  deleteDraftFromStorage(draftId)
+async function handleDeleteDraft(draftId) {
+  await deleteDraftFromStorage(draftId)
   // If this was the active draft, clear it in the store
   if (store.activeDraftId === draftId) {
     store.activeDraftId = null
   }
 }
 
-function handleSaveDraft() {
-  store.saveAndGetDraftId()
-  refreshDrafts()
+async function handleSaveDraft() {
+  await store.saveAndGetDraftId()
+  await refreshDrafts()
   showToast('Draft saved')
 }
 
@@ -214,8 +214,9 @@ async function handleDeleteEstimate(id) {
   if (!confirm('Delete this saved estimate? This cannot be undone.')) return
   try {
     await store.deleteEstimate(id)
-  } catch {
-    alert('Failed to delete estimate.')
+  } catch (err) {
+    // Global axios interceptor surfaces the error toast
+    console.error(err)
   }
 }
 </script>

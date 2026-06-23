@@ -187,12 +187,16 @@ function makeEmptyRow() {
   return { project_id: null, daily: [0, 0, 0, 0, 0, 0, 0], description: '' }
 }
 
-// Draft storage keyed by week start (reactive key)
+// Draft storage keyed by week start (reactive key). Server-backed per account,
+// so a half-filled week follows the user across devices.
 const draftKey = computed(() => `timesheet_${props.week.week_start}`)
-const { draft: tsDraft, saveDraft: saveTsDraft, clearDraft: clearTsDraft, hasDraft: hasTsDraft } = useDraftStorage(draftKey)
+const { draft: tsDraft, saveDraft: saveTsDraft, clearDraft: clearTsDraft, hasDraft: hasTsDraft, load: loadTsDraft } = useDraftStorage(draftKey)
+// Snapshot of the draft as loaded from the server, captured before autosave can
+// overwrite it — so "Restore" always brings back what was actually saved.
+const restorableDraft = ref(null)
 
 // Sync from store — convert flat entries to grid rows
-watch(() => props.week, () => {
+watch(() => props.week, async () => {
   description.value = store.form.description || ''
 
   const storeEntries = store.form.entries || []
@@ -206,8 +210,11 @@ watch(() => props.week, () => {
     rows.value = [makeEmptyRow()]
   }
 
-  // Show draft banner if a saved draft exists
-  if (hasTsDraft.value) {
+  // This week's draft loads asynchronously from the server. Reset the banner,
+  // then show it once we confirm a saved draft exists for this week.
+  showDraftBanner.value = false
+  restorableDraft.value = await loadTsDraft()
+  if (restorableDraft.value) {
     showDraftBanner.value = true
   }
 }, { immediate: true })
@@ -251,10 +258,11 @@ function padDaily(arr) {
 }
 
 function restoreTsDraft() {
-  if (!tsDraft.value) return
-  description.value = tsDraft.value.description || ''
-  if (tsDraft.value.rows) {
-    rows.value = tsDraft.value.rows.map(r => ({
+  const d = restorableDraft.value || tsDraft.value
+  if (!d) return
+  description.value = d.description || ''
+  if (d.rows) {
+    rows.value = d.rows.map(r => ({
       project_id: r.project_id,
       daily: padDaily(r.daily),
       description: r.description || ''
@@ -265,6 +273,7 @@ function restoreTsDraft() {
 
 function discardTsDraft() {
   clearTsDraft()
+  restorableDraft.value = null
   showDraftBanner.value = false
 }
 
