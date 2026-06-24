@@ -33,10 +33,12 @@ export function useDraftStorage(key) {
     try {
       const res = await draftsAPI.list(ns)
       // Drop a stale response if the (reactive) key changed mid-flight.
-      if (ns !== namespace.value) return
+      if (ns !== namespace.value) return null
       draft.value = res.data.length ? res.data[0].data : null
+      return draft.value
     } catch (e) {
       if (ns === namespace.value) draft.value = null
+      return null
     } finally {
       if (ns === namespace.value) loaded.value = true
     }
