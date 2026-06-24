@@ -369,8 +369,16 @@ function getFormSnapshot() {
   }
 }
 
+// Has the user actually entered something? Avoids saving blank drafts from the
+// form's defaults (which would clutter the list / overwrite real work).
+function invoiceHasContent() {
+  if (form.bill_to_name || form.project_id || form.invoice_number || form.subject) return true
+  return form.items.some(i => (i.description && i.description.trim()) || Number(i.amount) > 0)
+}
+
 function autoSave() {
   if (isEditing.value) return
+  if (!invoiceHasContent()) return
   // Claim the id synchronously so repeated autosaves upsert the same draft.
   if (!activeDraftId.value) activeDraftId.value = newInvoiceDraftId()
   saveDraftToStorage(activeDraftId.value, getFormSnapshot())
