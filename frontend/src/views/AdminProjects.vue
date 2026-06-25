@@ -514,11 +514,8 @@ const yearOptions = computed(() => {
 
 const filtered = computed(() => {
   let list = [...projects.value]
-  // Sort: Year desc, Number desc (Newer first)
-  list.sort((a, b) => {
-    if (b.year !== a.year) return (b.year || 0) - (a.year || 0)
-    return (b.project_number || '').localeCompare(a.project_number || '')
-  })
+  // Sort alphabetically by project name (case-insensitive)
+  list.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }))
   
   if (filterYear.value) list = list.filter(p => p.year === Number(filterYear.value))
   if (filterClient.value) list = list.filter(p => p.client_id === Number(filterClient.value))

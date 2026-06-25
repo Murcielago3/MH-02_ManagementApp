@@ -451,7 +451,8 @@ onMounted(fetchEmployees)
 // ── Filtered + paginated ──
 const filteredEmployees = computed(() => {
   let list = [...employees.value]
-  list.sort((a, b) => (b.id || 0) - (a.id || 0))
+  // Sort alphabetically by name (case-insensitive)
+  list.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }))
   const q = searchQuery.value.toLowerCase()
   if (!q) return list
   return list.filter(e =>
