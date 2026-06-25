@@ -96,7 +96,7 @@
 
     <!-- Add/Edit Modal -->
     <Teleport to="body">
-      <div v-if="modalOpen" class="modal-backdrop" @click.self="closeModal">
+      <div v-if="modalOpen" class="modal-backdrop">
         <div class="modal modal-wide">
           <div class="modal-header">
             <h3 class="modal-title">{{ isEditing ? 'Edit Project' : 'Add New Project' }}</h3>
@@ -223,7 +223,7 @@
 
     <!-- Delete Confirmation -->
     <Teleport to="body">
-      <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null">
+      <div v-if="deleteTarget" class="modal-backdrop">
         <div class="modal modal-sm">
           <div class="modal-header">
             <h3 class="modal-title">Delete Project</h3>

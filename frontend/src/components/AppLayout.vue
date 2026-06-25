@@ -213,6 +213,7 @@ const navItemsBottom = [
   { path: '/admin/tasks',      icon: 'task_alt',        label: 'Tasks' },
   { path: '/admin/leaves',     icon: 'event_busy',      label: 'Leaves' },
   { path: '/admin/timesheets', icon: 'pending_actions', label: 'Timesheets' },
+  { path: '/employee/timesheet', icon: 'schedule',        label: 'My Timesheet' },
   { path: '/admin/expenses',        icon: 'payments',        label: 'Expenses' },
   { path: '/admin/reimbursements', icon: 'request_quote',   label: 'Reimbursements' },
   { path: '/admin/salary-slips',   icon: 'paid',            label: 'Salary Slips' },

@@ -59,7 +59,7 @@
 
     <!-- Add holiday inline dialog -->
     <Teleport to="body">
-      <div v-if="addDate" class="modal-backdrop" @click.self="addDate = null">
+      <div v-if="addDate" class="modal-backdrop">
         <div class="add-modal">
           <h3 class="add-title">Add Holiday</h3>
           <p class="add-date">{{ formatDate(addDate) }}</p>

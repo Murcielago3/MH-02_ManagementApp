@@ -1,5 +1,5 @@
 <template>
-  <EmployeeLayout>
+  <component :is="layoutComponent">
     <div class="timesheet-view">
       <!-- Loading State -->
       <div v-if="timesheetStore.loading && !isInitialized" class="loading-state">
@@ -20,15 +20,22 @@
         </div>
       </div>
     </div>
-  </EmployeeLayout>
+  </component>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import EmployeeLayout from '../../components/EmployeeLayout.vue'
+import AppLayout from '../../components/AppLayout.vue'
 import WeekSelectorCalendar from '../../components/timesheet/WeekSelectorCalendar.vue'
 import TimesheetFormPanel from '../../components/timesheet/TimesheetFormPanel.vue'
 import { useTimesheetStore } from '../../stores/timesheet'
+import { useAuthStore } from '../../stores/auth'
+
+// Admins reach their own timesheet from the admin sidebar, so keep them in the
+// admin layout; employees/PMs use the employee layout.
+const authStore = useAuthStore()
+const layoutComponent = computed(() => (authStore.role === 'admin' ? AppLayout : EmployeeLayout))
 
 const timesheetStore = useTimesheetStore()
 const isInitialized = ref(false)

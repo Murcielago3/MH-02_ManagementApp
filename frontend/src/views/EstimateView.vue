@@ -119,7 +119,7 @@
 
     <!-- Reset confirmation dialog -->
     <Teleport to="body">
-      <div v-if="confirmReset" class="modal-backdrop" @click.self="confirmReset = false">
+      <div v-if="confirmReset" class="modal-backdrop">
         <div class="confirm-modal">
           <div class="confirm-icon">
             <span class="material-symbols-outlined">restart_alt</span>

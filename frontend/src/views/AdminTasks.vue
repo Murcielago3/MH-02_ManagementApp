@@ -60,7 +60,7 @@
 
     <!-- Delete Confirmation -->
     <Teleport to="body">
-      <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null">
+      <div v-if="deleteTarget" class="modal-backdrop">
         <div class="modal-sm">
           <div class="modal-header">
             <h3 class="modal-title">Delete Task</h3>
@@ -83,7 +83,7 @@
 
     <!-- Weekend Warning -->
     <Teleport to="body">
-      <div v-if="weekendWarning" class="modal-backdrop" @click.self="dismissWeekendWarning">
+      <div v-if="weekendWarning" class="modal-backdrop">
         <div class="modal-sm">
           <div class="modal-header weekend-warn-header">
             <div class="weekend-warn-title">

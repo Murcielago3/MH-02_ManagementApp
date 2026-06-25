@@ -73,7 +73,7 @@
 
     <!-- Slip PDF Modal -->
     <Teleport to="body">
-      <div v-if="modalOpen" class="modal-backdrop" @click.self="closeModal">
+      <div v-if="modalOpen" class="modal-backdrop">
         <div class="modal pdf-modal">
           <div class="pdf-modal-head">
             <div class="pdf-modal-title">

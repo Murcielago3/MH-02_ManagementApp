@@ -173,7 +173,7 @@
 
     <!-- Review / Edit Modal -->
     <Teleport to="body">
-      <div v-if="reviewSlip" class="modal-backdrop" @click.self="closeReview">
+      <div v-if="reviewSlip" class="modal-backdrop">
         <div class="modal">
           <div class="modal-header">
             <div>

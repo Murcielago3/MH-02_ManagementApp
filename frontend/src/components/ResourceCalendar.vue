@@ -487,7 +487,7 @@ function isDragHL(ds, eid) {
   return ds >= mn && ds <= mx
 }
 
-function onCellDown(e, ds, eid) { drag.mode = 'create'; drag.empId = eid; drag.startDate = ds; drag.currentDate = ds; drag.mx = e.clientX; drag.my = e.clientY; document.body.style.userSelect = 'none'; startAutoScroll() }
+function onCellDown(e, ds, eid) { drag.mode = 'create'; drag.empId = eid; drag.startDate = ds; drag.currentDate = ds; drag.mx = e.clientX; drag.my = e.clientY; drag.downX = e.clientX; drag.downY = e.clientY; drag.moved = false; document.body.style.userSelect = 'none'; startAutoScroll() }
 
 function onRibbonDown(e, task) {
   if (isSplitMode.value) {
@@ -511,11 +511,14 @@ function onRibbonDown(e, task) {
   drag.offsetDays = daysBetween(task.date, ds)
   drag.mx = e.clientX
   drag.my = e.clientY
+  drag.downX = e.clientX
+  drag.downY = e.clientY
+  drag.moved = false
   document.body.style.userSelect = 'none'
   startAutoScroll()
 }
 
-function onHandleDown(e, task, mode) { 
+function onHandleDown(e, task, mode) {
   drag.mode = mode // 'resize-start' or 'resize-end'
   drag.taskId = task.id
   drag.empId = task.assigned_to
@@ -525,6 +528,9 @@ function onHandleDown(e, task, mode) {
   drag.currentDate = mode === 'resize-start' ? task.date : (task.end_date || task.date)
   drag.mx = e.clientX
   drag.my = e.clientY
+  drag.downX = e.clientX
+  drag.downY = e.clientY
+  drag.moved = false
   document.body.style.userSelect = 'none'
   startAutoScroll()
 }
@@ -559,7 +565,12 @@ function onSplit(e, task) {
 function onMove(e) {
   if (!drag.mode) return
   drag.mx = e.clientX; drag.my = e.clientY
-  
+  // Mark as a real drag only once the pointer moves past a small threshold, so a
+  // plain click (down+up with no movement) is NOT treated as a move/clone.
+  if (!drag.moved && (Math.abs(e.clientX - drag.downX) > 4 || Math.abs(e.clientY - drag.downY) > 4)) {
+    drag.moved = true
+  }
+
   const elements = document.elementsFromPoint(e.clientX, e.clientY)
   const cell = elements.find(el => el.dataset?.date)
   
@@ -606,7 +617,7 @@ function onUp() {
   } else if (drag.mode === 'resize-start' && drag.currentDate !== drag.origStart) {
     // Re-use extend event or emit new
     emit('ribbon-move', { taskId: drag.taskId, newDate: drag.currentDate, newEndDate: drag.origEnd, newEmployeeId: drag.empId })
-  } else if ((drag.mode === 'move' || drag.mode === 'clone') && drag.currentDate) {
+  } else if ((drag.mode === 'move' || drag.mode === 'clone') && drag.currentDate && drag.moved) {
     const task = props.tasks.find(t => t.id === drag.taskId)
     if (task) {
       const dur = daysBetween(task.date, task.end_date || task.date)
@@ -625,7 +636,7 @@ function onUp() {
     }
   }
   
-  Object.assign(drag, { mode: null, taskId: null, empId: null, startDate: null, currentDate: null, origEnd: null, origStart: null, offsetDays: 0 })
+  Object.assign(drag, { mode: null, taskId: null, empId: null, startDate: null, currentDate: null, origEnd: null, origStart: null, offsetDays: 0, moved: false })
 }
 
 onMounted(() => { document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp) })

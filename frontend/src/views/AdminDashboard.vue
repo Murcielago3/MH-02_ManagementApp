@@ -214,7 +214,7 @@
 
     <!-- ── Deficit Drill-down Modal ── -->
     <Teleport to="body">
-      <div v-if="deficitModalOpen" class="modal-backdrop" @click.self="deficitModalOpen = false">
+      <div v-if="deficitModalOpen" class="modal-backdrop">
         <div class="modal modal-lg">
           <div class="modal-head">
             <div>

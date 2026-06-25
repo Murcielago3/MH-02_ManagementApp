@@ -241,7 +241,7 @@
     </div>
 
     <!-- Detail Modal -->
-    <div v-if="showDetailModal" class="modal-backdrop" @click.self="closeDetailModal">
+    <div v-if="showDetailModal" class="modal-backdrop">
       <div class="modal-content detail-modal">
         <div class="modal-header">
           <div class="header-info">
@@ -275,7 +275,7 @@
     </div>
 
     <!-- Reject Modal -->
-    <div v-if="rejectModalOpen" class="modal-backdrop" @click.self="closeRejectModal">
+    <div v-if="rejectModalOpen" class="modal-backdrop">
       <div class="modal-content">
         <h3>Reject Timesheet</h3>
         <p>Please provide a reason for rejecting this timesheet.</p>

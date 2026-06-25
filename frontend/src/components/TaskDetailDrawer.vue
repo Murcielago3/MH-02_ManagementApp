@@ -1,5 +1,5 @@
 <template>
-  <div class="drawer-overlay" @click="$emit('close')">
+  <div class="drawer-overlay">
     <div class="drawer-panel" @click.stop>
       <div class="drawer-header">
         <h3>Task Details</h3>

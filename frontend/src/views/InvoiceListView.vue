@@ -230,7 +230,7 @@
 
     <!-- Delete Confirmation Modal -->
     <Teleport to="body">
-      <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null">
+      <div v-if="deleteTarget" class="modal-backdrop">
         <div class="modal">
           <div class="modal-header">
             <div class="modal-icon-wrap danger">
