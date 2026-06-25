@@ -384,11 +384,11 @@ def render_invoice_html(invoice, settings=None) -> str:
     # remains so the whole invoice always fills exactly one A4 page.
     # The body is also hard-capped via overflow:hidden to guarantee one page.
     import base64, os
-    logo_path = os.path.join(os.path.dirname(__file__), "..", "..", "static", "logo.png")
-    logo_src = "static/logo.png"
+    logo_path = os.path.join(os.path.dirname(__file__), "..", "..", "static", "logo.jpg")
+    logo_src = "static/logo.jpg"
     try:
         with open(logo_path, "rb") as f:
-            logo_src = "data:image/png;base64," + base64.b64encode(f.read()).decode()
+            logo_src = "data:image/jpeg;base64," + base64.b64encode(f.read()).decode()
     except Exception:
         pass
 

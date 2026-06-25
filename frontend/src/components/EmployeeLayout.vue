@@ -103,7 +103,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useTimesheetStore } from '../stores/timesheet'
 import { usersAPI } from '../api/users'
-import { getAppLogoUrl } from '../utils/logo'
+import { getBrandLogoUrl } from '../utils/logo'
 
 const route = useRoute()
 const router = useRouter()
@@ -112,7 +112,7 @@ const timesheetStore = useTimesheetStore()
 const currentUser = ref(null)
 const showProfileMenu = ref(false)
 const sidebarOpen = ref(false)
-const logoUrl = getAppLogoUrl()
+const logoUrl = getBrandLogoUrl()
 
 // Close the mobile drawer whenever the route changes
 watch(() => route.path, () => { sidebarOpen.value = false })
