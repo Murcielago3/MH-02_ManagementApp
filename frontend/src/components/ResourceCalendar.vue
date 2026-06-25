@@ -74,7 +74,6 @@
                   class="rc-ribbon"
                   :class="{ completed: rb.task.status === 'completed', delayed: isDelayed(rb.task) }"
                   :style="rbStyle(rb)"
-                  @click.stop="$emit('ribbon-click', rb.task)"
                   @dblclick.stop="onSplit($event, rb.task)"
                   @mousedown.stop
                 >
@@ -616,7 +615,20 @@ function stopAutoScroll() { if (scrollRAF) { cancelAnimationFrame(scrollRAF); sc
 function onUp() {
   if (!drag.mode) return
   document.body.style.userSelect = ''; stopAutoScroll()
-  
+
+  // A press on an existing ribbon that never turned into a drag = a click →
+  // open the task drawer. Handled here (document-level mouseup) rather than via
+  // an @click on the ribbon, which is unreliable because the ribbon DOM
+  // re-renders during the drag state.
+  if (!drag.moved && drag.taskId != null &&
+      (drag.mode === 'move' || drag.mode === 'clone' ||
+       drag.mode === 'resize-start' || drag.mode === 'resize-end')) {
+    const task = props.tasks.find(t => t.id === drag.taskId)
+    Object.assign(drag, { mode: null, taskId: null, empId: null, startDate: null, currentDate: null, origEnd: null, origStart: null, offsetDays: 0, moved: false })
+    if (task) emit('ribbon-click', task)
+    return
+  }
+
   if (drag.mode === 'create' && drag.startDate && drag.currentDate) {
     const mn = drag.startDate < drag.currentDate ? drag.startDate : drag.currentDate
     const mx = drag.startDate > drag.currentDate ? drag.startDate : drag.currentDate
