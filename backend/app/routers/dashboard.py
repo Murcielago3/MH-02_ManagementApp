@@ -144,9 +144,11 @@ async def get_dashboard_stats(
     MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     _now = datetime.now()
-    window = []  # (year, month) for the last 12 months, including the current one
+    # (year, month) from the same month one year ago through the current month —
+    # e.g. Jun 2025 … Jun 2026 (13 buckets), matching a "1 year back from today" window.
+    window = []
     _y, _m = _now.year, _now.month
-    for _ in range(12):
+    for _ in range(13):
         window.append((_y, _m))
         _m -= 1
         if _m == 0:
