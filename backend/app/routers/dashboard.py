@@ -7,7 +7,7 @@ reports view, just aggregated org-wide instead of per-project.
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
-from datetime import datetime
+from datetime import datetime, date
 
 from app.database import get_db
 from app.models.user import User
@@ -139,6 +139,41 @@ async def get_dashboard_stats(
         if 0 <= m_idx < 12:
             monthly_sales[month_names[m_idx]] = float(row.s or 0)
 
+    # ── Trailing 12 months of sales (rolling year, ordered oldest → newest) ──
+    # Spans across calendar years, so the graph can show e.g. Jul 2025 → Jun 2026.
+    MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    _now = datetime.now()
+    window = []  # (year, month) for the last 12 months, including the current one
+    _y, _m = _now.year, _now.month
+    for _ in range(12):
+        window.append((_y, _m))
+        _m -= 1
+        if _m == 0:
+            _m, _y = 12, _y - 1
+    window.reverse()
+    win_start = date(window[0][0], window[0][1], 1)
+
+    trailing_q = await db.execute(
+        select(
+            func.extract('year', Invoice.invoice_date).label('y'),
+            func.extract('month', Invoice.invoice_date).label('m'),
+            func.coalesce(func.sum(Invoice.subtotal), 0).label('s'),
+        )
+        .where(Invoice.invoice_date >= win_start)
+        .group_by('y', 'm')
+    )
+    trailing_map = {(int(r.y), int(r.m)): float(r.s or 0) for r in trailing_q}
+    monthly_sales_12m = [
+        {
+            "label": f"{MONTH_ABBR[m - 1]} '{str(y)[2:]}",
+            "year": y,
+            "month": m,
+            "revenue": round(trailing_map.get((y, m), 0.0), 2),
+        }
+        for (y, m) in window
+    ]
+
     current_month = datetime.now().month
 
     # ── Current-month expense categories ──
@@ -184,6 +219,7 @@ async def get_dashboard_stats(
             "total": current_month_expenses,
         },
         "monthly_sales": monthly_sales,
+        "monthly_sales_12m": monthly_sales_12m,
     }
     _dashboard_cache.set(_DASH_KEY, payload)
     return payload
