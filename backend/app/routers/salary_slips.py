@@ -556,12 +556,12 @@ def _money(v) -> str:
 
 def _logo_data_uri() -> str:
     import base64, os
-    logo_path = os.path.join(os.path.dirname(__file__), "..", "..", "static", "logo.jpg")
+    logo_path = os.path.join(os.path.dirname(__file__), "..", "..", "static", "logo.png")
     try:
         with open(logo_path, "rb") as f:
-            return "data:image/jpeg;base64," + base64.b64encode(f.read()).decode()
+            return "data:image/png;base64," + base64.b64encode(f.read()).decode()
     except Exception:
-        return "static/logo.jpg"
+        return "static/logo.png"
 
 
 def render_salary_slip_html(slip, employee, settings, reimb_total) -> str:
