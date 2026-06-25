@@ -363,6 +363,15 @@ onUnmounted(() => {
 // Employees
 const displayEmployees = computed(() => props.filterEmployeeId ? props.employees.filter(e => e.id === props.filterEmployeeId) : props.employees)
 
+// id → { name }, used by the drag-preview label. (Was referenced in the template
+// but never defined — accessing userMap[empId] on a move/clone drag threw
+// "Cannot read properties of undefined", crashing the calendar render.)
+const userMap = computed(() => {
+  const m = {}
+  for (const e of (props.employees || [])) m[e.id] = { name: e.name }
+  return m
+})
+
 // Hours
 function getAssignedHours(eid) {
   if (isEmpLeave(eid, todayStr)) return 0
