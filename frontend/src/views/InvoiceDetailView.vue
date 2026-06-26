@@ -38,18 +38,14 @@
     </div>
 
     <!-- Preview: renders the exact HTML used to generate the PDF in an iframe
-         (iframe sandboxes the invoice's global CSS resets from the app shell). -->
+         (iframe sandboxes the invoice's global CSS resets from the app shell).
+         `loading` above already covers the spinner state; no inner fallback. -->
     <div v-else class="preview-wrap">
       <iframe
-        v-if="previewHTML"
         :srcdoc="previewHTML"
         class="invoice-iframe"
         title="Invoice preview"
       />
-      <div v-else class="state-card">
-        <span class="material-symbols-outlined spin-icon">progress_activity</span>
-        <span>Loading preview…</span>
-      </div>
     </div>
 
     <!-- Delete Confirmation Modal -->
