@@ -18,5 +18,11 @@ export const invoicesAPI = {
   },
   downloadPDF(id) {
     return client.get(`/invoices/${id}/pdf`, { responseType: 'blob' })
+  },
+  // Returns the exact HTML used to render the PDF (admin-only). The detail
+  // view srcdocs this into an iframe so the preview can never drift from the
+  // downloaded PDF.
+  getPreviewHTML(id) {
+    return client.get(`/invoices/${id}/preview-html`, { responseType: 'text' })
   }
 }

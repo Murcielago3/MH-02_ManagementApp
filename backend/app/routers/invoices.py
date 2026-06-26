@@ -294,6 +294,45 @@ async def generate_invoice_pdf(
     )
 
 
+@router.get("/{invoice_id}/preview-html")
+async def get_invoice_preview_html(
+    invoice_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_admin)
+):
+    """Returns the exact HTML used to render the PDF.
+
+    The frontend embeds this in an iframe so the preview and the downloaded
+    PDF are guaranteed identical — no separate Vue template can drift from it.
+    """
+    from sqlalchemy.orm import selectinload
+    from app.routers.settings import get_or_create_settings
+    result = await db.execute(
+        select(Invoice)
+        .options(
+            selectinload(Invoice.items),
+            selectinload(Invoice.bank_account),
+            selectinload(Invoice.client),
+            selectinload(Invoice.project),
+        )
+        .where(Invoice.id == invoice_id)
+    )
+    invoice = result.scalar_one_or_none()
+    if not invoice:
+        raise HTTPException(404, "Invoice not found")
+
+    if invoice.bank_account_id and invoice.bank_account is None:
+        from app.models.bank_account import BankAccount
+        ba_res = await db.execute(
+            select(BankAccount).where(BankAccount.id == invoice.bank_account_id)
+        )
+        invoice.bank_account = ba_res.scalar_one_or_none()
+
+    settings = await get_or_create_settings(db)
+    html = render_invoice_html(invoice, settings)
+    return Response(content=html, media_type="text/html")
+
+
 def number_to_words(amount: float) -> str:
     """Convert number to Indian currency words"""
     ones = ["", "One", "Two", "Three", "Four", "Five", "Six",

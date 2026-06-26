@@ -37,9 +37,19 @@
       <span>Invoice not found.</span>
     </div>
 
-    <!-- Preview -->
+    <!-- Preview: renders the exact HTML used to generate the PDF in an iframe
+         (iframe sandboxes the invoice's global CSS resets from the app shell). -->
     <div v-else class="preview-wrap">
-      <InvoicePreview :invoice="invoice" />
+      <iframe
+        v-if="previewHTML"
+        :srcdoc="previewHTML"
+        class="invoice-iframe"
+        title="Invoice preview"
+      />
+      <div v-else class="state-card">
+        <span class="material-symbols-outlined spin-icon">progress_activity</span>
+        <span>Loading preview…</span>
+      </div>
     </div>
 
     <!-- Delete Confirmation Modal -->
@@ -80,13 +90,13 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
-import InvoicePreview from '../components/InvoicePreview.vue'
 import ToastNotification from '../components/ToastNotification.vue'
 import { invoicesAPI } from '../api/invoices'
 
 const route = useRoute()
 const router = useRouter()
 const invoice = ref(null)
+const previewHTML = ref('')
 const loading = ref(true)
 const submitting = ref(false)
 const deleteTarget = ref(null)
@@ -103,8 +113,14 @@ const fetchInvoice = async () => {
   const id = route.params.id
   loading.value = true
   try {
-    const res = await invoicesAPI.getInvoice(id)
+    // Pull the invoice metadata (for buttons/header) and the rendered preview
+    // HTML in parallel — the HTML drives the iframe; the JSON drives controls.
+    const [res, htmlRes] = await Promise.all([
+      invoicesAPI.getInvoice(id),
+      invoicesAPI.getPreviewHTML(id),
+    ])
     invoice.value = res.data
+    previewHTML.value = htmlRes.data
   } catch (err) {
     showToast('Failed to load invoice details', 'error')
   } finally {
@@ -279,6 +295,19 @@ const handleDelete = async () => {
   border-radius: var(--radius-xl);
   padding: 36px 24px;
   box-shadow: var(--shadow-sm);
+}
+
+/* Sized for an A4-ratio invoice (~210/297 ≈ 0.707). The iframe loads the same
+   HTML the server feeds WeasyPrint, so what's shown here IS the PDF. */
+.invoice-iframe {
+  display: block;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 820px;
+  aspect-ratio: 210 / 297;
+  border: 1px solid var(--color-outline);
+  background: white;
+  box-shadow: var(--shadow-md);
 }
 
 /* ── Modal ── */
