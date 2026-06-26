@@ -91,6 +91,20 @@
               <span class="material-symbols-outlined" style="font-size:14px;">info</span>
               {{ taxTypeIndicator.text }}
             </div>
+
+            <!-- Subject (auto = project name, or custom) -->
+            <div class="form-group mt-16">
+              <label style="display:flex; align-items:center; gap:8px; margin-bottom:8px; cursor:pointer; font-weight:500;">
+                <input type="checkbox" v-model="includeProjectAsSubject" style="width:auto; margin:0;" />
+                <span>Include project name as subject</span>
+              </label>
+              <input
+                v-model="form.subject"
+                type="text"
+                placeholder="Invoice subject"
+                :disabled="includeProjectAsSubject"
+              />
+            </div>
           </div>
 
           <!-- Section: Billing Details -->
@@ -315,6 +329,19 @@ const projects = ref([])
 const bankAccounts = ref([])
 const selectedClient = ref(null)
 const submitting = ref(false)
+// When on, the invoice subject mirrors the selected project's name and the
+// subject field is locked. When off, the admin types a custom subject.
+const includeProjectAsSubject = ref(true)
+
+// Next invoice number = highest existing trailing number + 1 (e.g. AO-006 -> AO-007).
+function nextInvoiceNumber(invoices) {
+  let max = 0
+  for (const inv of invoices || []) {
+    const m = String(inv.invoice_number || '').match(/(\d+)\s*$/)
+    if (m) max = Math.max(max, parseInt(m[1], 10))
+  }
+  return `AO-${String(max + 1).padStart(3, '0')}`
+}
 
 const toastMsg = ref('')
 const toastType = ref('success')
@@ -392,9 +419,10 @@ async function handleSaveDraft() {
 
 onMounted(async () => {
   try {
-    const [pRes, bRes] = await Promise.all([
+    const [pRes, bRes, iRes] = await Promise.all([
       projectsAPI.getProjects(),
-      bankAccountsAPI.getBankAccounts()
+      bankAccountsAPI.getBankAccounts(),
+      invoicesAPI.getInvoices().catch(() => ({ data: [] })),
     ])
     projects.value = pRes.data
     bankAccounts.value = bRes.data
@@ -433,6 +461,12 @@ onMounted(async () => {
         }
         showToast('Draft restored')
       }
+    }
+
+    // Fresh create (not editing, no number restored from a draft): prefill the
+    // next invoice number = last invoice number + 1. Admin can still edit it.
+    if (!isEditing.value && !form.invoice_number) {
+      form.invoice_number = nextInvoiceNumber(iRes.data || [])
     }
   } catch (err) {
     showToast('Failed to load required data', 'error')
@@ -477,7 +511,7 @@ const onProjectSelect = () => {
   }
   const proj = projects.value.find(p => p.id === form.project_id)
   if (proj) {
-    form.subject = proj.name
+    if (includeProjectAsSubject.value) form.subject = proj.name
     if (proj.client) {
       selectedClient.value = proj.client
       form.client_id = proj.client.id
@@ -494,6 +528,14 @@ const onProjectSelect = () => {
     form.subject = ''
   }
 }
+
+// Toggling the switch on snaps the subject to the current project name.
+watch(includeProjectAsSubject, (on) => {
+  if (on) {
+    const proj = projects.value.find(p => p.id === form.project_id)
+    form.subject = proj ? proj.name : ''
+  }
+})
 
 const taxType = computed(() => {
   const gst = form.bill_to_gstin

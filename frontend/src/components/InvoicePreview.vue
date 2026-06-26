@@ -20,10 +20,10 @@
     <table class="meta-table">
       <tr>
         <td>
-          <span class="section-label" style="display:inline;">Invoice Date:</span> {{ formatDate(invoice.invoice_date) }}
+          <span class="section-label" style="display:inline;">Invoice Date:</span> <span class="meta-val">{{ formatDate(invoice.invoice_date) }}</span>
         </td>
         <td>
-          <span class="section-label" style="display:inline;">Place of Supply:</span> {{ cleanPlaceOfSupply(invoice.place_of_supply) }}
+          <span class="section-label" style="display:inline;">Place of Supply:</span> <span class="meta-val">{{ cleanPlaceOfSupply(invoice.place_of_supply) }}</span>
         </td>
       </tr>
       <tr>
@@ -273,7 +273,7 @@ const spacerHeight = computed(() => {
 }
 
 .invoice-num {
-  font-size: 11px;
+  font-size: 14px;
   margin-top: 4px;
 }
 
@@ -291,16 +291,20 @@ const spacerHeight = computed(() => {
   width: 50%;
 }
 
+/* +3 on the meta fields (bill-to/ship-to/date/place/number) — label + value */
 .section-label {
-  font-size: 12px;
+  font-size: 15px;
   color: #555;
   margin-bottom: 2px;
 }
 
 .section-value {
   font-weight: bold;
+  font-size: 16px;
   margin-bottom: 2px;
 }
+
+.meta-val { font-size: 16px; font-weight: 600; }
 
 .items-table {
   width: 100%;
@@ -324,7 +328,7 @@ const spacerHeight = computed(() => {
   vertical-align: top;
 }
 
-.addr-text { font-size: 15px; }
+.addr-text { font-size: 18px; }
 
 .items-table tbody td { border-top: none; border-bottom: none; }
 .items-table tbody tr:not(:first-child):not(.items-spacer) td { border-top: 1px solid #000; }

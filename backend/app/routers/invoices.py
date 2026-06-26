@@ -407,13 +407,16 @@ def render_invoice_html(invoice, settings=None) -> str:
     spacer_height = max(0, ITEMS_AREA_H - ITEMS_THEAD_H - (num_items * ITEMS_ROW_H))
 
     items_rows = ""
-    base = 'padding:5px 6px; font-size:11px; border-top:1px solid #000;'
+    # !important needed: the items table is `.inner`, and `.inner td { border:0 !important }`
+    # would otherwise strip these separators (that's why multi-item rows showed no
+    # dividers in the PDF while the preview had them).
+    base = 'padding:5px 6px; font-size:11px; border-top:1px solid #000 !important;'
     for i, item in enumerate(invoice.items, 1):
         items_rows += f"""
         <tr style="height:{ITEMS_ROW_H}mm;">
-            <td style="{base} border-right:1px solid #000; text-align:center;">{i}</td>
-            <td style="{base} border-right:1px solid #000;">{item.description}</td>
-            <td style="{base} border-right:1px solid #000;">{item.hsn_sac or ''}</td>
+            <td style="{base} border-right:1px solid #000 !important; text-align:center;">{i}</td>
+            <td style="{base} border-right:1px solid #000 !important;">{item.description}</td>
+            <td style="{base} border-right:1px solid #000 !important;">{item.hsn_sac or ''}</td>
             <td style="{base} text-align:right;">&#8377;{format_indian_currency(float(item.amount))}</td>
         </tr>"""
 
@@ -523,11 +526,12 @@ def render_invoice_html(invoice, settings=None) -> str:
   .firm-name {{ font-size: 12px; font-weight: bold; margin-bottom: 2px; }}
   .firm-details {{ font-size: 7.5px; line-height: 1.4; color: #222; }}
   .invoice-type {{ font-size: 18px; font-weight: bold; letter-spacing: 0.6px; }}
-  .invoice-num {{ font-size: 6px; margin-top: 4px; color: #333; }}
+  .invoice-num {{ font-size: 9px; margin-top: 4px; color: #333; }}
 
   /* ===== META ===== */
-  .meta-label {{ font-size: 5.5px; color: #555; margin-bottom: 2px; }}
-  .meta-val-bold {{ font-weight: bold; font-size: 7.5px; margin-bottom: 2px; }}
+  .meta-label {{ font-size: 8.5px; color: #555; margin-bottom: 2px; }}
+  .meta-val-bold {{ font-weight: bold; font-size: 10.5px; margin-bottom: 2px; }}
+  .meta-val {{ font-size: 10.5px; font-weight: 600; }}
   .meta-cell {{ padding: 5px 8px; }}
 
   /* ===== ITEMS ===== */
@@ -605,17 +609,17 @@ def render_invoice_html(invoice, settings=None) -> str:
     </tr>
     <tr style=\"height:{DATE_ROW_H}mm;\">
       <td style=\"padding:5px 8px;\">
-        <span class=\"meta-label\">Invoice Date:</span> {date_str}
+        <span class=\"meta-label\">Invoice Date:</span> <span class=\"meta-val\">{date_str}</span>
       </td>
       <td style=\"padding:5px 8px;\">
-        <span class=\"meta-label\">Place of Supply:</span> {clean_place_of_supply(invoice.place_of_supply)}
+        <span class=\"meta-label\">Place of Supply:</span> <span class=\"meta-val\">{clean_place_of_supply(invoice.place_of_supply)}</span>
       </td>
     </tr>
     <tr style=\"height:{BILLSHIP_H}mm;\">
       <td style=\"padding:5px 8px;\">
         <div class=\"meta-label\">Bill To</div>
         <div class=\"meta-val-bold\">{invoice.bill_to_name or ''}</div>
-        <div style=\"font-size:7.5px; line-height:1.4; margin-top:2px;\">
+        <div style=\"font-size:10.5px; line-height:1.4; margin-top:2px;\">
           {(invoice.bill_to_address or '').replace(chr(10), '<br>')}
           {'<br>GSTIN ' + invoice.bill_to_gstin if invoice.bill_to_gstin else ''}
         </div>
@@ -623,7 +627,7 @@ def render_invoice_html(invoice, settings=None) -> str:
       <td style=\"padding:5px 8px;\">
         <div class=\"meta-label\">Ship To</div>
         <div class=\"meta-val-bold\">{invoice.ship_to_name or ''}</div>
-        <div style=\"font-size:7.5px; line-height:1.4; margin-top:2px;\">
+        <div style=\"font-size:10.5px; line-height:1.4; margin-top:2px;\">
           {(invoice.ship_to_address or '').replace(chr(10), '<br>')}
           {'<br>GSTIN ' + invoice.ship_to_gstin if invoice.ship_to_gstin else ''}
         </div>
@@ -639,16 +643,16 @@ def render_invoice_html(invoice, settings=None) -> str:
         <table class=\"inner\" style=\"border-collapse:collapse;\">
           <colgroup><col style=\"width:32px\"><col><col style=\"width:95px\"><col style=\"width:110px\"></colgroup>
           <tr class=\"items-head\" style=\"height:{ITEMS_THEAD_H}mm;\">
-            <td class=\"col-num\" style=\"border-right:1px solid #000;\">#</td>
-            <td style=\"padding:5px 6px; border-right:1px solid #000;\">Service / Description</td>
-            <td style=\"padding-left:6px; border-right:1px solid #000;\">HSN/SAC</td>
+            <td class=\"col-num\" style=\"border-right:1px solid #000 !important;\">#</td>
+            <td style=\"padding:5px 6px; border-right:1px solid #000 !important;\">Service / Description</td>
+            <td style=\"padding-left:6px; border-right:1px solid #000 !important;\">HSN/SAC</td>
             <td style=\"padding-right:6px; text-align:right;\">Amount</td>
           </tr>
           {items_rows}
           <tr style=\"height:{spacer_height}mm;\">
-            <td style=\"border-right:1px solid #000;\"></td>
-            <td style=\"border-right:1px solid #000;\"></td>
-            <td style=\"border-right:1px solid #000;\"></td>
+            <td style=\"border-right:1px solid #000 !important;\"></td>
+            <td style=\"border-right:1px solid #000 !important;\"></td>
+            <td style=\"border-right:1px solid #000 !important;\"></td>
             <td></td>
           </tr>
         </table>
