@@ -546,16 +546,16 @@ def render_invoice_html(invoice, settings=None) -> str:
   .col-hsn  {{ width: 95px; }}
   .col-amt  {{ width: 110px; text-align: right; }}
 
-  /* ===== FOOTER (bank + totals) ===== */
+  /* ===== FOOTER (bank + totals) — bumped to match the +3 address size ===== */
   .foot-left {{ width: 55%; padding: 8px 10px; }}
   .foot-right {{ width: 45%; padding: 8px 10px; }}
-  .bank-tbl td {{ padding: 2px 0; font-size: 7px; }}
-  .bank-label {{ width: 130px; color: #444; font-weight: 600; }}
-  .totals-tbl td {{ padding: 3px 6px; font-size: 7px; }}
+  .bank-tbl td {{ padding: 2px 0; font-size: 10.5px; }}
+  .bank-label {{ width: 150px; color: #444; font-weight: 600; }}
+  .totals-tbl td {{ padding: 3px 6px; font-size: 10.5px; }}
   .tot-val {{ text-align: right; }}
   .total-final td {{
     font-weight: bold;
-    font-size: 8px;
+    font-size: 11.5px;
     border-top: 1.5px solid #000 !important;
     padding-top: 5px;
   }}
@@ -563,19 +563,19 @@ def render_invoice_html(invoice, settings=None) -> str:
     margin-top: 8px;
     padding-top: 6px;
     border-top: 1px solid #ccc;
-    font-size: 6.5px;
+    font-size: 10px;
     font-style: italic;
     color: #333;
   }}
   .words-label {{ font-weight: bold; font-style: normal; margin-bottom: 2px; }}
 
   /* ===== T&C + SIGNATORY ===== */
-  .tc-cell {{ padding: 6px 10px; font-size: 6px; line-height: 1.4; }}
-  .tc-label {{ font-weight: bold; font-size: 7px; margin-bottom: 3px; }}
-  .sig-cell {{ padding: 8px 10px; font-size: 7px; }}
-  .sig-name {{ font-weight: bold; font-size: 8px; margin-top: 22mm; }}
+  .tc-cell {{ padding: 6px 10px; font-size: 9.5px; line-height: 1.4; }}
+  .tc-label {{ font-weight: bold; font-size: 10.5px; margin-bottom: 3px; }}
+  .sig-cell {{ padding: 8px 10px; font-size: 10.5px; }}
+  .sig-name {{ font-weight: bold; font-size: 11.5px; margin-top: 22mm; }}
   .sig-role {{ color: #444; margin-top: 2px; }}
-  .auth-label {{ font-size: 6px; color: #555; }}
+  .auth-label {{ font-size: 9.5px; color: #555; }}
 </style>
 </head>
 <body>

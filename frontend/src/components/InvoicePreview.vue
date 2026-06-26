@@ -370,6 +370,9 @@ const spacerHeight = computed(() => {
   justify-content: flex-start;
 }
 
+/* Bottom half — sized to match the PDF (which is the source of truth).
+   Bank, totals, T&C, signatory all read at the same +3 scale as the
+   addresses above. */
 .totals-table {
   width: 100%;
   border-collapse: collapse;
@@ -377,20 +380,20 @@ const spacerHeight = computed(() => {
 
 .totals-table td {
   padding: 6px 12px;
-  font-size: 13px;
+  font-size: 16px;
   border-bottom: 1px solid #eee;
 }
 
 .total-row td {
   font-weight: bold;
-  font-size: 15px;
+  font-size: 18px;
   border-top: 2px solid #000;
   border-bottom: none;
 }
 
 .total-words {
   font-style: italic;
-  font-size: 13px;
+  font-size: 15px;
   margin-top: 10px;
   text-align: left;
   border-top: 1px solid #ddd;
@@ -405,12 +408,13 @@ const spacerHeight = computed(() => {
 }
 
 .bank-table td {
-  padding: 2px 0;
-  font-size: 12px;
+  padding: 3px 0;
+  font-size: 16px;
 }
 .bank-table td:first-child {
-  width: 160px;
+  width: 200px;
   color: #555;
+  font-weight: 600;
 }
 
 .tc-section {
@@ -421,12 +425,12 @@ const spacerHeight = computed(() => {
 
 .tc-label {
   font-weight: bold;
-  font-size: 13px;
+  font-size: 16px;
   margin-bottom: 4px;
 }
 
 .tc-text {
-  font-size: 12px;
+  font-size: 14px;
   color: #333;
   line-height: 1.4;
 }
@@ -442,18 +446,18 @@ const spacerHeight = computed(() => {
 }
 
 .auth-label {
-  font-size: 12px;
+  font-size: 14px;
   color: #555;
   margin-bottom: 100px;
 }
 
 .sig-name {
   font-weight: bold;
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .sig-role {
-  font-size: 12px;
+  font-size: 15px;
   color: #444;
   margin-top: 2px;
 }
