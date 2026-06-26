@@ -276,12 +276,20 @@ async def generate_invoice_pdf(
     from weasyprint import HTML
     pdf_bytes = HTML(string=html, base_url="http://127.0.0.1:8000").write_pdf()
 
-    filename = f"invoice_{invoice.invoice_number or invoice.id}.pdf"
+    # Filename = the invoice number (e.g. AO-007.pdf). Proformas without a
+    # number fall back to "proforma_<id>" so the download still has a sane name.
+    if invoice.invoice_number:
+        base = invoice.invoice_number
+    else:
+        base = f"proforma_{invoice.id}"
+    # Strip path-unsafe characters defensively.
+    safe = "".join(c for c in base if c.isalnum() or c in "-_.")
+    filename = f"{safe}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f"attachment; filename={filename}"
+            "Content-Disposition": f'attachment; filename="{filename}"'
         }
     )
 

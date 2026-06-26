@@ -132,7 +132,9 @@ const downloadPDF = async () => {
     const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
     const a = document.createElement('a')
     a.href = url
-    a.download = `invoice_${id}.pdf`
+    // Name the file as the invoice number (matches server's Content-Disposition).
+    const number = invoice.value.invoice_number
+    a.download = number ? `${number}.pdf` : `proforma_${id}.pdf`
     a.click()
     URL.revokeObjectURL(url)
   } catch (err) {
