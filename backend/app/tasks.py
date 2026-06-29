@@ -30,6 +30,8 @@ from app.models.weekly_timesheet import WeeklyTimesheet
 from app.models.reimbursement import Reimbursement
 from app.models.expense import Expense
 from app.models.invoice import Invoice
+from app.models.task import Task
+from app.models.project import Project
 
 logger = logging.getLogger(__name__)
 
@@ -190,3 +192,74 @@ async def _weekly_timesheet_reminder() -> bool:
             f"✅ All timesheets are in for the {span}. Nice work, team!",
         )
     return notify_event("timesheet_reminder", _format_reminder(offenders, last_monday, this_monday))
+
+
+# ─────────────────────────── Daily task reminder ─────────────────────────────
+
+@celery_app.task(name="app.tasks.daily_task_reminder")
+def daily_task_reminder():
+    """Post today's assigned tasks for each employee to the common channel (weekdays @ 9am)."""
+    return asyncio.run(_daily_task_reminder())
+
+
+async def _daily_task_reminder() -> bool:
+    today = date.today()
+    label = today.strftime("%A, %d %b %Y")  # e.g. "Monday, 30 Jun 2026"
+
+    async with _TaskSession() as db:
+        # Tasks whose date range covers today and are not yet completed.
+        rows = (await db.execute(
+            select(Task, User.name, Project.name)
+            .join(User, Task.assigned_to == User.id)
+            .outerjoin(Project, Task.project_id == Project.id)
+            .where(
+                Task.date <= today,
+                # end_date is nullable — single-day tasks have end_date = NULL,
+                # so they count only on their `date`.
+                (Task.end_date >= today) | (Task.end_date.is_(None) & (Task.date == today)),
+                Task.status.in_(["pending", "in-progress"]),
+            )
+            .order_by(User.name, Task.priority.desc())
+        )).all()
+
+    if not rows:
+        return notify_event(
+            "daily_task_reminder",
+            f"📭 No active tasks assigned for today ({label}). Enjoy the breather!",
+        )
+
+    # Group by employee name.
+    from collections import defaultdict
+    by_employee: dict[str, list[str]] = defaultdict(list)
+    for task, emp_name, proj_name in rows:
+        parts = [f"*{task.title}*"]
+        if proj_name:
+            parts.append(f"📁 {proj_name}")
+        if task.duration_hours:
+            parts.append(f"⏱️ {task.duration_hours}h")
+        if task.end_date:
+            remaining = (task.end_date - today).days
+            if remaining == 0:
+                parts.append("🔴 Due today")
+            elif remaining == 1:
+                parts.append("🟡 Due tomorrow")
+            else:
+                parts.append(f"📅 Due {task.end_date.strftime('%d %b')} ({remaining}d left)")
+        else:
+            parts.append("📅 Due today")
+        if task.priority == "high":
+            parts.append("🔥 High priority")
+        by_employee[emp_name].append(" · ".join(parts))
+
+    lines = []
+    for emp, tasks_list in by_employee.items():
+        lines.append(f"\n👤 *{emp}*")
+        for t in tasks_list:
+            lines.append(f"    • {t}")
+
+    text = f"📋 *Daily Task Briefing — {label}*\n{''.join(lines)}"
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text", "text": f"📋 Daily Task Briefing — {label}"}},
+        {"type": "section", "text": {"type": "mrkdwn", "text": "\n".join(lines)}},
+    ]
+    return notify_event("daily_task_reminder", text, blocks)
