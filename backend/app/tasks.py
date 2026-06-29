@@ -208,9 +208,14 @@ async def _daily_task_reminder() -> bool:
 
     async with _TaskSession() as db:
         # Tasks whose date range covers today and are not yet completed.
+<<<<<<< HEAD
         # Fetch the full User object so _slack_tag can resolve the @mention.
         rows = (await db.execute(
             select(Task, User, Project.name)
+=======
+        rows = (await db.execute(
+            select(Task, User.name, Project.name)
+>>>>>>> c924be74fe4b7dc9a29eb6f6ef41b0c3e2e9d7d0
             .join(User, Task.assigned_to == User.id)
             .outerjoin(Project, Task.project_id == Project.id)
             .where(
@@ -229,12 +234,19 @@ async def _daily_task_reminder() -> bool:
             f"📭 No active tasks assigned for today ({label}). Enjoy the breather!",
         )
 
+<<<<<<< HEAD
     # Group by user (keyed by id so _slack_tag is called once per person).
     from collections import defaultdict
     by_employee: dict[int, tuple[object, list[str]]] = {}
     for task, user, proj_name in rows:
         if user.id not in by_employee:
             by_employee[user.id] = (user, [])
+=======
+    # Group by employee name.
+    from collections import defaultdict
+    by_employee: dict[str, list[str]] = defaultdict(list)
+    for task, emp_name, proj_name in rows:
+>>>>>>> c924be74fe4b7dc9a29eb6f6ef41b0c3e2e9d7d0
         parts = [f"*{task.title}*"]
         if proj_name:
             parts.append(f"📁 {proj_name}")
@@ -252,12 +264,20 @@ async def _daily_task_reminder() -> bool:
             parts.append("📅 Due today")
         if task.priority == "high":
             parts.append("🔥 High priority")
+<<<<<<< HEAD
         by_employee[user.id][1].append(" · ".join(parts))
 
     lines = []
     for uid, (user, tasks_list) in by_employee.items():
         tag = _slack_tag(user)
         lines.append(f"\n👤 {tag}")
+=======
+        by_employee[emp_name].append(" · ".join(parts))
+
+    lines = []
+    for emp, tasks_list in by_employee.items():
+        lines.append(f"\n👤 *{emp}*")
+>>>>>>> c924be74fe4b7dc9a29eb6f6ef41b0c3e2e9d7d0
         for t in tasks_list:
             lines.append(f"    • {t}")
 
