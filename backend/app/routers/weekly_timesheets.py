@@ -9,7 +9,7 @@ from app.database import get_db
 from app.models.weekly_timesheet import WeeklyTimesheet, WeeklyTimesheetEntry
 from app.models.user import User
 from app.auth import get_current_user, require_admin, require_manager
-from app.services.slack import notify_event
+from app.services.slack import notify_event, lookup_user_id
 
 router = APIRouter(prefix="/weekly-timesheets", tags=["weekly-timesheets"])
 
@@ -163,12 +163,15 @@ async def submit_timesheet(
     await db.refresh(timesheet)
 
     # Notify the team channel in Slack (fires after the response; never blocks it).
-    background_tasks.add_task(
-        notify_event,
-        "timesheet_uploaded",
-        f"📋 *{current_user.name}* submitted a timesheet for the week of "
-        f"{data.week_start} — {total_hours}h",
-    )
+    # Tag the submitter so Slack emails them the confirmation.
+    def _notify_timesheet_uploaded(user, week_start, total_hours):
+        tag = f"<@{uid}>" if (uid := lookup_user_id(user.studio_email) or lookup_user_id(user.personal_mail)) else f"*{user.name}*"
+        notify_event(
+            "timesheet_uploaded",
+            f"📋 {tag} submitted a timesheet for the week of "
+            f"{week_start} — {total_hours}h",
+        )
+    background_tasks.add_task(_notify_timesheet_uploaded, current_user, data.week_start, total_hours)
     return timesheet
 
 @router.get("/{timesheet_id}")
@@ -214,15 +217,22 @@ async def action_timesheet(
     await db.commit()
     await db.refresh(timesheet)
 
-    # Notify the team channel in Slack of the decision (the employee sees it here).
-    emp_name = (await db.execute(
-        select(User.name).where(User.id == timesheet.employee_id)
-    )).scalar_one_or_none() or f"Employee #{timesheet.employee_id}"
-    verb = "approved ✅" if data.status == "approved" else "rejected ❌"
-    msg = f"🗂️ Timesheet *{verb}* — *{emp_name}*, week of {timesheet.week_start}"
-    if data.status == "rejected" and timesheet.rejection_reason:
-        msg += f"\nReason: _{timesheet.rejection_reason}_"
-    background_tasks.add_task(notify_event, "timesheet_decision", msg)
+    # Notify the team channel in Slack of the decision — tag the employee.
+    emp = (await db.execute(
+        select(User).where(User.id == timesheet.employee_id)
+    )).scalar_one_or_none()
+    def _notify_timesheet_decision(emp, timesheet, status, rejection_reason):
+        if emp:
+            uid = lookup_user_id(emp.studio_email) or lookup_user_id(emp.personal_mail)
+            tag = f"<@{uid}>" if uid else f"*{emp.name}*"
+        else:
+            tag = f"*Employee #{timesheet.employee_id}*"
+        verb = "approved ✅" if status == "approved" else "rejected ❌"
+        msg = f"🗂️ Timesheet *{verb}* — {tag}, week of {timesheet.week_start}"
+        if status == "rejected" and rejection_reason:
+            msg += f"\nReason: _{rejection_reason}_"
+        notify_event("timesheet_decision", msg)
+    background_tasks.add_task(_notify_timesheet_decision, emp, timesheet, data.status, timesheet.rejection_reason)
 
     # An approval/rejection changes which hours count toward employee cost,
     # which affects the reserve balance shown in the sidebar.

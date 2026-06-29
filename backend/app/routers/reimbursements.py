@@ -8,7 +8,7 @@ from app.database import get_db
 from app.models.reimbursement import Reimbursement
 from app.models.user import User
 from app.auth import get_current_user, require_admin, require_manager
-from app.services.slack import notify_event
+from app.services.slack import notify_event, lookup_user_id
 import os, uuid
 
 router = APIRouter(prefix="/reimbursements", tags=["reimbursements"])
@@ -81,12 +81,15 @@ async def create_reimbursement(
     await db.refresh(entry)
 
     # Notify accounts/admin in Slack (fires after the response; never blocks it).
-    background_tasks.add_task(
-        notify_event,
-        "reimbursement",
-        f"💸 *Reimbursement submitted*\n"
-        f"*{current_user.name}* — ₹{amount:,.0f} for _{reason}_ (dated {date})",
-    )
+    # Tag the submitter so Slack emails them the confirmation.
+    def _notify_reimbursement_submitted(user, amount, reason, date):
+        tag = f"<@{uid}>" if (uid := lookup_user_id(user.studio_email) or lookup_user_id(user.personal_mail)) else f"*{user.name}*"
+        notify_event(
+            "reimbursement",
+            f"💸 *Reimbursement submitted*\n"
+            f"{tag} — ₹{amount:,.0f} for _{reason}_ (dated {date})",
+        )
+    background_tasks.add_task(_notify_reimbursement_submitted, current_user, amount, reason, date)
     return entry
 
 @router.patch("/{reimbursement_id}/action")
@@ -112,14 +115,20 @@ async def action_reimbursement(
     await db.commit()
     await db.refresh(entry)
 
-    # Notify accounts/admin in Slack of the decision.
-    emp_name = (await db.execute(
-        select(User.name).where(User.id == entry.employee_id)
-    )).scalar_one_or_none() or f"Employee #{entry.employee_id}"
-    verb = "approved ✅" if data.status == "approved" else "rejected ❌"
-    background_tasks.add_task(
-        notify_event,
-        "reimbursement_decision",
-        f"💰 Reimbursement *{verb}* — *{emp_name}*: ₹{float(entry.amount):,.0f} for _{entry.reason}_",
-    )
+    # Notify accounts/admin in Slack of the decision — tag the employee.
+    emp = (await db.execute(
+        select(User).where(User.id == entry.employee_id)
+    )).scalar_one_or_none()
+    def _notify_reimbursement_decision(emp, entry, status):
+        if emp:
+            uid = lookup_user_id(emp.studio_email) or lookup_user_id(emp.personal_mail)
+            tag = f"<@{uid}>" if uid else f"*{emp.name}*"
+        else:
+            tag = f"*Employee #{entry.employee_id}*"
+        verb = "approved ✅" if status == "approved" else "rejected ❌"
+        notify_event(
+            "reimbursement_decision",
+            f"💰 Reimbursement *{verb}* — {tag}: ₹{float(entry.amount):,.0f} for _{entry.reason}_",
+        )
+    background_tasks.add_task(_notify_reimbursement_decision, emp, entry, data.status)
     return entry

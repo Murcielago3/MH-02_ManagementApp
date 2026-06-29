@@ -35,6 +35,11 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.weekly_timesheet_reminder",
         "schedule": crontab(day_of_week="sun", hour=12, minute=0),
     },
+    # Daily task briefing to the common channel — every weekday at 09:00.
+    "daily-task-reminder": {
+        "task": "app.tasks.daily_task_reminder",
+        "schedule": crontab(day_of_week="mon-sat", hour=9, minute=0),
+    },
 }
 
 # Auto-discover tasks in app modules.
