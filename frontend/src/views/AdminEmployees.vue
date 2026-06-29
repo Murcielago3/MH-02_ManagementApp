@@ -182,6 +182,10 @@
                 <label>Joining Date *</label>
                 <input v-model="form.joining_date" type="date" required />
               </div>
+              <div class="form-group">
+                <label>Birthdate</label>
+                <input v-model="form.birthdate" type="date" />
+              </div>
               <div class="form-field">
                 <label>End Date</label>
                 <input v-model="form.end_date" type="date" />
@@ -238,11 +242,19 @@
                 <label>Bank A/C Number</label>
                 <input v-model="form.bank_account_number" type="text" placeholder="Account number" />
               </div>
+              <div class="form-group">
+                <label>IFSC Code</label>
+                <input v-model="form.bank_ifsc_code" type="text" placeholder="e.g. HDFC0009353" />
+              </div>
               <div class="form-field">
                 <label>Phone Number</label>
                 <input v-model="form.phone_number" type="text" placeholder="e.g. +91 98765 43210" />
               </div>
               <div class="form-field">
+                <label>Emergency Contact Name</label>
+                <input v-model="form.emergency_contact_name" type="text" placeholder="e.g. Asha Sharma" />
+              </div>
+              <div class="form-group">
                 <label>Emergency Contact</label>
                 <input v-model="form.emergency_contact_number" type="text" placeholder="e.g. +91 98765 43210" />
               </div>
@@ -400,7 +412,10 @@ const form = reactive({
   location: '',
   bank_name: '',
   bank_account_number: '',
+  bank_ifsc_code: '',
+  birthdate: '',
   phone_number: '',
+  emergency_contact_name: '',
   emergency_contact_number: '',
   emergency_contact_relationship: '',
 })
@@ -504,6 +519,9 @@ function resetForm() {
   form.location = ''
   form.bank_name = ''
   form.bank_account_number = ''
+  form.bank_ifsc_code = ''
+  form.birthdate = ''
+  form.emergency_contact_name = ''
   form.phone_number = ''
   form.emergency_contact_number = ''
   form.emergency_contact_relationship = ''
@@ -552,6 +570,9 @@ function openEditModal(emp) {
   form.location = emp.location || ''
   form.bank_name = emp.bank_name || ''
   form.bank_account_number = emp.bank_account_number || ''
+  form.bank_ifsc_code = emp.bank_ifsc_code || ''
+  form.birthdate = emp.birthdate || ''
+  form.emergency_contact_name = emp.emergency_contact_name || ''
   form.phone_number = emp.phone_number || ''
   form.emergency_contact_number = emp.emergency_contact_number || ''
   form.emergency_contact_relationship = emp.emergency_contact_relationship || ''
@@ -577,9 +598,9 @@ async function handleSubmit() {
     if (isEditing.value) {
       const payload = {}
       const fields = ['name', 'designation', 'studio_email', 'personal_mail', 'role',
-        'joining_date', 'end_date', 'salary_month', 'salary_hour', 'leaves_allowed', 'paid_leave_balance', 'manager_id',
-        'pan_number', 'aadhar_number', 'gender', 'location', 'bank_name', 'bank_account_number',
-        'phone_number', 'emergency_contact_number', 'emergency_contact_relationship']
+        'joining_date', 'end_date', 'birthdate', 'salary_month', 'salary_hour', 'leaves_allowed', 'paid_leave_balance', 'manager_id',
+        'pan_number', 'aadhar_number', 'gender', 'location', 'bank_name', 'bank_account_number', 'bank_ifsc_code',
+        'phone_number', 'emergency_contact_name', 'emergency_contact_number', 'emergency_contact_relationship']
       for (const f of fields) {
         if (form[f] !== '' && form[f] !== null && form[f] !== undefined) payload[f] = form[f]
       }
@@ -589,9 +610,9 @@ async function handleSubmit() {
     } else {
       const payload = {}
       const fields = ['name', 'designation', 'studio_email', 'personal_mail', 'password', 'role',
-        'joining_date', 'end_date', 'salary_month', 'salary_hour', 'leaves_allowed', 'paid_leave_balance', 'manager_id',
-        'pan_number', 'aadhar_number', 'gender', 'location', 'bank_name', 'bank_account_number',
-        'phone_number', 'emergency_contact_number', 'emergency_contact_relationship']
+        'joining_date', 'end_date', 'birthdate', 'salary_month', 'salary_hour', 'leaves_allowed', 'paid_leave_balance', 'manager_id',
+        'pan_number', 'aadhar_number', 'gender', 'location', 'bank_name', 'bank_account_number', 'bank_ifsc_code',
+        'phone_number', 'emergency_contact_name', 'emergency_contact_number', 'emergency_contact_relationship']
       for (const f of fields) {
         if (form[f] !== '' && form[f] !== null && form[f] !== undefined) {
           payload[f] = form[f]

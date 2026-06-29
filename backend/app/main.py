@@ -160,6 +160,9 @@ async def run_migrations():
         ("location", "VARCHAR"),
         ("bank_name", "VARCHAR"),
         ("bank_account_number", "VARCHAR"),
+        ("bank_ifsc_code", "VARCHAR"),
+        ("emergency_contact_name", "VARCHAR"),
+        ("birthdate", "DATE"),
         ("paid_leave_balance", "NUMERIC(6, 1) DEFAULT 0"),
         ("leave_accrued_through", "VARCHAR"),
     ]

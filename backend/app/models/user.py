@@ -23,6 +23,8 @@ class User(Base):
     location = Column(String, nullable=True)          # work location, shown on salary slip
     bank_name = Column(String, nullable=True)         # employee's bank, shown on salary slip
     bank_account_number = Column(String, nullable=True)
+    bank_ifsc_code = Column(String, nullable=True)
+    birthdate = Column(Date, nullable=True)
     personal_mail = Column(String, nullable=False, unique=True)
     studio_email = Column(String, nullable=False, unique=True)
     photo_url = Column(String, nullable=True)
@@ -30,6 +32,7 @@ class User(Base):
     time_tracker_login = Column(String, nullable=True)
     time_tracker_password = Column(String, nullable=True)
     phone_number = Column(String, nullable=True)
+    emergency_contact_name = Column(String, nullable=True)
     emergency_contact_number = Column(String, nullable=True)
     emergency_contact_relationship = Column(String, nullable=True)
     role = Column(String, default="employee")
