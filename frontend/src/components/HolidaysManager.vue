@@ -180,10 +180,10 @@ function onCellClick(dateStr) {
 }
 
 async function saveHoliday() {
-  if (!addName.trim()) return
+  if (!addName.value.trim()) return
   saving.value = true
   try {
-    await holidaysAPI.createHoliday({ date: addDate.value, name: addName.trim() })
+    await holidaysAPI.createHoliday({ date: addDate.value, name: addName.value.trim() })
     toast('Holiday added.')
     addDate.value = null
     await fetchHolidays()
