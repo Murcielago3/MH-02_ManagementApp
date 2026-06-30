@@ -12,7 +12,7 @@
           <form @submit.prevent="submitReimbursement" class="reimbursement-form">
             <div class="form-group">
               <label>Amount (₹)</label>
-              <input type="number" v-model.number="form.amount" required min="1" class="field-input" placeholder="e.g. 1500">
+              <CurrencyInput v-model="form.amount" class="field-input" placeholder="e.g. 1500" required />
             </div>
 
             <div class="form-group">
@@ -95,6 +95,8 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import EmployeeLayout from '../../components/EmployeeLayout.vue'
+import CurrencyInput from '../../components/CurrencyInput.vue'
+import { notifySuccess } from '../../stores/notifier'
 import { reimbursementsAPI } from '../../api/reimbursements'
 import { usersAPI } from '../../api/users'
 
@@ -150,17 +152,17 @@ const submitReimbursement = async () => {
     }
 
     await reimbursementsAPI.createReimbursement(formData)
-    alert('Reimbursement submitted successfully!')
-    
+    notifySuccess('Reimbursement submitted.')
+
     // Reset
     form.amount = ''
     form.reason = ''
     selectedFile.value = null
     if (fileInput.value) fileInput.value.value = ''
-    
+
     await fetchHistory()
   } catch (err) {
-    alert('Error submitting reimbursement: ' + (err.response?.data?.detail || err.message))
+    console.error(err)
   } finally {
     submitting.value = false
   }

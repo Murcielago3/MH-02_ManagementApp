@@ -257,6 +257,7 @@ import { tasksAPI } from '../../api/tasks'
 import { weeklyTimesheetsAPI } from '../../api/weekly_timesheets'
 import { attendanceAPI } from '../../api/attendance'
 import { leavesAPI } from '../../api/leaves'
+import { notifySuccess } from '../../stores/notifier'
 
 const loading = ref(true)
 const user = ref(null)
@@ -337,9 +338,9 @@ const handlePhotoChange = async (e) => {
   try {
     const res = await usersAPI.uploadPhoto(user.value.id, file)
     user.value = res.data
-    alert("Profile photo updated successfully!")
+    notifySuccess('Profile photo updated.')
   } catch (err) {
-    alert("Failed to upload photo: " + (err.response?.data?.detail || err.message))
+    console.error(err)
   }
 }
 const handleUpdateProfile = async () => {
@@ -348,9 +349,9 @@ const handleUpdateProfile = async () => {
     const res = await usersAPI.updateUser(user.value.id, editForm.value)
     user.value = res.data
     showEditModal.value = false
-    alert("Profile updated successfully!")
+    notifySuccess('Profile updated.')
   } catch (err) {
-    alert("Failed to update profile: " + (err.response?.data?.detail || err.message))
+    console.error(err)
   } finally {
     updating.value = false
   }

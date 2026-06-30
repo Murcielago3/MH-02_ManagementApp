@@ -52,6 +52,7 @@
               v-for="emp in filteredEmployees"
               :key="emp.id"
               class="employee-card"
+              @click="goToProfile(emp)"
             >
               <div class="employee-card-top">
                 <div class="name-cell">
@@ -520,6 +521,10 @@ function openAddModal(role = 'employee') {
   form.role = role  // pre-fill the Role dropdown for whichever button was clicked
   modalOpen.value = true
   if (hasEmpDraft.value) showDraftBanner.value = true
+}
+
+function goToProfile(emp) {
+  router.push(`/admin/employees/${emp.id}`)
 }
 
 function openEditModal(emp) {

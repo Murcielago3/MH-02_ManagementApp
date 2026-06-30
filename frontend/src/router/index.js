@@ -130,6 +130,12 @@ const routes = [
     meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
+    path: '/admin/hr',
+    name: 'AdminHR',
+    component: () => import('../views/AdminHRView.vue'),
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  {
     path: '/admin/estimates',
     name: 'AdminEstimates',
     component: () => import('../views/EstimateView.vue'),

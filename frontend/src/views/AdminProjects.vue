@@ -72,9 +72,9 @@
               <span class="stat-val">₹{{ formatAmount(getFinancials(p.id).partnerRem) }}</span>
             </div>
             <div class="stat-row">
-              <span class="stat-label">Unbilled</span>
-              <span class="stat-val" :class="getFinancials(p.id).unbilled > 0 ? 'unbilled-val' : ''">
-                ₹{{ formatAmount(getFinancials(p.id).unbilled) }}
+              <span class="stat-label">Reserve Balance</span>
+              <span class="stat-val" :class="reserveClass(getFinancials(p.id).reserveBalance)">
+                ₹{{ formatAmount(getFinancials(p.id).reserveBalance) }}
               </span>
             </div>
           </div>
@@ -192,15 +192,15 @@
               <!-- Remuneration Fields -->
               <div class="form-field">
                 <label>Total Project Cost (₹)</label>
-                <input v-model.number="form.project_remuneration" type="number" step="0.01" min="0" placeholder="₹ 0.00" />
+                <CurrencyInput v-model="form.project_remuneration" placeholder="₹ 0.00" />
               </div>
               <div class="form-field">
                 <label>Employee Remuneration (₹)</label>
-                <input v-model.number="form.employee_remuneration" type="number" step="0.01" min="0" placeholder="₹ 0.00" />
+                <CurrencyInput v-model="form.employee_remuneration" placeholder="₹ 0.00" />
               </div>
               <div class="form-field span-2">
                 <label>Partner Remuneration (₹)</label>
-                <input v-model.number="form.partner_remuneration" type="number" step="0.01" min="0" placeholder="₹ 0.00" />
+                <CurrencyInput v-model="form.partner_remuneration" placeholder="₹ 0.00" />
               </div>
 
             </div>
@@ -471,6 +471,7 @@ const hoursByProjectAndEmployee = computed(() => {
 function getFinancials(projectId) {
   const r = reserveMap.value[projectId]
   const billed = r ? Number(r.total_invoiced) || 0 : 0
+  const reserveBalance = r ? Number(r.reserve_balance) || 0 : 0
   const p = projects.value.find(proj => proj.id === projectId)
   const totalCost = Number(p?.project_remuneration) || 0
   const unbilled = totalCost - billed
@@ -487,7 +488,13 @@ function getFinancials(projectId) {
   const partnerHourly = Number(p?.partner_hourly_rate) || 0
   const partnerRem = partnerHourly * totalHours
 
-  return { billed, unbilled, employeeRem, partnerRem }
+  return { billed, unbilled, reserveBalance, employeeRem, partnerRem }
+}
+
+function reserveClass(val) {
+  if (val < 0) return 'unbilled-val'
+  if (val > 0) return 'billed-val'
+  return ''
 }
 
 onMounted(async () => {

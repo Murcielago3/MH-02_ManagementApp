@@ -7,7 +7,7 @@ reports view, just aggregated org-wide instead of per-project.
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
-from datetime import datetime
+from datetime import datetime, date
 
 from app.database import get_db
 from app.models.user import User
@@ -44,11 +44,7 @@ async def get_dashboard_stats(
 
     current_year = datetime.now().year
 
-    # ── Settings-derived rate params (for live hourly-rate computation) ──
-    from app.routers.projects import _rate_params
-    smpy, whpm = await _rate_params(db)
-
-    # ── Org-wide reserve / billing aggregation ──
+    # ── Org-wide reserve / billing aggregation (frozen per-entry costs) ──
     sql = text("""
         WITH inv_cte AS (
             SELECT project_id, COALESCE(SUM(subtotal), 0) AS total_invoiced
@@ -56,22 +52,13 @@ async def get_dashboard_stats(
             WHERE project_id IS NOT NULL
             GROUP BY project_id
         ),
-        rated_entries AS (
+        emp_cte AS (
             SELECT wte.project_id,
-                   wte.hours,
-                   CASE WHEN COALESCE(u.salary_month, 0) > 0
-                        THEN (u.salary_month * :smpy / 12.0) / :whpm
-                        ELSE 0 END AS hourly_rate
+                   COALESCE(SUM(wte.employee_cost), 0) AS emp_cost,
+                   COALESCE(SUM(wte.hours), 0) AS total_hours
             FROM weekly_timesheet_entries wte
             JOIN weekly_timesheets wt ON wt.id = wte.timesheet_id AND wt.status = 'approved'
-            JOIN users u ON u.id = wt.employee_id
-        ),
-        emp_cte AS (
-            SELECT project_id,
-                   COALESCE(SUM(hours * hourly_rate), 0) AS emp_cost,
-                   COALESCE(SUM(hours), 0) AS total_hours
-            FROM rated_entries
-            GROUP BY project_id
+            GROUP BY wte.project_id
         )
         SELECT
             COALESCE(inv.total_invoiced, 0) AS total_invoiced,
@@ -86,7 +73,7 @@ async def get_dashboard_stats(
         LEFT JOIN inv_cte inv ON inv.project_id = p.id
         LEFT JOIN emp_cte ec ON ec.project_id = p.id
     """)
-    rows = (await db.execute(sql, {"smpy": smpy, "whpm": whpm})).fetchall()
+    rows = (await db.execute(sql)).fetchall()
 
     total_invoiced = 0.0
     total_employee_remuneration = 0.0
@@ -120,24 +107,42 @@ async def get_dashboard_stats(
     )
     total_fy_turnover = round(float(fy_inv_result.scalar() or 0), 2)
 
-    # ── Real monthly sales (invoice totals grouped by invoice_date month) ──
-    monthly_sales = {m: 0.0 for m in [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December",
-    ]}
+    # ── Trailing-12-month sales (invoice subtotals bucketed by month) ──
+    # Window is `today - 1 year` → `today`, which spans 13 calendar months;
+    # the first and last buckets are partial. Returned as an ordered list so
+    # the frontend doesn't need to know about year wrap.
+    today = date.today()
+    try:
+        start_date = today.replace(year=today.year - 1)
+    except ValueError:
+        # Today is Feb 29 of a leap year; step the start to Feb 28.
+        start_date = today.replace(year=today.year - 1, day=28)
+
+    buckets: list[tuple[int, int]] = []
+    y, m = start_date.year, start_date.month
+    while (y, m) <= (today.year, today.month):
+        buckets.append((y, m))
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+
+    sales_by_ym: dict[tuple[int, int], float] = {ym: 0.0 for ym in buckets}
     monthly_q = await db.execute(
         select(
+            func.extract('year', Invoice.invoice_date).label('y'),
             func.extract('month', Invoice.invoice_date).label('m'),
             func.coalesce(func.sum(Invoice.subtotal), 0).label('s'),
         )
-        .where(func.extract('year', Invoice.invoice_date) == current_year)
-        .group_by('m')
+        .where(Invoice.invoice_date >= start_date, Invoice.invoice_date <= today)
+        .group_by('y', 'm')
     )
-    month_names = list(monthly_sales.keys())
     for row in monthly_q:
-        m_idx = int(row.m or 0) - 1
-        if 0 <= m_idx < 12:
-            monthly_sales[month_names[m_idx]] = float(row.s or 0)
+        key = (int(row.y), int(row.m))
+        if key in sales_by_ym:
+            sales_by_ym[key] = float(row.s or 0)
+
+    monthly_sales = [
+        {"label": date(yy, mm, 1).strftime("%b '%y"), "revenue": sales_by_ym[(yy, mm)]}
+        for (yy, mm) in buckets
+    ]
 
     current_month = datetime.now().month
 

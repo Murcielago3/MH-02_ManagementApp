@@ -94,6 +94,7 @@
 import { ref, computed, onMounted, onUnmounted, reactive } from 'vue'
 import EmployeeLayout from '../../components/EmployeeLayout.vue'
 import { attendanceAPI } from '../../api/attendance'
+import { notifySuccess, notifyWarning } from '../../stores/notifier'
 
 const loading = ref(true)
 const actionLoading = ref(false)
@@ -161,22 +162,22 @@ const fetchTodayRecord = async () => {
 
 const handleCheckIn = async () => {
   if (form.is_site_visit && (!form.site_name || !form.site_timing)) {
-    alert("Please fill in site details")
+    notifyWarning('Please fill in site details before checking in.')
     return
   }
-  
+
   try {
     actionLoading.value = true
     const res = await attendanceAPI.checkIn({
       is_site_visit: form.is_site_visit,
       site_name: form.site_name || null,
-      site_timing: form.site_timing || null
+      site_timing: form.site_timing || null,
     })
     todayRecord.value = res.data
-    alert("Successfully checked in!")
+    notifySuccess('Checked in successfully.')
   } catch (err) {
+    // Global axios interceptor already shows an error toast
     console.error(err)
-    alert(err.response?.data?.detail || "Check in failed")
   } finally {
     actionLoading.value = false
   }
@@ -187,10 +188,9 @@ const handleCheckOut = async () => {
     actionLoading.value = true
     const res = await attendanceAPI.checkOut()
     todayRecord.value = res.data
-    alert("Successfully checked out!")
+    notifySuccess('Checked out successfully.')
   } catch (err) {
     console.error(err)
-    alert(err.response?.data?.detail || "Check out failed")
   } finally {
     actionLoading.value = false
   }

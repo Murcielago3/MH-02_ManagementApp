@@ -214,8 +214,9 @@ async function handleDeleteEstimate(id) {
   if (!confirm('Delete this saved estimate? This cannot be undone.')) return
   try {
     await store.deleteEstimate(id)
-  } catch {
-    alert('Failed to delete estimate.')
+  } catch (err) {
+    // Global axios interceptor surfaces the error toast
+    console.error(err)
   }
 }
 </script>

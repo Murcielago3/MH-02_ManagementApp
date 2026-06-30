@@ -133,7 +133,7 @@
                         No approved timesheet hours on this project yet.
                       </td>
                     </tr>
-                    <tr v-for="row in shownRows" :key="row.employee_id">
+                    <tr v-for="row in shownRows" :key="`${row.employee_id}-${row.effective_from || 'x'}`">
                       <td class="cell-name">{{ row.name }}</td>
                       <td class="cell-muted">{{ row.designation || '—' }}</td>
                       <td class="num tab">{{ formatInr(row.base_pay, 0) }}</td>
@@ -175,7 +175,7 @@
                     </div>
                     <div v-else class="inline-rate compact">
                       <span class="rupee">₹</span>
-                      <input v-model.number="partnerRateInput" type="number" min="0" step="1" class="rate-inp" />
+                      <CurrencyInput v-model="partnerRateInput" class="rate-inp" />
                       <span class="per">/hr</span>
                       <button type="button" class="btn-primary sm" :disabled="savingPartnerRate" @click="savePartnerRate">
                         {{ savingPartnerRate ? '…' : 'Save' }}
@@ -352,6 +352,7 @@ import { Chart, registerables } from 'chart.js'
 import AppLayout from '../components/AppLayout.vue'
 import ToastNotification from '../components/ToastNotification.vue'
 import AssignProjectModal from '../components/AssignProjectModal.vue'
+import CurrencyInput from '../components/CurrencyInput.vue'
 import { projectsAPI } from '../api/projects'
 import { usersAPI } from '../api/users'
 import { weeklyTimesheetsAPI } from '../api/weekly_timesheets'
@@ -479,46 +480,31 @@ const hoursFromTimesheets = computed(() => {
  * Pay fields come from project assignments / summary when available.
  */
 const employeeBaseRows = computed(() => {
-  const pid = selectedProjectId.value
-  const H = hoursFromTimesheets.value
+  // Server returns one row per (employee × salary period) with the frozen,
+  // point-in-time cost already computed — trust it rather than re-deriving.
   const apiRows = apiSummary.value.employee_rows || []
-  const assignments = projectDetail.value?.assignments || []
-  const users = allUsers.value || []
-
-  const uids = [...H.keys()].filter((uid) => (H.get(uid) || 0) > 0)
-  uids.sort((a, b) => {
-    const na = users.find((u) => u.id === a)?.name || ''
-    const nb = users.find((u) => u.id === b)?.name || ''
-    return na.localeCompare(nb)
-  })
-
-  return uids.map((uid) => {
-      const apiRow = apiRows.find((r) => r.employee_id === uid)
-    const assign = assignments.find((a) => (a.user_id ?? a.user?.id) === uid)
-    const u = users.find((x) => x.id === uid)
-    const hours = H.get(uid) || 0
-    const basePay = Number(apiRow?.base_pay ?? u?.salary_month ?? assign?.base_pay ?? 0) || 0
-    const hourly = previewHourlyFromBasePay(basePay) || 0
-    const totalSpent = hourly * hours
-    return {
-      employee_id: uid,
-      assignment_id: assign?.id ?? apiRow?.assignment_id ?? null,
-      name: apiRow?.name ?? u?.name ?? `Employee #${uid}`,
-      designation: apiRow?.designation ?? u?.designation ?? assign?.user?.designation ?? '—',
-      base_pay: basePay,
-      hourly_rate: hourly,
-      hours_worked: hours,
-      total_spent: totalSpent,
-    }
-  })
+  return apiRows
+    .filter((r) => (Number(r.hours_worked) || 0) > 0)
+    .map((r) => ({
+      employee_id: r.employee_id,
+      assignment_id: r.assignment_id ?? null,
+      name: r.name,
+      designation: r.designation || '—',
+      base_pay: Number(r.base_pay) || 0,
+      hourly_rate: Number(r.hourly_rate) || 0,
+      hours_worked: Number(r.hours_worked) || 0,
+      total_spent: Number(r.total_spent) || 0,
+      effective_from: r.effective_from || null,
+    }))
+    .sort(
+      (a, b) =>
+        a.name.localeCompare(b.name) ||
+        String(a.effective_from || '').localeCompare(String(b.effective_from || '')),
+    )
 })
 
 const shownRows = computed(() =>
-  employeeBaseRows.value.map((r) => {
-    const hw = Number(r.hours_worked) || 0
-    const hr = Number(r.hourly_rate) || 0
-    return { ...r, display_spent: hr * hw }
-  })
+  employeeBaseRows.value.map((r) => ({ ...r, display_spent: r.total_spent })),
 )
 
 const displayTotals = computed(() => {

@@ -203,11 +203,6 @@
       <BankAccountsManager />
     </section>
 
-    <!-- HOLIDAYS -->
-    <section v-if="activeTab === 'holidays'" class="panel">
-      <HolidaysManager />
-    </section>
-
     <ToastNotification v-if="toastMsg" :message="toastMsg" :type="toastType" @done="toastMsg = ''" />
   </AppLayout>
 </template>
@@ -216,7 +211,6 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import BankAccountsManager from '../components/BankAccountsManager.vue'
-import HolidaysManager from '../components/HolidaysManager.vue'
 import ToastNotification from '../components/ToastNotification.vue'
 import { settingsAPI } from '../api/settings'
 import { formatInr } from '../utils/currency'
@@ -225,7 +219,6 @@ const tabs = [
   { key: 'company', label: 'Company Profile', icon: 'business' },
   { key: 'compensation', label: 'Compensation', icon: 'payments' },
   { key: 'bank', label: 'Bank Accounts', icon: 'account_balance' },
-  { key: 'holidays', label: 'Holidays', icon: 'event' },
 ]
 const activeTab = ref('company')
 

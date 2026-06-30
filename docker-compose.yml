@@ -42,5 +42,18 @@ services:
       - redis
       - db
 
+  # Scheduler for the timed reminders (monthly report, weekly timesheet nudge).
+  # Run exactly one beat instance or messages get sent multiple times.
+  beat:
+    build: ./backend
+    command: celery -A app.celery_app beat --loglevel=info
+    volumes:
+      - ./backend:/app
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - db
+
 volumes:
   postgres_data:

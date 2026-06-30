@@ -185,7 +185,6 @@ async def get_reserve_status(
     if cached is not None:
         return cached
 
-    smpy, whpm = await _rate_params(db)
     sql = text("""
         WITH inv_cte AS (
             SELECT project_id, COALESCE(SUM(subtotal), 0) AS total_invoiced
@@ -193,22 +192,13 @@ async def get_reserve_status(
             WHERE project_id IS NOT NULL
             GROUP BY project_id
         ),
-        rated_entries AS (
+        emp_cte AS (
             SELECT wte.project_id,
-                   wte.hours,
-                   CASE WHEN COALESCE(u.salary_month, 0) > 0
-                        THEN (u.salary_month * :smpy / 12.0) / :whpm
-                        ELSE 0 END AS hourly_rate
+                   COALESCE(SUM(wte.employee_cost), 0) AS emp_cost,
+                   COALESCE(SUM(wte.hours), 0) AS total_hours
             FROM weekly_timesheet_entries wte
             JOIN weekly_timesheets wt ON wt.id = wte.timesheet_id AND wt.status = 'approved'
-            JOIN users u ON u.id = wt.employee_id
-        ),
-        emp_cte AS (
-            SELECT project_id,
-                   COALESCE(SUM(hours * hourly_rate), 0) AS emp_cost,
-                   COALESCE(SUM(hours), 0) AS total_hours
-            FROM rated_entries
-            GROUP BY project_id
+            GROUP BY wte.project_id
         )
         SELECT
             p.id AS project_id,
@@ -224,7 +214,7 @@ async def get_reserve_status(
         LEFT JOIN inv_cte inv ON inv.project_id = p.id
         LEFT JOIN emp_cte ec ON ec.project_id = p.id
     """)
-    result = await db.execute(sql, {"smpy": smpy, "whpm": whpm})
+    result = await db.execute(sql)
     rows = result.fetchall()
     payload = [
         {
@@ -271,45 +261,61 @@ async def get_project(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    smpy, whpm = await _rate_params(db)
-    total_worked_hours = 0
+    total_worked_hours = 0.0
     total_employee_cost = 0.0
 
-    # ── Batch approved-hours per employee in one GROUP BY (was N+1) ──
-    hours_by_uid = {}
+    # ── Frozen cost + hours per employee (summed across rate periods) ──
+    # One row per assignment here (this endpoint is the team roster); the
+    # per-rate-period split lives in /summary. employee_remuneration is the
+    # point-in-time frozen total.
+    from collections import defaultdict
+    from app.services.salary import current_period
+
+    agg = defaultdict(lambda: {"hours": 0.0, "cost": 0.0})
     if project.assignments:
         uids = [a.user_id for a in project.assignments]
-        hours_q = await db.execute(
-            select(WeeklyTimesheet.employee_id, func.sum(WeeklyTimesheetEntry.hours))
+        rows_q = await db.execute(
+            select(
+                WeeklyTimesheet.employee_id,
+                WeeklyTimesheetEntry.employee_cost,
+                WeeklyTimesheetEntry.hours,
+            )
             .join(WeeklyTimesheetEntry, WeeklyTimesheetEntry.timesheet_id == WeeklyTimesheet.id)
             .where(
                 WeeklyTimesheetEntry.project_id == project_id,
                 WeeklyTimesheet.status == 'approved',
                 WeeklyTimesheet.employee_id.in_(uids),
             )
-            .group_by(WeeklyTimesheet.employee_id)
         )
-        hours_by_uid = {row[0]: float(row[1] or 0) for row in hours_q.all()}
+        for uid, emp_cost, hours in rows_q.all():
+            agg[uid]["hours"] += float(hours or 0)
+            agg[uid]["cost"] += float(emp_cost or 0)
 
     assignments_data = []
     for assignment in project.assignments:
-        hours_worked = hours_by_uid.get(assignment.user_id, 0.0)
-        base_pay, hourly_rate = user_rates(assignment.user, smpy, whpm)
+        uid = assignment.user_id
+        hours_worked = round(agg[uid]["hours"], 2)
+        cost = round(agg[uid]["cost"], 2)
+        cur = await current_period(db, uid)
+        cur_rate = float(cur.hourly_rate) if cur and cur.hourly_rate is not None else 0.0
+        base_pay = float(cur.monthly_salary) if cur and cur.monthly_salary is not None else float(assignment.user.salary_month or 0)
+        blended_rate = round(cost / hours_worked, 2) if hours_worked > 0 else cur_rate
 
         total_worked_hours += hours_worked
-        total_employee_cost += (hours_worked * hourly_rate)
+        total_employee_cost += cost
 
         assignments_data.append({
             "id": assignment.id,
-            "user_id": assignment.user_id,
+            "user_id": uid,
             "user": {
                 "id": assignment.user.id,
                 "name": assignment.user.name,
-                "designation": assignment.user.designation
+                "designation": assignment.user.designation,
             },
             "base_pay": base_pay,
-            "hourly_rate": hourly_rate,
-            "hours_worked": hours_worked
+            "hourly_rate": blended_rate,
+            "hours_worked": hours_worked,
+            "cost": cost,
         })
         
     partner_hourly_rate = float(project.partner_hourly_rate or 0)
@@ -394,11 +400,34 @@ async def update_project(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    for field, value in data.dict(exclude_unset=True).items():
-        setattr(project, field, value)
+    # Pydantic v2: prefer model_dump over the deprecated .dict()
+    payload = data.model_dump(exclude_unset=True)
 
-    await db.commit()
-    await db.refresh(project)
+    # If project_number is being changed, enforce the uniqueness check
+    # ourselves so we return a clean 400 instead of letting Postgres raise
+    # an IntegrityError that bubbles up as a 500 with no CORS headers.
+    new_number = payload.get("project_number")
+    if new_number and new_number != project.project_number:
+        dupe = await db.execute(
+            select(Project).where(
+                Project.project_number == new_number,
+                Project.id != project_id,
+            )
+        )
+        if dupe.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="A project with this project number already exists.")
+
+    try:
+        for field, value in payload.items():
+            setattr(project, field, value)
+        await db.commit()
+        await db.refresh(project)
+    except Exception as e:
+        await db.rollback()
+        import logging, traceback
+        logging.error("update_project failed for id=%s: %s\n%s", project_id, e, traceback.format_exc())
+        raise HTTPException(status_code=400, detail=f"Failed to update project: {e}")
+
     _invalidate_reserve()
     return project
 
@@ -489,17 +518,40 @@ async def get_project_summary(
     if not project:
         raise HTTPException(404, "Project not found")
 
-    # ── All employees with approved hours on this project (regardless of assignment) ──
-    hours_q = await db.execute(
-        select(WeeklyTimesheet.employee_id, func.sum(WeeklyTimesheetEntry.hours).label("hours"))
+    # ── Frozen per-entry cost grouped by (employee, salary period) ──
+    # One row per (person × rate period): a raise mid-project shows as separate
+    # rows, each priced at the rate that was in effect then.
+    from collections import defaultdict
+    from app.models.salary_history import SalaryHistory
+    from app.services.salary import current_period
+
+    rows_q = await db.execute(
+        select(
+            WeeklyTimesheet.employee_id,
+            WeeklyTimesheetEntry.employee_cost,
+            WeeklyTimesheetEntry.cost_breakdown,
+            WeeklyTimesheetEntry.hours,
+        )
         .join(WeeklyTimesheetEntry, WeeklyTimesheetEntry.timesheet_id == WeeklyTimesheet.id)
         .where(
             WeeklyTimesheetEntry.project_id == project_id,
             WeeklyTimesheet.status == "approved",
         )
-        .group_by(WeeklyTimesheet.employee_id)
     )
-    hours_by_uid = {row.employee_id: float(row.hours or 0) for row in hours_q.all()}
+    buckets = defaultdict(lambda: {"hours": 0.0, "cost": 0.0, "rate": 0.0})
+    hours_by_uid = defaultdict(float)
+    for uid, emp_cost, breakdown, hours in rows_q.all():
+        if breakdown:
+            for b in breakdown:
+                key = (uid, b.get("salary_history_id"))
+                buckets[key]["hours"] += float(b.get("hours") or 0)
+                buckets[key]["cost"] += float(b.get("cost") or 0)
+                buckets[key]["rate"] = float(b.get("rate") or 0)
+                hours_by_uid[uid] += float(b.get("hours") or 0)
+        else:
+            buckets[(uid, None)]["hours"] += float(hours or 0)
+            buckets[(uid, None)]["cost"] += float(emp_cost or 0)
+            hours_by_uid[uid] += float(hours or 0)
 
     # Also include formally assigned employees (they may have 0 hours so far)
     assign_result = await db.execute(
@@ -509,7 +561,6 @@ async def get_project_summary(
     assigned_user_ids = {a.user_id for a in assignments}
     assignment_id_by_uid = {a.user_id: a.id for a in assignments}
 
-    # Union: everyone with hours + everyone assigned
     all_user_ids = list(set(hours_by_uid.keys()) | assigned_user_ids)
 
     users_by_id = {}
@@ -517,32 +568,53 @@ async def get_project_summary(
         users_result = await db.execute(select(User).where(User.id.in_(all_user_ids)))
         users_by_id = {u.id: u for u in users_result.scalars().all()}
 
+    sh_ids = {sid for (_u, sid) in buckets if sid}
+    sh_meta = {}
+    if sh_ids:
+        sh_rows = await db.execute(
+            select(SalaryHistory.id, SalaryHistory.effective_from, SalaryHistory.monthly_salary)
+            .where(SalaryHistory.id.in_(sh_ids))
+        )
+        sh_meta = {
+            r[0]: {"from": str(r[1]), "monthly": float(r[2]) if r[2] is not None else None}
+            for r in sh_rows.all()
+        }
+
     employee_rows = []
-    total_hours_all = 0
-    total_spent_all = 0
-    smpy, whpm = await _rate_params(db)
+    total_hours_all = 0.0
+    total_spent_all = 0.0
 
     for uid in all_user_ids:
         user = users_by_id.get(uid)
         if not user:
             continue
-        hours_worked = hours_by_uid.get(uid, 0.0)
-        base_pay, hourly_rate = user_rates(user, smpy, whpm)
-        total_spent = round(hours_worked * hourly_rate, 2)
-
-        total_hours_all += hours_worked
-        total_spent_all += total_spent
-
-        employee_rows.append({
-            "assignment_id": assignment_id_by_uid.get(uid),
-            "employee_id": uid,
-            "name": user.name,
-            "designation": user.designation,
-            "base_pay": base_pay,
-            "hourly_rate": hourly_rate,
-            "hours_worked": hours_worked,
-            "total_spent": total_spent,
-        })
+        user_buckets = sorted(
+            [(sid, v) for (u, sid), v in buckets.items() if u == uid],
+            key=lambda x: sh_meta.get(x[0], {}).get("from", ""),
+        )
+        if not user_buckets:
+            cur = await current_period(db, uid)
+            employee_rows.append({
+                "assignment_id": assignment_id_by_uid.get(uid),
+                "employee_id": uid, "name": user.name, "designation": user.designation,
+                "base_pay": float(cur.monthly_salary) if cur and cur.monthly_salary is not None else float(user.salary_month or 0),
+                "hourly_rate": float(cur.hourly_rate) if cur and cur.hourly_rate is not None else 0.0,
+                "hours_worked": 0.0, "total_spent": 0.0, "effective_from": None,
+            })
+            continue
+        for sid, v in user_buckets:
+            total_hours_all += v["hours"]
+            total_spent_all += v["cost"]
+            meta = sh_meta.get(sid, {})
+            employee_rows.append({
+                "assignment_id": assignment_id_by_uid.get(uid),
+                "employee_id": uid, "name": user.name, "designation": user.designation,
+                "base_pay": meta.get("monthly") if meta.get("monthly") is not None else float(user.salary_month or 0),
+                "hourly_rate": round(v["rate"], 2),
+                "hours_worked": round(v["hours"], 2),
+                "total_spent": round(v["cost"], 2),
+                "effective_from": meta.get("from"),
+            })
 
     # Partner remuneration
     partner_hourly_rate = float(project.partner_hourly_rate or 0)

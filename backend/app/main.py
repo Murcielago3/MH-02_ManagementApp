@@ -3,17 +3,22 @@ from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
-from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips, holidays
+from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips, holidays, subtasks, salary as salary_router
 
 
 security = HTTPBearer()
 app = FastAPI(title="Studio MH02")
 
-# CORS – allow the Vite dev server to reach the API
+# CORS – allow the Vite dev server to reach the API.
+# allow_credentials=True is incompatible with allow_origins=["*"] (browsers
+# reject the wildcard when credentials are signalled). The app authenticates
+# via bearer tokens in the Authorization header, not cookies, so credentials
+# can stay off. allow_origin_regex matches any LAN/loopback origin so it
+# works from every PC on the network without listing each one.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origin_regex=r".*",
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["Content-Disposition"],
@@ -44,6 +49,9 @@ app.include_router(settings_router.router)
 app.include_router(estimates.router)
 app.include_router(salary_slips.router)
 app.include_router(holidays.router)
+app.include_router(subtasks.router)
+app.include_router(subtasks.single_router)
+app.include_router(salary_router.router)
 
 
 @app.get("/health")
@@ -201,6 +209,60 @@ async def run_migrations():
             """))
     except Exception:
         pass
+
+    # Per-task subtasks
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS subtasks (
+                    id SERIAL PRIMARY KEY,
+                    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+                    title VARCHAR NOT NULL,
+                    description VARCHAR,
+                    duration_hours NUMERIC(6, 2),
+                    status VARCHAR DEFAULT 'pending',
+                    created_by INTEGER REFERENCES users(id),
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+    except Exception:
+        pass
+
+    # Effective-dated salary history (point-in-time pay). SERIAL on Postgres,
+    # but CREATE TABLE IF NOT EXISTS is portable enough for our two backends.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS salary_history (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id),
+                    monthly_salary NUMERIC(10, 2),
+                    salary_hour NUMERIC(8, 2),
+                    smpy NUMERIC(4, 2),
+                    whpm NUMERIC(6, 2),
+                    hourly_rate NUMERIC(10, 2),
+                    effective_from DATE NOT NULL,
+                    effective_to DATE,
+                    note VARCHAR,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    CONSTRAINT uq_salary_user_effrom UNIQUE (user_id, effective_from)
+                )
+            """))
+    except Exception:
+        pass
+
+    # Frozen employee cost + per-rate-period breakdown on timesheet entries.
+    for col_name, col_def in [
+        ("employee_cost", "NUMERIC(12, 2)"),
+        ("cost_breakdown", "JSON"),
+    ]:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text(f"ALTER TABLE weekly_timesheet_entries ADD COLUMN {col_name} {col_def}")
+                )
+        except Exception:
+            pass
 
     # Create the salary_slips table if missing
     try:

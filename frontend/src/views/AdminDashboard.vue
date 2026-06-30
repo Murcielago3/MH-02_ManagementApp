@@ -67,14 +67,14 @@
         <div class="chart-card-head">
           <div>
             <h3 class="chart-card-title">Monthly Revenue</h3>
-            <p class="chart-card-sub">Invoice subtotals · {{ currentYear }}</p>
+            <p class="chart-card-sub">Invoice subtotals · {{ trailingRange }}</p>
           </div>
         </div>
         <div class="chart-card-body chart-body-line">
           <div v-if="loading" class="chart-placeholder">Loading…</div>
           <div v-else-if="!hasMonthlyData" class="chart-placeholder">
             <span class="material-symbols-outlined">show_chart</span>
-            No data for {{ currentYear }}
+            No data for {{ trailingRange }}
           </div>
           <div v-else class="line-canvas-wrap">
             <canvas ref="salesChartRef" height="200" />
@@ -362,19 +362,25 @@ async function fetchAll() {
 onMounted(fetchAll)
 
 // ── Computeds ──
-const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-const fullMonths  = ['January','February','March','April','May','June','July','August','September','October','November','December']
-
 const monthlyChartData = computed(() => {
-  const sales = stats.value.monthly_sales || {}
-  return monthLabels.map((m, i) => ({
-    month:  m,
-    revenue: Number(sales[fullMonths[i]] || 0),
+  const sales = stats.value.monthly_sales
+  if (!Array.isArray(sales)) return []
+  return sales.map((d) => ({
+    month:   d.label,
+    revenue: Number(d.revenue) || 0,
   }))
 })
 const hasMonthlyData = computed(() =>
   monthlyChartData.value.some((d) => d.revenue > 0)
 )
+
+const trailingRange = computed(() => {
+  const end = new Date()
+  const start = new Date(end)
+  start.setFullYear(end.getFullYear() - 1)
+  const fmt = (d) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  return `${fmt(start)} – ${fmt(end)}`
+})
 
 const billingLegend = computed(() => {
   const billed   = Number(stats.value.total_billed) || 0

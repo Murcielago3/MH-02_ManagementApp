@@ -218,6 +218,7 @@ const navItemsBottom = [
   { path: '/admin/salary-slips',   icon: 'paid',            label: 'Salary Slips' },
   { path: '/admin/invoices',       icon: 'receipt_long',    label: 'Invoices' },
   { path: '/admin/estimates',  icon: 'calculate',       label: 'Estimates' },
+  { path: '/admin/hr',         icon: 'badge',           label: 'HR' },
 ]
 
 watch(() => route.path, (p) => {

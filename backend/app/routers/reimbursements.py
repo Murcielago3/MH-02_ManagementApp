@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional
@@ -6,7 +6,9 @@ from datetime import date
 from pydantic import BaseModel
 from app.database import get_db
 from app.models.reimbursement import Reimbursement
+from app.models.user import User
 from app.auth import get_current_user, require_admin, require_manager
+from app.services.slack import notify_event
 import os, uuid
 
 router = APIRouter(prefix="/reimbursements", tags=["reimbursements"])
@@ -46,6 +48,7 @@ async def my_reimbursements(
 
 @router.post("/", status_code=201)
 async def create_reimbursement(
+    background_tasks: BackgroundTasks,
     amount: float = Form(...),
     reason: str = Form(...),
     date: date = Form(...),
@@ -76,12 +79,21 @@ async def create_reimbursement(
     db.add(entry)
     await db.commit()
     await db.refresh(entry)
+
+    # Notify accounts/admin in Slack (fires after the response; never blocks it).
+    background_tasks.add_task(
+        notify_event,
+        "reimbursement",
+        f"💸 *Reimbursement submitted*\n"
+        f"*{current_user.name}* — ₹{amount:,.0f} for _{reason}_ (dated {date})",
+    )
     return entry
 
 @router.patch("/{reimbursement_id}/action")
 async def action_reimbursement(
     reimbursement_id: int,
     data: ReimbursementAction,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(require_admin)
 ):
@@ -91,7 +103,7 @@ async def action_reimbursement(
     entry = result.scalar_one_or_none()
     if not entry:
         raise HTTPException(404, "Reimbursement not found")
-    
+
     from datetime import datetime
     entry.status = data.status
     if data.status == "approved":
@@ -99,4 +111,15 @@ async def action_reimbursement(
 
     await db.commit()
     await db.refresh(entry)
+
+    # Notify accounts/admin in Slack of the decision.
+    emp_name = (await db.execute(
+        select(User.name).where(User.id == entry.employee_id)
+    )).scalar_one_or_none() or f"Employee #{entry.employee_id}"
+    verb = "approved ✅" if data.status == "approved" else "rejected ❌"
+    background_tasks.add_task(
+        notify_event,
+        "reimbursement_decision",
+        f"💰 Reimbursement *{verb}* — *{emp_name}*: ₹{float(entry.amount):,.0f} for _{entry.reason}_",
+    )
     return entry

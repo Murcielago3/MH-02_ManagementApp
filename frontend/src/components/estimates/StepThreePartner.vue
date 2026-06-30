@@ -156,6 +156,7 @@ import { useRouter } from 'vue-router'
 import { useEstimateStore } from '../../stores/estimate'
 import { projectsAPI } from '../../api/projects'
 import CurrencyInput from '../CurrencyInput.vue'
+import { notifySuccess } from '../../stores/notifier'
 
 const emit = defineEmits(['reset'])
 
@@ -209,9 +210,9 @@ async function handleSave() {
       projectColor: projectColor.value,
       status: 'draft',
     })
-    alert(store.savedEstimateId ? 'Estimate saved successfully!' : 'Estimate created!')
+    notifySuccess(store.savedEstimateId ? 'Estimate saved.' : 'Estimate created.')
   } catch (err) {
-    alert('Failed to save estimate. Please try again.')
+    console.error(err)
   }
 }
 
@@ -264,11 +265,10 @@ async function handleAddProject() {
       })
     }
 
-    alert(`Project ${projectNumber} and team added successfully!`)
+    notifySuccess(`Project ${projectNumber} created and team assigned.`)
     router.push('/admin/projects')
   } catch (err) {
     console.error('Failed to add project', err)
-    alert('Failed to add project. Please try again.')
   } finally {
     isAddingProject.value = false
   }

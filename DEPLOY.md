@@ -229,3 +229,77 @@ docker compose -f docker-compose.prod.yml exec api python scripts/seed_demo_data
 # Remove it
 docker compose -f docker-compose.prod.yml exec api python scripts/seed_demo_data.py --reset
 ```
+
+## 11. Slack notifications (reminders)
+
+The app can post reminders to Slack (and, via Slack's own settings, email the
+people in those channels). Four notifications:
+
+| Notification | When | Channel | Pings @channel |
+| --- | --- | --- | --- |
+| Monthly report to admin | 1st of each month, 09:00 | management | yes |
+| Timesheet nudge to employees | every Sunday, 12:00 | common | yes |
+| Reimbursement submitted | instantly, on submission | management | yes |
+| Reimbursement approved/rejected | instantly, on admin action | management | no |
+| Timesheet uploaded | instantly, on submission | common | no |
+| Timesheet approved/rejected | instantly, on admin action | common | no |
+
+"Pings @channel" controls whether the channel's `SLACK_MENTION_*` prefix is
+added (see ``MENTION_EVENTS`` in `app/services/slack.py`). High-signal events
+ping; routine/decision posts stay quiet to avoid noise.
+
+The two scheduled ones are driven by the **`beat`** service (already in
+`docker-compose.prod.yml`). The two instant ones fire from the API. Slack is
+optional — if the env vars below are blank, notifications just no-op.
+
+### One-time Slack app setup
+
+1. Go to <https://api.slack.com/apps> → **Create New App** → *From scratch*.
+   Name it (e.g. "MH-02 Bot") and pick your workspace. (Free — no paid plan
+   needed.)
+2. **OAuth & Permissions** → *Scopes* → *Bot Token Scopes* → add **`chat:write`**
+   and **`users:read.email`**. (The second one lets the timesheet reminder
+   `@mention` people by looking them up via their email; without it the reminder
+   falls back to plain names. If you change scopes later, click **Reinstall**.)
+3. **Install to Workspace**, then copy the **Bot User OAuth Token** (`xoxb-…`).
+4. In Slack, create the two channels — e.g. `#mh02-management` (admins/accounts)
+   and `#mh02-team` (everyone) — and invite the bot to each: `/invite @MH-02 Bot`.
+5. Get each channel's ID: open the channel → click its name → the **Channel ID**
+   (e.g. `C0123ABCDE`) is at the bottom of the *About* tab.
+
+### Configure `.env`
+
+```
+SLACK_BOT_TOKEN=xoxb-your-token
+SLACK_CHANNEL_MANAGEMENT=C0123ABCDE     # #mh02-management
+SLACK_CHANNEL_COMMON=C0456FGHIJ         # #mh02-team
+# Optional — ping people so Slack emails them. Comma/space separated.
+# Use Slack member IDs (<@U…>) or <!channel> for the whole channel.
+SLACK_MENTION_MANAGEMENT=<@U07ADMIN01> <@U07ACCT01>
+SLACK_MENTION_COMMON=<!channel>
+```
+
+> **Getting the email too:** Slack emails you for @mentions, and (per each
+> member's notification preferences) for channel activity. The
+> `SLACK_MENTION_*` prefix is the reliable lever — set it to the people who must
+> get an email.
+
+Apply and verify:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+
+# Smoke-test the token + channels:
+docker compose -f docker-compose.prod.yml exec api python scripts/send_test_slack.py
+docker compose -f docker-compose.prod.yml exec api python scripts/send_test_slack.py --channel management
+
+# Fire a scheduled reminder on demand (don't wait for the cron):
+docker compose -f docker-compose.prod.yml exec worker \
+  celery -A app.celery_app call app.tasks.weekly_timesheet_reminder
+
+# Confirm the scheduler is up and registered both jobs:
+docker compose -f docker-compose.prod.yml logs beat
+```
+
+To change the schedule, edit `beat_schedule` in `backend/app/celery_app.py`.
+Times follow `TIMEZONE` (default `Asia/Kolkata`).

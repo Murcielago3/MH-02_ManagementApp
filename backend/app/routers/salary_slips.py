@@ -113,6 +113,27 @@ async def _reimbursement_totals(db: AsyncSession, months: list[str]) -> dict:
     return totals
 
 
+async def reopen_month_slip(db: AsyncSession, user_id: int, month_str: str):
+    """After a backdated raise, recompute that month's slip from the new salary
+    and send it back to 'pending' for admin re-approval. No-op if no slip exists."""
+    res = await db.execute(
+        select(SalarySlip).where(SalarySlip.employee_id == user_id, SalarySlip.month == month_str)
+    )
+    slip = res.scalar_one_or_none()
+    if slip is None:
+        return
+    from app.services.salary import resolve_period
+    y, m = _parse_month(month_str)
+    period = await resolve_period(db, user_id, date(y, m, 1))
+    if period is not None and period.monthly_salary is not None:
+        slip.base_salary = _q(period.monthly_salary)
+    tds_amount, net = _compute(slip.base_salary, slip.tds_percent, slip.reimbursement_total, slip.leave_deduction)
+    slip.tds_amount = tds_amount
+    slip.net_total = net
+    slip.status = "pending"
+    await db.commit()
+
+
 def _compute(base_salary, tds_percent, reimb_total, leave_deduction=0):
     base = _q(base_salary)
     tds_pct = _q(tds_percent)
@@ -185,6 +206,25 @@ async def ensure_slips(db: AsyncSession, only_month: Optional[str] = None) -> in
     users_res = await db.execute(select(User).where(User.is_active == True))  # noqa: E712
     users = users_res.scalars().all()
 
+    # Point-in-time salary per month from salary_history; fall back to the
+    # current mirror for users without history (e.g. admin/accounts).
+    from app.models.salary_history import SalaryHistory
+    from app.services.salary import _period_for_date
+    sh_res = await db.execute(
+        select(SalaryHistory)
+        .where(SalaryHistory.user_id.in_([u.id for u in users]))
+        .order_by(SalaryHistory.effective_from)
+    )
+    periods_by_user: dict = {}
+    for sh in sh_res.scalars().all():
+        periods_by_user.setdefault(sh.user_id, []).append(sh)
+
+    def _month_pay(u, y, m):
+        p = _period_for_date(periods_by_user.get(u.id, []), date(y, m, 1))
+        if p is not None and p.monthly_salary is not None:
+            return _q(p.monthly_salary), _q(p.hourly_rate)
+        return _q(u.salary_month), _hourly_rate(u.salary_month, u.salary_hour, snapshot)
+
     # Existing slips for these months
     existing_res = await db.execute(
         select(SalarySlip).where(SalarySlip.month.in_(months))
@@ -197,10 +237,10 @@ async def ensure_slips(db: AsyncSession, only_month: Optional[str] = None) -> in
     created = 0
     for u in users:
         join = u.joining_date
-        hourly = _hourly_rate(u.salary_month, u.salary_hour, snapshot)
         for ms in months:
             y, m = _parse_month(ms)
             month_end = (date(*_add_months(y, m, 1), 1) - timedelta(days=1))
+            base_sal, hourly = _month_pay(u, y, m)
             # In automatic mode, skip months before the employee joined or
             # after they left. An explicit admin run includes everyone.
             if not explicit:
@@ -217,15 +257,15 @@ async def ensure_slips(db: AsyncSession, only_month: Optional[str] = None) -> in
             # In automatic mode, don't create empty slips for accounts with no
             # pay this month (e.g. admin accounts without a salary). An explicit
             # run always creates a slip so every employee is covered.
-            if slip is None and not explicit and _q(u.salary_month) <= 0 and reimb <= 0 and unpaid_days <= 0:
+            if slip is None and not explicit and base_sal <= 0 and reimb <= 0 and unpaid_days <= 0:
                 continue
 
             if slip is None:
-                tds_amount, net = _compute(u.salary_month, tds_percent, reimb, leave_ded)
+                tds_amount, net = _compute(base_sal, tds_percent, reimb, leave_ded)
                 db.add(SalarySlip(
                     employee_id=u.id,
                     month=ms,
-                    base_salary=_q(u.salary_month),
+                    base_salary=_q(base_sal),
                     tds_percent=_q(tds_percent),
                     tds_amount=tds_amount,
                     reimbursement_total=reimb,

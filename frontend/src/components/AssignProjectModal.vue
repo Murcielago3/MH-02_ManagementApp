@@ -37,6 +37,14 @@
                 <input type="checkbox" :value="u.id" v-model="selected" />
                 <span class="emp-avatar" :style="{ background: avatarColor(u.name) }">{{ initials(u.name) }}</span>
                 <span class="emp-name">{{ u.name }}</span>
+                <span
+                  v-if="assignedMap[u.id]"
+                  class="emp-assigned"
+                  :title="`Already assigned to this project (through ${formatDate(assignedMap[u.id])})`"
+                >
+                  <span class="dot"></span>
+                  Assigned till {{ formatDate(assignedMap[u.id]) }}
+                </span>
                 <span class="emp-desig">{{ u.designation || '' }}</span>
               </label>
               <div v-if="filteredUsers.length === 0" class="emp-empty">No employees found.</div>
@@ -89,7 +97,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, computed } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { tasksAPI } from '../api/tasks'
 
 const props = defineProps({
@@ -102,6 +110,32 @@ const search = ref('')
 const selected = ref([])
 const submitting = ref(false)
 const formError = ref('')
+
+// empId -> latest assigned-through date (string YYYY-MM-DD) for this project
+const assignedMap = ref({})
+
+onMounted(async () => {
+  if (!props.project?.id) return
+  try {
+    const { data } = await tasksAPI.getTasks({ project_id: props.project.id })
+    const map = {}
+    for (const t of data || []) {
+      if (!t.assigned_to) continue
+      const till = t.end_date || t.date
+      if (!till) continue
+      if (!map[t.assigned_to] || till > map[t.assigned_to]) map[t.assigned_to] = till
+    }
+    assignedMap.value = map
+  } catch (err) {
+    // non-critical — just skip the indicators
+  }
+})
+
+function formatDate(ds) {
+  if (!ds) return ''
+  const [y, m, d] = ds.split('-')
+  return `${d}/${m}/${y.slice(2)}`
+}
 
 const form = reactive({
   date: new Date().toISOString().split('T')[0],
@@ -246,6 +280,16 @@ async function handleSubmit() {
   color: #fff; font-size: 10px; font-weight: 700;
 }
 .emp-name { font-size: 13px; font-weight: 600; color: var(--color-on-surface); }
+.emp-assigned {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 700; color: #b45309;
+  background: #fef3c7; border: 1px solid #fde68a;
+  padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+}
+.emp-assigned .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #f59e0b; flex-shrink: 0;
+}
 .emp-desig { font-size: 12px; color: var(--color-on-surface-variant); margin-left: auto; }
 .emp-empty { padding: 20px; text-align: center; font-size: 13px; color: var(--color-on-surface-variant); }
 .selected-count { margin: 6px 0 0; font-size: 12px; color: var(--color-on-surface-variant); }

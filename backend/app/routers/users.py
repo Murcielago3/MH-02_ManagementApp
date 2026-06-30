@@ -164,6 +164,24 @@ async def create_user(
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
+    # Seed the initial salary period so timesheet costs / slips are point-in-time.
+    if user.role in ("employee", "project_manager") and (user.salary_month or user.salary_hour):
+        from app.routers.settings import get_settings_snapshot
+        from app.services.salary import compute_hourly_rate
+        from app.models.salary_history import SalaryHistory
+        snap = await get_settings_snapshot(db)
+        rate = compute_hourly_rate(
+            user.salary_month, user.salary_hour,
+            snap["salary_months_per_year"], snap["working_hours_per_month"],
+        )
+        db.add(SalaryHistory(
+            user_id=user.id, monthly_salary=user.salary_month, salary_hour=user.salary_hour,
+            smpy=snap["salary_months_per_year"], whpm=snap["working_hours_per_month"],
+            hourly_rate=rate, effective_from=user.joining_date, note="Initial salary",
+        ))
+        await db.commit()
+        await db.refresh(user)
     return user
 
 @router.patch("/{user_id}")
@@ -187,19 +205,24 @@ async def update_user(
         raise HTTPException(status_code=404, detail="User not found")
     
     update_data = data.model_dump(exclude_unset=True)
-    
-    # Restrict fields for employees (non-managers)
-    if not is_manager:
-        sensitive_fields = {
-            "role", "joining_date", "end_date", "salary_month", "salary_hour",
-            "leaves_allowed", "paid_leave_balance", "pan_number", "aadhar_number",
-            "manager_id", "is_active"
-        }
-        for field in sensitive_fields:
-            if field in update_data:
-                del update_data[field]
 
-    salary_changed = ("salary_month" in update_data) or ("salary_hour" in update_data)
+    # Salary is managed only through the HR increment flow — never edited here.
+    update_data.pop("salary_month", None)
+    update_data.pop("salary_hour", None)
+
+    # Employees (non-managers) cannot edit any HR/profile-sensitive fields.
+    if not is_manager:
+        for field in (
+            "role", "joining_date", "end_date", "leaves_allowed", "paid_leave_balance",
+            "manager_id", "is_active", "pan_number", "aadhar_number",
+            "bank_name", "bank_account_number",
+        ):
+            update_data.pop(field, None)
+
+    # Identity + bank details are strictly admin-only (not project_manager).
+    if not is_admin:
+        for field in ("pan_number", "aadhar_number", "bank_name", "bank_account_number"):
+            update_data.pop(field, None)
 
     for field, value in update_data.items():
         if field == "password" and value:
@@ -209,11 +232,6 @@ async def update_user(
 
     await db.commit()
     await db.refresh(user)
-
-    # A salary change ripples into every project's reserve balance.
-    if salary_changed:
-        from app.routers.projects import _invalidate_reserve
-        _invalidate_reserve()
     return user
     
 @router.delete("/{user_id}", status_code=204)

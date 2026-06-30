@@ -28,6 +28,13 @@ class WeeklyTimesheetEntry(Base):
     # Per-day breakdown for the week, Mon..Sun, e.g. [8, 8, 8, 8, 8, 0, 0].
     # Null for entries submitted before this field existed.
     daily_hours = Column(JSON, nullable=True)
+    # Frozen employee cost for this entry, set at approval from the salary
+    # period(s) covering its days (see app/services/salary.py). Reserve/dashboard
+    # sum this instead of recomputing from the current salary.
+    employee_cost = Column(Numeric(12, 2), nullable=True)
+    # Per-rate-period breakdown: [{salary_history_id, hours, rate, cost}, ...].
+    # Usually one bucket; two when the week straddles a raise.
+    cost_breakdown = Column(JSON, nullable=True)
 
     timesheet = relationship("WeeklyTimesheet", back_populates="entries")
     project = relationship("Project", foreign_keys=[project_id])

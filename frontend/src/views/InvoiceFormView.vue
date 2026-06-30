@@ -166,7 +166,7 @@
                       <input v-model="item.hsn_sac" type="text" placeholder="HSN" />
                     </td>
                     <td>
-                      <input v-model.number="item.amount" type="number" min="0" step="0.01" required />
+                      <CurrencyInput v-model="item.amount" required />
                     </td>
                     <td class="text-center">
                       <button type="button" class="remove-btn" @click="removeItem(idx)" :disabled="form.items.length <= 1">
@@ -273,6 +273,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 import ToastNotification from '../components/ToastNotification.vue'
+import CurrencyInput from '../components/CurrencyInput.vue'
 import { invoicesAPI } from '../api/invoices'
 import { bankAccountsAPI } from '../api/bankAccounts'
 import { projectsAPI } from '../api/projects'

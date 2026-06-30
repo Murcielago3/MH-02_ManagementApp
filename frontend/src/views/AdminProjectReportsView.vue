@@ -278,28 +278,26 @@ const hoursFromTimesheets = computed(() => {
 })
 
 const empRows = computed(() => {
-  const H = hoursFromTimesheets.value
+  // Server returns one row per (employee × salary period) with frozen cost.
+  // Aggregate back to one row per person for the reports distribution, keeping
+  // the point-in-time totals; the per-person rate shown is the blended average.
   const apiRows = summary.value?.employee_rows || []
-  const assignments = projectMeta.value?.assignments || []
-  const users = allUsers.value || []
-
-  const uids = [...H.keys()].filter((uid) => (H.get(uid) || 0) > 0)
-  return uids
-    .map((uid) => {
-      const apiRow = apiRows.find((r) => r.employee_id === uid)
-      const assign = assignments.find((a) => (a.user_id ?? a.user?.id) === uid)
-      const u = users.find((x) => x.id === uid)
-      const hours = H.get(uid) || 0
-      const basePay = Number(apiRow?.base_pay ?? u?.salary_month ?? assign?.base_pay ?? 0) || 0
-      const hourly = previewHourlyFromBasePay(basePay) || 0
-      return {
-        employee_id: uid,
-        name: apiRow?.name ?? u?.name ?? `Employee #${uid}`,
-        hours_worked: hours,
-        hourly_rate: hourly,
-        total_spent: hourly * hours,
-      }
-    })
+  const byUid = new Map()
+  for (const r of apiRows) {
+    const hours = Number(r.hours_worked) || 0
+    if (hours <= 0) continue
+    const cur = byUid.get(r.employee_id) || {
+      employee_id: r.employee_id,
+      name: r.name,
+      hours_worked: 0,
+      total_spent: 0,
+    }
+    cur.hours_worked += hours
+    cur.total_spent += Number(r.total_spent) || 0
+    byUid.set(r.employee_id, cur)
+  }
+  return [...byUid.values()]
+    .map((r) => ({ ...r, hourly_rate: r.hours_worked > 0 ? r.total_spent / r.hours_worked : 0 }))
     .sort((a, b) => b.total_spent - a.total_spent)
 })
 const hasEmpData = computed(() => empRows.value.length > 0)

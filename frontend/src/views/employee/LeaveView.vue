@@ -42,17 +42,18 @@
         <div class="panel apply-panel">
           <div class="panel-header">
             <h3 class="panel-title">Apply for Leave</h3>
+            <span class="panel-hint">Backdated requests accepted up to 1 month.</span>
           </div>
           <div class="panel-body">
             <form @submit.prevent="submitLeave" class="leave-form">
               <div class="form-row">
                 <div class="form-group">
                   <label>Start Date</label>
-                  <input type="date" v-model="form.start_date" required class="field-input" :min="todayDate" />
+                  <input type="date" v-model="form.start_date" required class="field-input" :min="minLeaveDate" />
                 </div>
                 <div class="form-group">
                   <label>End Date</label>
-                  <input type="date" v-model="form.end_date" required class="field-input" :min="form.start_date || todayDate" />
+                  <input type="date" v-model="form.end_date" required class="field-input" :min="form.start_date || minLeaveDate" />
                 </div>
               </div>
 
@@ -168,6 +169,7 @@ import EmployeeLayout from '../../components/EmployeeLayout.vue'
 import { countWorkingDays } from '../../stores/estimate'
 import { usersAPI } from '../../api/users'
 import { leavesAPI } from '../../api/leaves'
+import { notifySuccess } from '../../stores/notifier'
 
 const currentUser = ref(null)
 const leaveHistory = ref([])
@@ -175,6 +177,14 @@ const loadingHistory = ref(true)
 const submitting = ref(false)
 
 const todayDate = new Date().toISOString().split('T')[0]
+
+// Employees can backdate leaves up to one month — for emergencies or forgotten
+// applications. Anything older has to be filed by an admin.
+const minLeaveDate = (() => {
+  const d = new Date()
+  d.setMonth(d.getMonth() - 1)
+  return d.toISOString().split('T')[0]
+})()
 
 const form = reactive({
   start_date: '',
@@ -252,14 +262,14 @@ const submitLeave = async () => {
       end_date: form.end_date,
       reason: form.reason
     })
-    alert('Leave applied successfully!')
+    notifySuccess('Leave request submitted.')
     // Reset
     form.start_date = ''
     form.end_date = ''
     form.reason = ''
     await fetchLeaveHistory()
   } catch (err) {
-    alert('Error applying for leave: ' + (err.response?.data?.detail || err.message))
+    console.error(err)
   } finally {
     submitting.value = false
   }
@@ -370,6 +380,12 @@ const formatStatus = (s) => {
   color: var(--color-on-surface);
   margin: 0;
   text-transform: uppercase; letter-spacing: 0.06em;
+}
+.panel-hint {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+  font-style: italic;
 }
 .record-count {
   font-size: 11px; font-weight: 600;

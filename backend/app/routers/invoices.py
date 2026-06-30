@@ -366,13 +366,13 @@ def clean_place_of_supply(val: Optional[str]) -> str:
 def get_formatted_invoice_number(invoice) -> str:
     num_str = invoice.invoice_number
     if not num_str:
-        return f"AO - {invoice.id:04d}"
-    
+        return f"AO - {invoice.id:03d}"
+
     import re
     digits = re.findall(r'\d+', num_str)
     if digits:
         num_val = int(digits[-1])
-        return f"AO - {num_val:04d}"
+        return f"AO - {num_val:03d}"
     else:
         clean = num_str.replace("AO-", "").replace("AO -", "").strip()
         return f"AO - {clean}"

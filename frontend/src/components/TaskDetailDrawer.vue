@@ -46,6 +46,74 @@
           </div>
         </div>
 
+        <!-- Subtasks -->
+        <div class="subtasks-section">
+          <div class="subtasks-header">
+            <h4>
+              <span class="material-symbols-outlined">checklist</span>
+              Subtasks <span class="subtasks-count" v-if="subtasks.length">{{ subtasks.length }}</span>
+            </h4>
+            <button v-if="!addingSubtask" type="button" class="add-subtask-btn" @click="startAddSubtask">
+              <span class="material-symbols-outlined">add</span> Add
+            </button>
+          </div>
+
+          <ul v-if="subtasks.length" class="subtasks-list">
+            <li v-for="s in subtasks" :key="s.id" class="subtask-item" :class="{ done: s.status === 'completed' }">
+              <button class="subtask-check" :class="{ checked: s.status === 'completed' }" @click="toggleSubtask(s)" :title="s.status === 'completed' ? 'Mark as pending' : 'Mark as complete'">
+                <span v-if="s.status === 'completed'" class="material-symbols-outlined">check</span>
+              </button>
+              <div class="subtask-body">
+                <div class="subtask-title">{{ s.title }}</div>
+                <div class="subtask-meta">
+                  <span v-if="s.duration_hours" class="subtask-duration">
+                    <span class="material-symbols-outlined">schedule</span>{{ s.duration_hours }}h
+                  </span>
+                  <span v-if="s.description" class="subtask-desc">{{ s.description }}</span>
+                </div>
+              </div>
+              <button class="subtask-remove" @click="removeSubtask(s)" title="Delete">
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </li>
+          </ul>
+          <div v-else-if="!addingSubtask && !subtasksLoading" class="subtasks-empty">No subtasks yet.</div>
+          <div v-if="subtasksLoading" class="subtasks-empty">Loading…</div>
+
+          <div v-if="addingSubtask" class="subtask-add-form">
+            <input
+              v-model="newSubtask.title"
+              type="text"
+              placeholder="Subtask title"
+              class="subtask-input"
+              @keyup.enter="submitSubtask"
+              ref="subtaskTitleRef"
+            />
+            <div class="subtask-add-row">
+              <input
+                v-model.number="newSubtask.duration_hours"
+                type="number"
+                min="0"
+                step="0.5"
+                placeholder="Hours"
+                class="subtask-input subtask-input-hours"
+              />
+              <input
+                v-model="newSubtask.description"
+                type="text"
+                placeholder="Description (optional)"
+                class="subtask-input"
+              />
+            </div>
+            <div class="subtask-add-actions">
+              <button type="button" class="subtask-cancel" @click="cancelAddSubtask">Cancel</button>
+              <button type="button" class="subtask-save" :disabled="!newSubtask.title || subtaskSubmitting" @click="submitSubtask">
+                {{ subtaskSubmitting ? 'Saving…' : 'Save' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Admin: Edit / Delete -->
         <div v-if="isAdmin" class="drawer-actions admin-actions">
           <button class="btn-edit" @click="$emit('edit', task)">
@@ -80,7 +148,8 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch, nextTick } from 'vue'
+import { subtasksAPI } from '../api/subtasks'
 
 const props = defineProps({
   task: { type: Object, required: true },
@@ -103,6 +172,80 @@ const formatDate = (d) => {
 const formatStatus = (s) => {
   if (!s) return ''
   return s.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+}
+
+// ── Subtasks ──
+const subtasks = ref([])
+const subtasksLoading = ref(false)
+const addingSubtask = ref(false)
+const subtaskSubmitting = ref(false)
+const subtaskTitleRef = ref(null)
+const newSubtask = ref({ title: '', description: '', duration_hours: null })
+
+async function loadSubtasks() {
+  if (!props.task?.id) return
+  subtasksLoading.value = true
+  try {
+    const { data } = await subtasksAPI.list(props.task.id)
+    subtasks.value = data || []
+  } catch (err) {
+    // silently — surface a toast outside this component if needed
+  } finally {
+    subtasksLoading.value = false
+  }
+}
+
+watch(() => props.task?.id, loadSubtasks, { immediate: true })
+
+function startAddSubtask() {
+  newSubtask.value = { title: '', description: '', duration_hours: null }
+  addingSubtask.value = true
+  nextTick(() => subtaskTitleRef.value?.focus())
+}
+
+function cancelAddSubtask() {
+  addingSubtask.value = false
+  newSubtask.value = { title: '', description: '', duration_hours: null }
+}
+
+async function submitSubtask() {
+  if (!newSubtask.value.title || subtaskSubmitting.value) return
+  subtaskSubmitting.value = true
+  try {
+    const { data } = await subtasksAPI.create(props.task.id, {
+      title: newSubtask.value.title.trim(),
+      description: newSubtask.value.description?.trim() || null,
+      duration_hours: newSubtask.value.duration_hours || null,
+    })
+    subtasks.value.push(data)
+    cancelAddSubtask()
+  } catch (err) {
+    // Could emit an error event; keeping silent for now
+  } finally {
+    subtaskSubmitting.value = false
+  }
+}
+
+async function toggleSubtask(s) {
+  const next = s.status === 'completed' ? 'pending' : 'completed'
+  const prev = s.status
+  s.status = next
+  try {
+    await subtasksAPI.patch(s.id, { status: next })
+  } catch (err) {
+    s.status = prev
+  }
+}
+
+async function removeSubtask(s) {
+  const idx = subtasks.value.findIndex(x => x.id === s.id)
+  if (idx === -1) return
+  const removed = subtasks.value.splice(idx, 1)[0]
+  try {
+    await subtasksAPI.remove(s.id)
+  } catch (err) {
+    subtasks.value.splice(idx, 0, removed)
+  }
 }
 </script>
 
@@ -280,4 +423,169 @@ const formatStatus = (s) => {
   color: #059669;
 }
 .completed-badge .material-symbols-outlined { font-size: 20px; }
+
+/* ── Subtasks ── */
+.subtasks-section {
+  margin-bottom: 24px;
+  padding-top: 4px;
+}
+.subtasks-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.subtasks-header h4 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-on-surface-variant);
+}
+.subtasks-header h4 .material-symbols-outlined { font-size: 16px; }
+.subtasks-count {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-weight: 700;
+  text-transform: none;
+}
+.add-subtask-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary);
+  cursor: pointer;
+}
+.add-subtask-btn:hover { background: var(--color-primary-light); border-color: var(--color-primary); }
+.add-subtask-btn .material-symbols-outlined { font-size: 14px; }
+
+.subtasks-list { list-style: none; padding: 0; margin: 0 0 10px; }
+.subtask-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+.subtask-item:last-child { border-bottom: none; }
+.subtask-item.done .subtask-title { text-decoration: line-through; color: var(--color-on-surface-variant); }
+
+.subtask-check {
+  flex-shrink: 0;
+  width: 18px; height: 18px;
+  border: 2px solid var(--color-outline);
+  border-radius: 4px;
+  background: var(--color-surface);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  margin-top: 2px;
+  padding: 0;
+}
+.subtask-check.checked {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.subtask-check .material-symbols-outlined { color: #fff; font-size: 12px; }
+
+.subtask-body { flex: 1; min-width: 0; }
+.subtask-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  line-height: 1.4;
+}
+.subtask-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  margin-top: 3px;
+  align-items: center;
+}
+.subtask-duration {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 600;
+}
+.subtask-duration .material-symbols-outlined { font-size: 12px; }
+.subtask-desc { line-height: 1.4; }
+
+.subtask-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  padding: 2px;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+.subtask-item:hover .subtask-remove { opacity: 1; }
+.subtask-remove:hover { background: #fee2e2; color: var(--color-error); }
+.subtask-remove .material-symbols-outlined { font-size: 16px; }
+
+.subtasks-empty {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  padding: 8px 0;
+  font-style: italic;
+}
+
+.subtask-add-form {
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.subtask-add-row { display: flex; gap: 8px; }
+.subtask-input {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid var(--color-outline);
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+  background: var(--color-surface);
+}
+.subtask-input:focus { border-color: var(--color-primary); }
+.subtask-input-hours { flex: 0 0 80px; }
+.subtask-add-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
+.subtask-cancel {
+  background: none;
+  border: 1px solid var(--color-outline);
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+}
+.subtask-save {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.subtask-save:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>

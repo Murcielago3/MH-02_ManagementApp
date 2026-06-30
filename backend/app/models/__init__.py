@@ -15,3 +15,5 @@ from app.models.settings import Settings
 from app.models.estimate import Estimate, EstimateEmployee
 from app.models.salary_slip import SalarySlip
 from app.models.holiday import Holiday
+from app.models.subtask import Subtask
+from app.models.salary_history import SalaryHistory
