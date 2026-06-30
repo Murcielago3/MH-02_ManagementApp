@@ -276,14 +276,61 @@ async def generate_invoice_pdf(
     from weasyprint import HTML
     pdf_bytes = HTML(string=html, base_url="http://127.0.0.1:8000").write_pdf()
 
-    filename = f"invoice_{invoice.invoice_number or invoice.id}.pdf"
+    # Filename = the invoice number (e.g. AO-007.pdf). Proformas without a
+    # number fall back to "proforma_<id>" so the download still has a sane name.
+    if invoice.invoice_number:
+        base = invoice.invoice_number
+    else:
+        base = f"proforma_{invoice.id}"
+    # Strip path-unsafe characters defensively.
+    safe = "".join(c for c in base if c.isalnum() or c in "-_.")
+    filename = f"{safe}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f"attachment; filename={filename}"
+            "Content-Disposition": f'attachment; filename="{filename}"'
         }
     )
+
+
+@router.get("/{invoice_id}/preview-html")
+async def get_invoice_preview_html(
+    invoice_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_admin)
+):
+    """Returns the exact HTML used to render the PDF.
+
+    The frontend embeds this in an iframe so the preview and the downloaded
+    PDF are guaranteed identical — no separate Vue template can drift from it.
+    """
+    from sqlalchemy.orm import selectinload
+    from app.routers.settings import get_or_create_settings
+    result = await db.execute(
+        select(Invoice)
+        .options(
+            selectinload(Invoice.items),
+            selectinload(Invoice.bank_account),
+            selectinload(Invoice.client),
+            selectinload(Invoice.project),
+        )
+        .where(Invoice.id == invoice_id)
+    )
+    invoice = result.scalar_one_or_none()
+    if not invoice:
+        raise HTTPException(404, "Invoice not found")
+
+    if invoice.bank_account_id and invoice.bank_account is None:
+        from app.models.bank_account import BankAccount
+        ba_res = await db.execute(
+            select(BankAccount).where(BankAccount.id == invoice.bank_account_id)
+        )
+        invoice.bank_account = ba_res.scalar_one_or_none()
+
+    settings = await get_or_create_settings(db)
+    html = render_invoice_html(invoice, settings)
+    return Response(content=html, media_type="text/html")
 
 
 def number_to_words(amount: float) -> str:
@@ -407,13 +454,16 @@ def render_invoice_html(invoice, settings=None) -> str:
     spacer_height = max(0, ITEMS_AREA_H - ITEMS_THEAD_H - (num_items * ITEMS_ROW_H))
 
     items_rows = ""
-    base = 'padding:5px 6px; font-size:11px; border-top:1px solid #000;'
+    # !important needed: the items table is `.inner`, and `.inner td { border:0 !important }`
+    # would otherwise strip these separators (that's why multi-item rows showed no
+    # dividers in the PDF while the preview had them).
+    base = 'padding:5px 6px; font-size:11px; border-top:1px solid #000 !important;'
     for i, item in enumerate(invoice.items, 1):
         items_rows += f"""
         <tr style="height:{ITEMS_ROW_H}mm;">
-            <td style="{base} border-right:1px solid #000; text-align:center;">{i}</td>
-            <td style="{base} border-right:1px solid #000;">{item.description}</td>
-            <td style="{base} border-right:1px solid #000;">{item.hsn_sac or ''}</td>
+            <td style="{base} border-right:1px solid #000 !important; text-align:center;">{i}</td>
+            <td style="{base} border-right:1px solid #000 !important;">{item.description}</td>
+            <td style="{base} border-right:1px solid #000 !important;">{item.hsn_sac or ''}</td>
             <td style="{base} text-align:right;">&#8377;{format_indian_currency(float(item.amount))}</td>
         </tr>"""
 
@@ -523,11 +573,12 @@ def render_invoice_html(invoice, settings=None) -> str:
   .firm-name {{ font-size: 12px; font-weight: bold; margin-bottom: 2px; }}
   .firm-details {{ font-size: 7.5px; line-height: 1.4; color: #222; }}
   .invoice-type {{ font-size: 18px; font-weight: bold; letter-spacing: 0.6px; }}
-  .invoice-num {{ font-size: 6px; margin-top: 4px; color: #333; }}
+  .invoice-num {{ font-size: 9px; margin-top: 4px; color: #333; }}
 
   /* ===== META ===== */
-  .meta-label {{ font-size: 5.5px; color: #555; margin-bottom: 2px; }}
-  .meta-val-bold {{ font-weight: bold; font-size: 7.5px; margin-bottom: 2px; }}
+  .meta-label {{ font-size: 8.5px; color: #555; margin-bottom: 2px; }}
+  .meta-val-bold {{ font-weight: bold; font-size: 10.5px; margin-bottom: 2px; }}
+  .meta-val {{ font-size: 10.5px; font-weight: 600; }}
   .meta-cell {{ padding: 5px 8px; }}
 
   /* ===== ITEMS ===== */
@@ -542,16 +593,16 @@ def render_invoice_html(invoice, settings=None) -> str:
   .col-hsn  {{ width: 95px; }}
   .col-amt  {{ width: 110px; text-align: right; }}
 
-  /* ===== FOOTER (bank + totals) ===== */
+  /* ===== FOOTER (bank + totals) — bumped to match the +3 address size ===== */
   .foot-left {{ width: 55%; padding: 8px 10px; }}
   .foot-right {{ width: 45%; padding: 8px 10px; }}
-  .bank-tbl td {{ padding: 2px 0; font-size: 7px; }}
-  .bank-label {{ width: 130px; color: #444; font-weight: 600; }}
-  .totals-tbl td {{ padding: 3px 6px; font-size: 7px; }}
+  .bank-tbl td {{ padding: 2px 0; font-size: 10.5px; }}
+  .bank-label {{ width: 150px; color: #444; font-weight: 600; }}
+  .totals-tbl td {{ padding: 3px 6px; font-size: 10.5px; }}
   .tot-val {{ text-align: right; }}
   .total-final td {{
     font-weight: bold;
-    font-size: 8px;
+    font-size: 11.5px;
     border-top: 1.5px solid #000 !important;
     padding-top: 5px;
   }}
@@ -559,19 +610,19 @@ def render_invoice_html(invoice, settings=None) -> str:
     margin-top: 8px;
     padding-top: 6px;
     border-top: 1px solid #ccc;
-    font-size: 6.5px;
+    font-size: 10px;
     font-style: italic;
     color: #333;
   }}
   .words-label {{ font-weight: bold; font-style: normal; margin-bottom: 2px; }}
 
   /* ===== T&C + SIGNATORY ===== */
-  .tc-cell {{ padding: 6px 10px; font-size: 6px; line-height: 1.4; }}
-  .tc-label {{ font-weight: bold; font-size: 7px; margin-bottom: 3px; }}
-  .sig-cell {{ padding: 8px 10px; font-size: 7px; }}
-  .sig-name {{ font-weight: bold; font-size: 8px; margin-top: 22mm; }}
+  .tc-cell {{ padding: 6px 10px; font-size: 9.5px; line-height: 1.4; }}
+  .tc-label {{ font-weight: bold; font-size: 10.5px; margin-bottom: 3px; }}
+  .sig-cell {{ padding: 8px 10px; font-size: 10.5px; }}
+  .sig-name {{ font-weight: bold; font-size: 11.5px; margin-top: 22mm; }}
   .sig-role {{ color: #444; margin-top: 2px; }}
-  .auth-label {{ font-size: 6px; color: #555; }}
+  .auth-label {{ font-size: 9.5px; color: #555; }}
 </style>
 </head>
 <body>
@@ -605,17 +656,17 @@ def render_invoice_html(invoice, settings=None) -> str:
     </tr>
     <tr style=\"height:{DATE_ROW_H}mm;\">
       <td style=\"padding:5px 8px;\">
-        <span class=\"meta-label\">Invoice Date:</span> {date_str}
+        <span class=\"meta-label\">Invoice Date:</span> <span class=\"meta-val\">{date_str}</span>
       </td>
       <td style=\"padding:5px 8px;\">
-        <span class=\"meta-label\">Place of Supply:</span> {clean_place_of_supply(invoice.place_of_supply)}
+        <span class=\"meta-label\">Place of Supply:</span> <span class=\"meta-val\">{clean_place_of_supply(invoice.place_of_supply)}</span>
       </td>
     </tr>
     <tr style=\"height:{BILLSHIP_H}mm;\">
       <td style=\"padding:5px 8px;\">
         <div class=\"meta-label\">Bill To</div>
         <div class=\"meta-val-bold\">{invoice.bill_to_name or ''}</div>
-        <div style=\"font-size:7.5px; line-height:1.4; margin-top:2px;\">
+        <div style=\"font-size:10.5px; line-height:1.4; margin-top:2px;\">
           {(invoice.bill_to_address or '').replace(chr(10), '<br>')}
           {'<br>GSTIN ' + invoice.bill_to_gstin if invoice.bill_to_gstin else ''}
         </div>
@@ -623,7 +674,7 @@ def render_invoice_html(invoice, settings=None) -> str:
       <td style=\"padding:5px 8px;\">
         <div class=\"meta-label\">Ship To</div>
         <div class=\"meta-val-bold\">{invoice.ship_to_name or ''}</div>
-        <div style=\"font-size:7.5px; line-height:1.4; margin-top:2px;\">
+        <div style=\"font-size:10.5px; line-height:1.4; margin-top:2px;\">
           {(invoice.ship_to_address or '').replace(chr(10), '<br>')}
           {'<br>GSTIN ' + invoice.ship_to_gstin if invoice.ship_to_gstin else ''}
         </div>
@@ -639,16 +690,16 @@ def render_invoice_html(invoice, settings=None) -> str:
         <table class=\"inner\" style=\"border-collapse:collapse;\">
           <colgroup><col style=\"width:32px\"><col><col style=\"width:95px\"><col style=\"width:110px\"></colgroup>
           <tr class=\"items-head\" style=\"height:{ITEMS_THEAD_H}mm;\">
-            <td class=\"col-num\" style=\"border-right:1px solid #000;\">#</td>
-            <td style=\"padding:5px 6px; border-right:1px solid #000;\">Service / Description</td>
-            <td style=\"padding-left:6px; border-right:1px solid #000;\">HSN/SAC</td>
+            <td class=\"col-num\" style=\"border-right:1px solid #000 !important;\">#</td>
+            <td style=\"padding:5px 6px; border-right:1px solid #000 !important;\">Service / Description</td>
+            <td style=\"padding-left:6px; border-right:1px solid #000 !important;\">HSN/SAC</td>
             <td style=\"padding-right:6px; text-align:right;\">Amount</td>
           </tr>
           {items_rows}
           <tr style=\"height:{spacer_height}mm;\">
-            <td style=\"border-right:1px solid #000;\"></td>
-            <td style=\"border-right:1px solid #000;\"></td>
-            <td style=\"border-right:1px solid #000;\"></td>
+            <td style=\"border-right:1px solid #000 !important;\"></td>
+            <td style=\"border-right:1px solid #000 !important;\"></td>
+            <td style=\"border-right:1px solid #000 !important;\"></td>
             <td></td>
           </tr>
         </table>

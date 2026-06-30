@@ -91,6 +91,20 @@
               <span class="material-symbols-outlined" style="font-size:14px;">info</span>
               {{ taxTypeIndicator.text }}
             </div>
+
+            <!-- Subject (auto = project name, or custom) -->
+            <div class="form-group mt-16">
+              <label style="display:flex; align-items:center; gap:8px; margin-bottom:8px; cursor:pointer; font-weight:500;">
+                <input type="checkbox" v-model="includeProjectAsSubject" style="width:auto; margin:0;" />
+                <span>Include project name as subject</span>
+              </label>
+              <input
+                v-model="form.subject"
+                type="text"
+                placeholder="Invoice subject"
+                :disabled="includeProjectAsSubject"
+              />
+            </div>
           </div>
 
           <!-- Section: Billing Details -->
@@ -278,7 +292,7 @@ import { invoicesAPI } from '../api/invoices'
 import { bankAccountsAPI } from '../api/bankAccounts'
 import { projectsAPI } from '../api/projects'
 import { clientsAPI } from '../api/clients'
-import { useInvoiceDrafts } from '../composables/useInvoiceDrafts'
+import { useInvoiceDrafts, newInvoiceDraftId } from '../composables/useInvoiceDrafts'
 
 const route = useRoute()
 const router = useRouter()
@@ -315,6 +329,19 @@ const projects = ref([])
 const bankAccounts = ref([])
 const selectedClient = ref(null)
 const submitting = ref(false)
+// When on, the invoice subject mirrors the selected project's name and the
+// subject field is locked. When off, the admin types a custom subject.
+const includeProjectAsSubject = ref(true)
+
+// Next invoice number = highest existing trailing number + 1 (e.g. AO-006 -> AO-007).
+function nextInvoiceNumber(invoices) {
+  let max = 0
+  for (const inv of invoices || []) {
+    const m = String(inv.invoice_number || '').match(/(\d+)\s*$/)
+    if (m) max = Math.max(max, parseInt(m[1], 10))
+  }
+  return `AO-${String(max + 1).padStart(3, '0')}`
+}
 
 const toastMsg = ref('')
 const toastType = ref('success')
@@ -369,21 +396,33 @@ function getFormSnapshot() {
   }
 }
 
-function autoSave() {
-  if (isEditing.value) return
-  activeDraftId.value = saveDraftToStorage(activeDraftId.value, getFormSnapshot())
+// Has the user actually entered something? Avoids saving blank drafts from the
+// form's defaults (which would clutter the list / overwrite real work).
+function invoiceHasContent() {
+  if (form.bill_to_name || form.project_id || form.invoice_number || form.subject) return true
+  return form.items.some(i => (i.description && i.description.trim()) || Number(i.amount) > 0)
 }
 
-function handleSaveDraft() {
-  activeDraftId.value = saveDraftToStorage(activeDraftId.value, getFormSnapshot())
+function autoSave() {
+  if (isEditing.value) return
+  if (!invoiceHasContent()) return
+  // Claim the id synchronously so repeated autosaves upsert the same draft.
+  if (!activeDraftId.value) activeDraftId.value = newInvoiceDraftId()
+  saveDraftToStorage(activeDraftId.value, getFormSnapshot())
+}
+
+async function handleSaveDraft() {
+  if (!activeDraftId.value) activeDraftId.value = newInvoiceDraftId()
+  await saveDraftToStorage(activeDraftId.value, getFormSnapshot())
   showToast('Draft saved')
 }
 
 onMounted(async () => {
   try {
-    const [pRes, bRes] = await Promise.all([
+    const [pRes, bRes, iRes] = await Promise.all([
       projectsAPI.getProjects(),
-      bankAccountsAPI.getBankAccounts()
+      bankAccountsAPI.getBankAccounts(),
+      invoicesAPI.getInvoices().catch(() => ({ data: [] })),
     ])
     projects.value = pRes.data
     bankAccounts.value = bRes.data
@@ -407,7 +446,7 @@ onMounted(async () => {
       }
     } else if (activeDraftId.value) {
       // Resume draft mode
-      const draft = getDraft(activeDraftId.value)
+      const draft = await getDraft(activeDraftId.value)
       if (draft) {
         populateFormFromData(draft.data)
         // Resolve the client from the project
@@ -422,6 +461,12 @@ onMounted(async () => {
         }
         showToast('Draft restored')
       }
+    }
+
+    // Fresh create (not editing, no number restored from a draft): prefill the
+    // next invoice number = last invoice number + 1. Admin can still edit it.
+    if (!isEditing.value && !form.invoice_number) {
+      form.invoice_number = nextInvoiceNumber(iRes.data || [])
     }
   } catch (err) {
     showToast('Failed to load required data', 'error')
@@ -466,7 +511,7 @@ const onProjectSelect = () => {
   }
   const proj = projects.value.find(p => p.id === form.project_id)
   if (proj) {
-    form.subject = proj.name
+    if (includeProjectAsSubject.value) form.subject = proj.name
     if (proj.client) {
       selectedClient.value = proj.client
       form.client_id = proj.client.id
@@ -483,6 +528,14 @@ const onProjectSelect = () => {
     form.subject = ''
   }
 }
+
+// Toggling the switch on snaps the subject to the current project name.
+watch(includeProjectAsSubject, (on) => {
+  if (on) {
+    const proj = projects.value.find(p => p.id === form.project_id)
+    form.subject = proj ? proj.name : ''
+  }
+})
 
 const taxType = computed(() => {
   const gst = form.bill_to_gstin
@@ -576,11 +629,11 @@ const submitInvoice = async () => {
       setTimeout(() => { router.push(`/admin/invoices/${editingId.value}`) }, 1000)
     } else {
       // Delete the draft on successful creation
+      if (autoSaveTimer) clearInterval(autoSaveTimer)
       if (activeDraftId.value) {
-        deleteDraft(activeDraftId.value)
+        await deleteDraft(activeDraftId.value)
         activeDraftId.value = null
       }
-      if (autoSaveTimer) clearInterval(autoSaveTimer)
       await invoicesAPI.createInvoice(payload)
       showToast('Invoice created successfully!')
       setTimeout(() => { router.push('/admin/invoices') }, 1000)

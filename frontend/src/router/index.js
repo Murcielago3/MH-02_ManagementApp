@@ -252,4 +252,20 @@ router.beforeEach((to, from, next) => {
   }
 })
 
+// Recover from stale lazy-loaded chunks after a redeploy. An already-open tab
+// holds an old index.html whose route-chunk filenames no longer exist on the
+// server, so the dynamic import 404s. Force a full load of the target route to
+// fetch fresh assets — guarded so it can't loop.
+router.onError((error, to) => {
+  const msg = (error && error.message) || ''
+  const isChunkError = /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(msg)
+  if (isChunkError) {
+    const last = Number(sessionStorage.getItem('__mh02_chunk_reload') || 0)
+    if (Date.now() - last > 10000) {
+      sessionStorage.setItem('__mh02_chunk_reload', String(Date.now()))
+      window.location.assign(to && to.fullPath ? to.fullPath : window.location.pathname)
+    }
+  }
+})
+
 export default router

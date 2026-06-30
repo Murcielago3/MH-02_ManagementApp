@@ -182,7 +182,7 @@
                 <button class="icon-btn" @click="goToDetail(inv.id)" title="View">
                   <span class="material-symbols-outlined">visibility</span>
                 </button>
-                <button class="icon-btn" @click="downloadPDF(inv.id)" title="Download PDF">
+                <button class="icon-btn" @click="downloadPDF(inv)" title="Download PDF">
                   <span class="material-symbols-outlined">download</span>
                 </button>
                 <button class="icon-btn icon-btn--danger" @click="confirmDelete(inv)" title="Delete">
@@ -230,7 +230,7 @@
 
     <!-- Delete Confirmation Modal -->
     <Teleport to="body">
-      <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null">
+      <div v-if="deleteTarget" class="modal-backdrop">
         <div class="modal">
           <div class="modal-header">
             <div class="modal-icon-wrap danger">
@@ -370,13 +370,17 @@ const formatMonth = (dateStr) => {
 
 const formatAmount = (val) => Number(val || 0).toLocaleString('en-IN')
 
-const downloadPDF = async (id) => {
+const downloadPDF = async (inv) => {
+  // Accept the row object so we can name the file as the invoice number
+  // (matching server's Content-Disposition). Falls back to id-based name.
+  const id = typeof inv === 'object' ? inv.id : inv
   try {
     const res = await invoicesAPI.downloadPDF(id)
     const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
     const a = document.createElement('a')
     a.href = url
-    a.download = `invoice_${id}.pdf`
+    const number = typeof inv === 'object' ? inv.invoice_number : null
+    a.download = number ? `${number}.pdf` : `proforma_${id}.pdf`
     a.click()
     URL.revokeObjectURL(url)
   } catch (err) {
@@ -388,8 +392,8 @@ const confirmDelete = (inv) => {
   deleteTarget.value = inv
 }
 
-function handleDeleteDraft(draftId) {
-  deleteDraft(draftId)
+async function handleDeleteDraft(draftId) {
+  await deleteDraft(draftId)
   showToast('Draft deleted')
 }
 

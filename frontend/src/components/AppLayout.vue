@@ -157,7 +157,7 @@ import { computed, onMounted, ref, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { usersAPI } from '../api/users'
-import { getAppLogoUrl } from '../utils/logo'
+import { getBrandLogoUrl } from '../utils/logo'
 
 const route     = useRoute()
 const router    = useRouter()
@@ -167,7 +167,7 @@ const showProfileMenu = ref(false)
 const projectsExpanded = ref(false)
 const sidebarOpen     = ref(false)
 
-const logoUrl = getAppLogoUrl()
+const logoUrl = getBrandLogoUrl()
 
 const brandName = computed(() => {
   if (currentUser.value?.name) return currentUser.value.name
@@ -213,6 +213,7 @@ const navItemsBottom = [
   { path: '/admin/tasks',      icon: 'task_alt',        label: 'Tasks' },
   { path: '/admin/leaves',     icon: 'event_busy',      label: 'Leaves' },
   { path: '/admin/timesheets', icon: 'pending_actions', label: 'Timesheets' },
+  { path: '/employee/timesheet', icon: 'schedule',        label: 'My Timesheet' },
   { path: '/admin/expenses',        icon: 'payments',        label: 'Expenses' },
   { path: '/admin/reimbursements', icon: 'request_quote',   label: 'Reimbursements' },
   { path: '/admin/salary-slips',   icon: 'paid',            label: 'Salary Slips' },

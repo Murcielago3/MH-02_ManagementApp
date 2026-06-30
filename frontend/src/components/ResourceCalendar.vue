@@ -74,7 +74,6 @@
                   class="rc-ribbon"
                   :class="{ completed: rb.task.status === 'completed', delayed: isDelayed(rb.task) }"
                   :style="rbStyle(rb)"
-                  @click.stop="$emit('ribbon-click', rb.task)"
                   @dblclick.stop="onSplit($event, rb.task)"
                   @mousedown.stop
                 >
@@ -363,6 +362,15 @@ onUnmounted(() => {
 // Employees
 const displayEmployees = computed(() => props.filterEmployeeId ? props.employees.filter(e => e.id === props.filterEmployeeId) : props.employees)
 
+// id → { name }, used by the drag-preview label. (Was referenced in the template
+// but never defined — accessing userMap[empId] on a move/clone drag threw
+// "Cannot read properties of undefined", crashing the calendar render.)
+const userMap = computed(() => {
+  const m = {}
+  for (const e of (props.employees || [])) m[e.id] = { name: e.name }
+  return m
+})
+
 // Hours
 function getAssignedHours(eid) {
   if (isEmpLeave(eid, todayStr)) return 0
@@ -487,7 +495,7 @@ function isDragHL(ds, eid) {
   return ds >= mn && ds <= mx
 }
 
-function onCellDown(e, ds, eid) { drag.mode = 'create'; drag.empId = eid; drag.startDate = ds; drag.currentDate = ds; drag.mx = e.clientX; drag.my = e.clientY; document.body.style.userSelect = 'none'; startAutoScroll() }
+function onCellDown(e, ds, eid) { drag.mode = 'create'; drag.empId = eid; drag.startDate = ds; drag.currentDate = ds; drag.mx = e.clientX; drag.my = e.clientY; drag.downX = e.clientX; drag.downY = e.clientY; drag.moved = false; document.body.style.userSelect = 'none'; startAutoScroll() }
 
 function onRibbonDown(e, task) {
   if (isSplitMode.value) {
@@ -511,11 +519,14 @@ function onRibbonDown(e, task) {
   drag.offsetDays = daysBetween(task.date, ds)
   drag.mx = e.clientX
   drag.my = e.clientY
+  drag.downX = e.clientX
+  drag.downY = e.clientY
+  drag.moved = false
   document.body.style.userSelect = 'none'
   startAutoScroll()
 }
 
-function onHandleDown(e, task, mode) { 
+function onHandleDown(e, task, mode) {
   drag.mode = mode // 'resize-start' or 'resize-end'
   drag.taskId = task.id
   drag.empId = task.assigned_to
@@ -525,6 +536,9 @@ function onHandleDown(e, task, mode) {
   drag.currentDate = mode === 'resize-start' ? task.date : (task.end_date || task.date)
   drag.mx = e.clientX
   drag.my = e.clientY
+  drag.downX = e.clientX
+  drag.downY = e.clientY
+  drag.moved = false
   document.body.style.userSelect = 'none'
   startAutoScroll()
 }
@@ -559,7 +573,12 @@ function onSplit(e, task) {
 function onMove(e) {
   if (!drag.mode) return
   drag.mx = e.clientX; drag.my = e.clientY
-  
+  // Mark as a real drag only once the pointer moves past a small threshold, so a
+  // plain click (down+up with no movement) is NOT treated as a move/clone.
+  if (!drag.moved && (Math.abs(e.clientX - drag.downX) > 4 || Math.abs(e.clientY - drag.downY) > 4)) {
+    drag.moved = true
+  }
+
   const elements = document.elementsFromPoint(e.clientX, e.clientY)
   const cell = elements.find(el => el.dataset?.date)
   
@@ -596,7 +615,20 @@ function stopAutoScroll() { if (scrollRAF) { cancelAnimationFrame(scrollRAF); sc
 function onUp() {
   if (!drag.mode) return
   document.body.style.userSelect = ''; stopAutoScroll()
-  
+
+  // A press on an existing ribbon that never turned into a drag = a click →
+  // open the task drawer. Handled here (document-level mouseup) rather than via
+  // an @click on the ribbon, which is unreliable because the ribbon DOM
+  // re-renders during the drag state.
+  if (!drag.moved && drag.taskId != null &&
+      (drag.mode === 'move' || drag.mode === 'clone' ||
+       drag.mode === 'resize-start' || drag.mode === 'resize-end')) {
+    const task = props.tasks.find(t => t.id === drag.taskId)
+    Object.assign(drag, { mode: null, taskId: null, empId: null, startDate: null, currentDate: null, origEnd: null, origStart: null, offsetDays: 0, moved: false })
+    if (task) emit('ribbon-click', task)
+    return
+  }
+
   if (drag.mode === 'create' && drag.startDate && drag.currentDate) {
     const mn = drag.startDate < drag.currentDate ? drag.startDate : drag.currentDate
     const mx = drag.startDate > drag.currentDate ? drag.startDate : drag.currentDate
@@ -606,7 +638,7 @@ function onUp() {
   } else if (drag.mode === 'resize-start' && drag.currentDate !== drag.origStart) {
     // Re-use extend event or emit new
     emit('ribbon-move', { taskId: drag.taskId, newDate: drag.currentDate, newEndDate: drag.origEnd, newEmployeeId: drag.empId })
-  } else if ((drag.mode === 'move' || drag.mode === 'clone') && drag.currentDate) {
+  } else if ((drag.mode === 'move' || drag.mode === 'clone') && drag.currentDate && drag.moved) {
     const task = props.tasks.find(t => t.id === drag.taskId)
     if (task) {
       const dur = daysBetween(task.date, task.end_date || task.date)
@@ -625,7 +657,7 @@ function onUp() {
     }
   }
   
-  Object.assign(drag, { mode: null, taskId: null, empId: null, startDate: null, currentDate: null, origEnd: null, origStart: null, offsetDays: 0 })
+  Object.assign(drag, { mode: null, taskId: null, empId: null, startDate: null, currentDate: null, origEnd: null, origStart: null, offsetDays: 0, moved: false })
 }
 
 onMounted(() => { document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp) })

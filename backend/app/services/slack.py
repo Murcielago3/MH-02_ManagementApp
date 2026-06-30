@@ -34,6 +34,7 @@ EVENT_CHANNELS = {
     "timesheet_reminder": "common",         # Sunday-noon nudge to submit timesheets
     "timesheet_uploaded": "common",         # employee submitted a weekly timesheet
     "timesheet_decision": "common",         # admin approved/rejected a timesheet
+    "daily_task_reminder": "common",        # daily morning nudge: today's assigned tasks
 }
 
 # Events that ping the channel's mention target (so people get a Slack email).

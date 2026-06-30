@@ -30,6 +30,8 @@ from app.models.weekly_timesheet import WeeklyTimesheet
 from app.models.reimbursement import Reimbursement
 from app.models.expense import Expense
 from app.models.invoice import Invoice
+from app.models.task import Task
+from app.models.project import Project
 
 logger = logging.getLogger(__name__)
 
@@ -217,3 +219,78 @@ async def _promote_salary_periods() -> int:
                 updated += 1
         await db.commit()
     return updated
+
+
+# ─────────────────────────── Daily task reminder ─────────────────────────────
+
+@celery_app.task(name="app.tasks.daily_task_reminder")
+def daily_task_reminder():
+    """Post today's assigned tasks for each employee to the common channel (weekdays @ 9am)."""
+    return asyncio.run(_daily_task_reminder())
+
+
+async def _daily_task_reminder() -> bool:
+    today = date.today()
+    label = today.strftime("%A, %d %b %Y")  # e.g. "Monday, 30 Jun 2026"
+
+    async with _TaskSession() as db:
+        # Tasks whose date range covers today and are not yet completed.
+        # Fetch the full User object so _slack_tag can resolve the @mention.
+        rows = (await db.execute(
+            select(Task, User, Project.name)
+            .join(User, Task.assigned_to == User.id)
+            .outerjoin(Project, Task.project_id == Project.id)
+            .where(
+                Task.date <= today,
+                # end_date is nullable — single-day tasks have end_date = NULL,
+                # so they count only on their `date`.
+                (Task.end_date >= today) | (Task.end_date.is_(None) & (Task.date == today)),
+                Task.status.in_(["pending", "in-progress"]),
+            )
+            .order_by(User.name, Task.priority.desc())
+        )).all()
+
+    if not rows:
+        return notify_event(
+            "daily_task_reminder",
+            f"📭 No active tasks assigned for today ({label}). Enjoy the breather!",
+        )
+
+    # Group by user (keyed by id so _slack_tag is called once per person).
+    from collections import defaultdict
+    by_employee: dict[int, tuple[object, list[str]]] = {}
+    for task, user, proj_name in rows:
+        if user.id not in by_employee:
+            by_employee[user.id] = (user, [])
+        parts = [f"*{task.title}*"]
+        if proj_name:
+            parts.append(f"📁 {proj_name}")
+        if task.duration_hours:
+            parts.append(f"⏱️ {task.duration_hours}h")
+        if task.end_date:
+            remaining = (task.end_date - today).days
+            if remaining == 0:
+                parts.append("🔴 Due today")
+            elif remaining == 1:
+                parts.append("🟡 Due tomorrow")
+            else:
+                parts.append(f"📅 Due {task.end_date.strftime('%d %b')} ({remaining}d left)")
+        else:
+            parts.append("📅 Due today")
+        if task.priority == "high":
+            parts.append("🔥 High priority")
+        by_employee[user.id][1].append(" · ".join(parts))
+
+    lines = []
+    for uid, (user, tasks_list) in by_employee.items():
+        tag = _slack_tag(user)
+        lines.append(f"\n👤 {tag}")
+        for t in tasks_list:
+            lines.append(f"    • {t}")
+
+    text = f"📋 *Daily Task Briefing — {label}*\n{''.join(lines)}"
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text", "text": f"📋 Daily Task Briefing — {label}"}},
+        {"type": "section", "text": {"type": "mrkdwn", "text": "\n".join(lines)}},
+    ]
+    return notify_event("daily_task_reminder", text, blocks)

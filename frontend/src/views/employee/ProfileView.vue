@@ -206,7 +206,7 @@
     </div>
 
     <!-- Edit Profile Modal -->
-    <div v-if="showEditModal" class="modal-overlay" @click.self="showEditModal = false">
+    <div v-if="showEditModal" class="modal-overlay">
       <div class="modal-card">
         <div class="modal-header">
           <h3 class="modal-title">Edit Profile</h3>

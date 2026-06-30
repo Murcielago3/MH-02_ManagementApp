@@ -61,7 +61,7 @@
 
     <!-- Add/Edit Modal -->
     <Teleport to="body">
-      <div v-if="modalOpen" class="modal-backdrop" @click.self="closeModal">
+      <div v-if="modalOpen" class="modal-backdrop">
         <div class="modal modal-wide">
           <div class="modal-header">
             <h3 class="modal-title">{{ isEditing ? 'Edit Client' : 'Add New Client' }}</h3>
@@ -125,7 +125,7 @@
 
     <!-- Delete Confirmation -->
     <Teleport to="body">
-      <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null">
+      <div v-if="deleteTarget" class="modal-backdrop">
         <div class="modal modal-sm">
           <div class="modal-header">
             <h3 class="modal-title">Delete Client</h3>
@@ -165,7 +165,7 @@ const submitting = ref(false)
 const formError = ref('')
 const deleteTarget = ref(null)
 
-const { draft: clientDraft, saveDraft: saveClientDraft, clearDraft: clearClientDraft, hasDraft: hasClientDraft } = useDraftStorage('client_create')
+const { draft: clientDraft, saveDraft: saveClientDraft, clearDraft: clearClientDraft, hasDraft: hasClientDraft, load: loadClientDraft } = useDraftStorage('client_create')
 const showDraftBanner = ref(false)
 
 const form = reactive({
@@ -231,11 +231,13 @@ function discardClientDraft() {
   showDraftBanner.value = false
 }
 
-function openAddModal() {
+async function openAddModal() {
   resetForm()
   isEditing.value = false
   editingId.value = null
   modalOpen.value = true
+  // Pull the latest draft for this account (may have been saved on another device).
+  await loadClientDraft()
   if (hasClientDraft.value) showDraftBanner.value = true
 }
 

@@ -67,7 +67,7 @@
         <div class="chart-card-head">
           <div>
             <h3 class="chart-card-title">Monthly Revenue</h3>
-            <p class="chart-card-sub">Invoice subtotals · {{ trailingRange }}</p>
+            <p class="chart-card-sub">Invoice subtotals · {{ monthlyRangeLabel || trailingRange }}</p>
           </div>
         </div>
         <div class="chart-card-body chart-body-line">
@@ -214,7 +214,7 @@
 
     <!-- ── Deficit Drill-down Modal ── -->
     <Teleport to="body">
-      <div v-if="deficitModalOpen" class="modal-backdrop" @click.self="deficitModalOpen = false">
+      <div v-if="deficitModalOpen" class="modal-backdrop">
         <div class="modal modal-lg">
           <div class="modal-head">
             <div>
@@ -363,16 +363,32 @@ onMounted(fetchAll)
 
 // ── Computeds ──
 const monthlyChartData = computed(() => {
+  // Preferred: rolling trailing-12-month series from the backend (spans years).
+  const series = stats.value.monthly_sales_12m
+  if (Array.isArray(series) && series.length) {
+    return series.map((d) => ({ month: d.label, revenue: Number(d.revenue || 0) }))
+  }
+  // Fallback: legacy current-calendar-year array or map.
   const sales = stats.value.monthly_sales
-  if (!Array.isArray(sales)) return []
-  return sales.map((d) => ({
-    month:   d.label,
-    revenue: Number(d.revenue) || 0,
+  if (Array.isArray(sales)) {
+    return sales.map((d) => ({
+      month:   d.label,
+      revenue: Number(d.revenue) || 0,
+    }))
+  }
+  return monthLabels.map((m, i) => ({
+    month:  m,
+    revenue: Number((sales || {})[fullMonths[i]] || 0),
   }))
 })
 const hasMonthlyData = computed(() =>
   monthlyChartData.value.some((d) => d.revenue > 0)
 )
+// e.g. "Jul '25 – Jun '26" for the card subtitle.
+const monthlyRangeLabel = computed(() => {
+  const d = monthlyChartData.value
+  return d.length ? `${d[0].month} – ${d[d.length - 1].month}` : ''
+})
 
 const trailingRange = computed(() => {
   const end = new Date()
@@ -451,22 +467,41 @@ function renderSales() {
   const data     = monthlyChartData.value
   const revenues = data.map((d) => d.revenue)
   salesChart = new Chart(salesChartRef.value, {
-    type: 'line',
+    type: 'bar',
     data: {
       labels: data.map((d) => d.month),
-      datasets: [{
-        label: 'Revenue',
-        data:  revenues,
-        borderColor:       TEAL,
-        backgroundColor:   'rgba(40,116,117,0.07)',
-        borderWidth:       2.5,
-        pointBackgroundColor: TEAL,
-        pointBorderColor:     TEAL,
-        pointRadius:  5,
-        pointHoverRadius: 7,
-        fill:    true,
-        tension: 0.35,
-      }],
+      datasets: [
+        {
+          // Bars
+          type: 'bar',
+          label: 'Revenue',
+          data:  revenues,
+          backgroundColor: 'rgba(40,116,117,0.18)',
+          hoverBackgroundColor: 'rgba(40,116,117,0.30)',
+          borderColor: 'rgba(40,116,117,0.35)',
+          borderWidth: 1,
+          borderRadius: 6,
+          maxBarThickness: 34,
+          order: 2,
+        },
+        {
+          // Stroke / trend line over the same values
+          type: 'line',
+          label: 'Trend',
+          data:  revenues,
+          borderColor:       TEAL,
+          backgroundColor:   'rgba(40,116,117,0.06)',
+          borderWidth:       2.5,
+          pointBackgroundColor: '#fff',
+          pointBorderColor:     TEAL,
+          pointBorderWidth: 2,
+          pointRadius:  4,
+          pointHoverRadius: 6,
+          fill:    false,
+          tension: 0.35,
+          order: 1,
+        },
+      ],
     },
     options: {
       responsive: true,
@@ -475,7 +510,7 @@ function renderSales() {
       plugins: {
         legend: { display: false },
         tooltip: {
-          callbacks: { label: (ctx) => `Revenue: ${formatCurrency(ctx.parsed.y)}` },
+          callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}` },
         },
       },
       scales: {

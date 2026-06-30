@@ -4,8 +4,11 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: always
+    # Bind to loopback only — the API must be reached through nginx (80/443),
+    # never directly from the internet. (Docker bypasses ufw, so a plain
+    # "8000:8000" would be publicly reachable regardless of the firewall.)
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - backend_static:/app/static
     env_file:

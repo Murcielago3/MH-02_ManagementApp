@@ -37,14 +37,20 @@
       <span>Invoice not found.</span>
     </div>
 
-    <!-- Preview -->
+    <!-- Preview: renders the exact HTML used to generate the PDF in an iframe
+         (iframe sandboxes the invoice's global CSS resets from the app shell).
+         `loading` above already covers the spinner state; no inner fallback. -->
     <div v-else class="preview-wrap">
-      <InvoicePreview :invoice="invoice" />
+      <iframe
+        :srcdoc="previewHTML"
+        class="invoice-iframe"
+        title="Invoice preview"
+      />
     </div>
 
     <!-- Delete Confirmation Modal -->
     <Teleport to="body">
-      <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null">
+      <div v-if="deleteTarget" class="modal-backdrop">
         <div class="modal">
           <div class="modal-header">
             <div class="modal-icon-wrap danger">
@@ -80,13 +86,13 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
-import InvoicePreview from '../components/InvoicePreview.vue'
 import ToastNotification from '../components/ToastNotification.vue'
 import { invoicesAPI } from '../api/invoices'
 
 const route = useRoute()
 const router = useRouter()
 const invoice = ref(null)
+const previewHTML = ref('')
 const loading = ref(true)
 const submitting = ref(false)
 const deleteTarget = ref(null)
@@ -103,8 +109,14 @@ const fetchInvoice = async () => {
   const id = route.params.id
   loading.value = true
   try {
-    const res = await invoicesAPI.getInvoice(id)
+    // Pull the invoice metadata (for buttons/header) and the rendered preview
+    // HTML in parallel — the HTML drives the iframe; the JSON drives controls.
+    const [res, htmlRes] = await Promise.all([
+      invoicesAPI.getInvoice(id),
+      invoicesAPI.getPreviewHTML(id),
+    ])
     invoice.value = res.data
+    previewHTML.value = htmlRes.data
   } catch (err) {
     showToast('Failed to load invoice details', 'error')
   } finally {
@@ -132,7 +144,9 @@ const downloadPDF = async () => {
     const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
     const a = document.createElement('a')
     a.href = url
-    a.download = `invoice_${id}.pdf`
+    // Name the file as the invoice number (matches server's Content-Disposition).
+    const number = invoice.value.invoice_number
+    a.download = number ? `${number}.pdf` : `proforma_${id}.pdf`
     a.click()
     URL.revokeObjectURL(url)
   } catch (err) {
@@ -277,6 +291,19 @@ const handleDelete = async () => {
   border-radius: var(--radius-xl);
   padding: 36px 24px;
   box-shadow: var(--shadow-sm);
+}
+
+/* Sized for an A4-ratio invoice (~210/297 ≈ 0.707). The iframe loads the same
+   HTML the server feeds WeasyPrint, so what's shown here IS the PDF. */
+.invoice-iframe {
+  display: block;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 820px;
+  aspect-ratio: 210 / 297;
+  border: 1px solid var(--color-outline);
+  background: white;
+  box-shadow: var(--shadow-md);
 }
 
 /* ── Modal ── */

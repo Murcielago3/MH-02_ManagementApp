@@ -119,7 +119,7 @@
 
     <!-- Reset confirmation dialog -->
     <Teleport to="body">
-      <div v-if="confirmReset" class="modal-backdrop" @click.self="confirmReset = false">
+      <div v-if="confirmReset" class="modal-backdrop">
         <div class="confirm-modal">
           <div class="confirm-icon">
             <span class="material-symbols-outlined">restart_alt</span>
@@ -160,21 +160,21 @@ onMounted(() => {
   store.fetchSavedEstimates()
 })
 
-function resumeDraft(draftId) {
-  store.loadDraftById(draftId)
+async function resumeDraft(draftId) {
+  await store.loadDraftById(draftId)
 }
 
-function handleDeleteDraft(draftId) {
-  deleteDraftFromStorage(draftId)
+async function handleDeleteDraft(draftId) {
+  await deleteDraftFromStorage(draftId)
   // If this was the active draft, clear it in the store
   if (store.activeDraftId === draftId) {
     store.activeDraftId = null
   }
 }
 
-function handleSaveDraft() {
-  store.saveAndGetDraftId()
-  refreshDrafts()
+async function handleSaveDraft() {
+  await store.saveAndGetDraftId()
+  await refreshDrafts()
   showToast('Draft saved')
 }
 

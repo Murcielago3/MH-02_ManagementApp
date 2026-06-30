@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
-from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips, holidays, subtasks, salary as salary_router
+from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips, holidays, subtasks, salary as salary_router, drafts
 
 
 security = HTTPBearer()
@@ -52,6 +52,7 @@ app.include_router(holidays.router)
 app.include_router(subtasks.router)
 app.include_router(subtasks.single_router)
 app.include_router(salary_router.router)
+app.include_router(drafts.router)
 
 
 @app.get("/health")
@@ -160,6 +161,9 @@ async def run_migrations():
         ("location", "VARCHAR"),
         ("bank_name", "VARCHAR"),
         ("bank_account_number", "VARCHAR"),
+        ("bank_ifsc_code", "VARCHAR"),
+        ("emergency_contact_name", "VARCHAR"),
+        ("birthdate", "DATE"),
         ("paid_leave_balance", "NUMERIC(6, 1) DEFAULT 0"),
         ("leave_accrued_through", "VARCHAR"),
     ]
@@ -263,6 +267,30 @@ async def run_migrations():
                 )
         except Exception:
             pass
+
+    # Per-user, account-synced drafts (estimates, invoices, autosave forms,
+    # timesheets). Replaces the old per-browser localStorage drafts so a user's
+    # in-progress work follows their account across devices.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS drafts (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    namespace VARCHAR NOT NULL,
+                    draft_key VARCHAR NOT NULL,
+                    label VARCHAR,
+                    data JSON,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW(),
+                    CONSTRAINT uq_draft_user_ns_key UNIQUE (user_id, namespace, draft_key)
+                )
+            """))
+            await conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_drafts_user_ns ON drafts (user_id, namespace)"
+            ))
+    except Exception:
+        pass
 
     # Create the salary_slips table if missing
     try:

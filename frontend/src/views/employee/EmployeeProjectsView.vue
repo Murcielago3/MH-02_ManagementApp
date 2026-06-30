@@ -31,7 +31,7 @@
 
     <!-- Team Members modal -->
     <Teleport to="body">
-      <div v-if="teamModalOpen" class="modal-backdrop" @click.self="closeTeam">
+      <div v-if="teamModalOpen" class="modal-backdrop">
         <div class="modal">
           <div class="modal-head">
             <div>

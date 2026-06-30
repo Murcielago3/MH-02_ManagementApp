@@ -50,7 +50,7 @@
     </div>
 
     <Teleport to="body">
-      <div v-if="modalOpen" class="modal-backdrop" @click.self="closeModal">
+      <div v-if="modalOpen" class="modal-backdrop">
         <div class="modal">
           <div class="modal-header">
             <h3>{{ isEditing ? 'Edit Bank Account' : 'Add Bank Account' }}</h3>
@@ -94,7 +94,7 @@
     </Teleport>
 
     <Teleport to="body">
-      <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null">
+      <div v-if="deleteTarget" class="modal-backdrop">
         <div class="modal delete-modal">
           <div class="modal-header">
             <h3>Delete Bank Account</h3>

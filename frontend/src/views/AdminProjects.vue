@@ -96,7 +96,7 @@
 
     <!-- Add/Edit Modal -->
     <Teleport to="body">
-      <div v-if="modalOpen" class="modal-backdrop" @click.self="closeModal">
+      <div v-if="modalOpen" class="modal-backdrop">
         <div class="modal modal-wide">
           <div class="modal-header">
             <h3 class="modal-title">{{ isEditing ? 'Edit Project' : 'Add New Project' }}</h3>
@@ -223,7 +223,7 @@
 
     <!-- Delete Confirmation -->
     <Teleport to="body">
-      <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null">
+      <div v-if="deleteTarget" class="modal-backdrop">
         <div class="modal modal-sm">
           <div class="modal-header">
             <h3 class="modal-title">Delete Project</h3>
@@ -283,7 +283,7 @@ const router = useRouter()
 
 
 const authStore = useAuthStore()
-const { draft: projectDraft, saveDraft: saveProjectDraft, clearDraft: clearProjectDraft, hasDraft: hasProjectDraft } = useDraftStorage('project_create')
+const { draft: projectDraft, saveDraft: saveProjectDraft, clearDraft: clearProjectDraft, hasDraft: hasProjectDraft, load: loadProjectDraft } = useDraftStorage('project_create')
 
 const layout = computed(() => {
   return authStore.role === 'admin' ? AppLayout : EmployeeLayout
@@ -514,11 +514,8 @@ const yearOptions = computed(() => {
 
 const filtered = computed(() => {
   let list = [...projects.value]
-  // Sort: Year desc, Number desc (Newer first)
-  list.sort((a, b) => {
-    if (b.year !== a.year) return (b.year || 0) - (a.year || 0)
-    return (b.project_number || '').localeCompare(a.project_number || '')
-  })
+  // Sort alphabetically by project name (case-insensitive)
+  list.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }))
   
   if (filterYear.value) list = list.filter(p => p.year === Number(filterYear.value))
   if (filterClient.value) list = list.filter(p => p.client_id === Number(filterClient.value))
@@ -564,7 +561,8 @@ async function openAddModal() {
     console.error('Failed to fetch next project number', e)
   }
 
-  // Show draft banner if a saved draft exists
+  // Show draft banner if a saved draft exists (latest for this account).
+  await loadProjectDraft()
   if (hasProjectDraft.value) {
     showDraftBanner.value = true
   }

@@ -149,7 +149,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useTimesheetStore } from '../../stores/timesheet'
 import { useDraftStorage } from '../../composables/useDraftStorage'
 
@@ -187,12 +187,36 @@ function makeEmptyRow() {
   return { project_id: null, daily: [0, 0, 0, 0, 0, 0, 0], description: '' }
 }
 
-// Draft storage keyed by week start (reactive key)
+// Draft storage keyed by week start (reactive key). Server-backed per account,
+// so a half-filled week follows the user across devices.
 const draftKey = computed(() => `timesheet_${props.week.week_start}`)
-const { draft: tsDraft, saveDraft: saveTsDraft, clearDraft: clearTsDraft, hasDraft: hasTsDraft } = useDraftStorage(draftKey)
+const { draft: tsDraft, saveDraft: saveTsDraft, clearDraft: clearTsDraft, hasDraft: hasTsDraft, load: loadTsDraft } = useDraftStorage(draftKey)
+// Snapshot of the draft as loaded from the server, captured before autosave can
+// overwrite it — so "Restore" always brings back what was actually saved.
+const restorableDraft = ref(null)
+// True while we populate the form from the store/server. Auto-save is suppressed
+// during this window so the programmatic (often empty) population never saves a
+// blank draft over the user's real one.
+const hydrating = ref(true)
+
+function rowHasContent(r) {
+  return !!(r && (r.project_id || (r.description && r.description.trim()) ||
+    (Array.isArray(r.daily) && r.daily.some(h => Number(h) > 0))))
+}
+// Does the live form hold anything worth saving?
+function formHasContent() {
+  return !!description.value.trim() || rows.value.some(rowHasContent)
+}
+// Does a loaded draft hold anything worth restoring? (avoids a banner for blank drafts)
+function draftHasContent(d) {
+  if (!d) return false
+  if (d.description && d.description.trim()) return true
+  return Array.isArray(d.rows) && d.rows.some(rowHasContent)
+}
 
 // Sync from store — convert flat entries to grid rows
-watch(() => props.week, () => {
+watch(() => props.week, async () => {
+  hydrating.value = true
   description.value = store.form.description || ''
 
   const storeEntries = store.form.entries || []
@@ -206,10 +230,16 @@ watch(() => props.week, () => {
     rows.value = [makeEmptyRow()]
   }
 
-  // Show draft banner if a saved draft exists
-  if (hasTsDraft.value) {
+  // This week's draft loads asynchronously from the server. Reset the banner,
+  // then show it only if the saved draft actually has content for this week.
+  showDraftBanner.value = false
+  restorableDraft.value = await loadTsDraft()
+  if (draftHasContent(restorableDraft.value)) {
     showDraftBanner.value = true
   }
+  // Population (and the watchers it triggers) has flushed — re-enable auto-save.
+  await nextTick()
+  hydrating.value = false
 }, { immediate: true })
 
 // Distribute total hours evenly across Mon–Fri, leave Sat/Sun at 0
@@ -234,8 +264,11 @@ watch([description, rows], () => {
   }))
 }, { deep: true })
 
-// Auto-save draft on changes
+// Auto-save draft on changes — but never during hydration, and never an empty
+// form (which would clobber a real saved draft). To clear a draft, use Discard.
 watch([description, rows], () => {
+  if (hydrating.value) return
+  if (!formHasContent()) return
   saveTsDraft({
     description: description.value,
     rows: JSON.parse(JSON.stringify(rows.value))
@@ -251,10 +284,11 @@ function padDaily(arr) {
 }
 
 function restoreTsDraft() {
-  if (!tsDraft.value) return
-  description.value = tsDraft.value.description || ''
-  if (tsDraft.value.rows) {
-    rows.value = tsDraft.value.rows.map(r => ({
+  const d = restorableDraft.value || tsDraft.value
+  if (!d) return
+  description.value = d.description || ''
+  if (d.rows) {
+    rows.value = d.rows.map(r => ({
       project_id: r.project_id,
       daily: padDaily(r.daily),
       description: r.description || ''
@@ -265,6 +299,7 @@ function restoreTsDraft() {
 
 function discardTsDraft() {
   clearTsDraft()
+  restorableDraft.value = null
   showDraftBanner.value = false
 }
 

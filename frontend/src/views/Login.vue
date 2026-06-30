@@ -164,7 +164,7 @@ import { ref, reactive } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { authAPI } from "../api/auth";
-import { getAppLogoUrl } from "../utils/logo";
+import { getBrandLogoUrl } from "../utils/logo";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -179,7 +179,7 @@ const showPassword = ref(false);
 const loading = ref(false);
 const emailFocused = ref(false);
 const passwordFocused = ref(false);
-const logoUrl = getAppLogoUrl();
+const logoUrl = getBrandLogoUrl();
 
 const errors = reactive({
   email: "",

@@ -39,7 +39,10 @@ class UserCreate(BaseModel):
     location: Optional[str] = None
     bank_name: Optional[str] = None
     bank_account_number: Optional[str] = None
+    bank_ifsc_code: Optional[str] = None
+    birthdate: Optional[date] = None
     phone_number: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
     emergency_contact_number: Optional[str] = None
     emergency_contact_relationship: Optional[str] = None
     manager_id: Optional[int] = None
@@ -67,7 +70,10 @@ class UserUpdate(BaseModel):
     location: Optional[str] = None
     bank_name: Optional[str] = None
     bank_account_number: Optional[str] = None
+    bank_ifsc_code: Optional[str] = None
+    birthdate: Optional[date] = None
     phone_number: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
     emergency_contact_number: Optional[str] = None
     emergency_contact_relationship: Optional[str] = None
     manager_id: Optional[int] = None
@@ -153,7 +159,10 @@ async def create_user(
         location=data.location,
         bank_name=data.bank_name,
         bank_account_number=data.bank_account_number,
+        bank_ifsc_code=data.bank_ifsc_code,
+        birthdate=data.birthdate,
         phone_number=data.phone_number,
+        emergency_contact_name=data.emergency_contact_name,
         emergency_contact_number=data.emergency_contact_number,
         emergency_contact_relationship=data.emergency_contact_relationship,
         manager_id=data.manager_id,
