@@ -19,6 +19,13 @@
           {{ isSplitMode ? 'Exit Cut Mode' : 'Split Task' }}
         </button>
       </div>
+      <div class="rc-controls-right">
+        <span class="material-symbols-outlined rc-filter-icon">filter_list</span>
+        <select v-model="selectedProjectId" class="rc-project-filter" title="Filter tasks by project">
+          <option :value="null">All projects</option>
+          <option v-for="p in projectOptions" :key="p.id" :value="p.id">{{ p.name }}</option>
+        </select>
+      </div>
     </div>
 
     <div class="rc-container" ref="containerRef" :class="{ dragging: drag.mode }" @wheel="onWheel">
@@ -221,20 +228,16 @@ const periodLabel = computed(() => {
 })
 
 // ───────── Scroll behaviour ─────────
-// Centers `today` in the viewport accounting for the sticky employee column
-// on the left. We want today's column-center to land at the centre of the
-// visible *day* area (i.e. the viewport minus the sticky emp column).
+// Aligns `today` to the LEFT of the day area — flush against the sticky employee
+// column — so the calendar opens on today (and "Today" jumps it back there).
 let initialCenterDone = false
 let centerObserver = null
 function computeCenterScrollLeft(c) {
   const days = visibleDays.value
   const todayIdx = days.findIndex(d => d.isToday)
   if (todayIdx < 0) return null
-  const todayCenter = EMP_W + todayIdx * COL_W + COL_W / 2
-  // Centre of the day-area in scroll coords:
-  //   scrollLeft + EMP_W + (clientWidth - EMP_W) / 2
-  // Solve for scrollLeft so todayCenter sits there.
-  return todayCenter - EMP_W - (c.clientWidth - EMP_W) / 2
+  // today's column left edge sits at the start of the day area: scrollLeft = todayIdx * COL_W
+  return todayIdx * COL_W
 }
 function tryCenterToday() {
   const c = containerRef.value
@@ -310,12 +313,43 @@ function updateAnchorFromScroll() {
   }
 }
 
+// Keep each ribbon's title readable while scrolling sideways: shift the label to
+// the centre of the ribbon's currently-visible slice, so long bars don't leave
+// their name stranded off to the left. Throttled to one update per frame.
+let labelRAF = null
+function positionRibbonLabels() {
+  if (labelRAF) return
+  labelRAF = requestAnimationFrame(() => {
+    labelRAF = null
+    const c = containerRef.value
+    if (!c) return
+    const cRect = c.getBoundingClientRect()
+    const visLeft = cRect.left + EMP_W   // day area starts after the sticky team column
+    const visRight = cRect.right
+    c.querySelectorAll('.rc-ribbon').forEach((el) => {
+      const r = el.getBoundingClientRect()
+      const vL = Math.max(r.left, visLeft)
+      const vR = Math.min(r.right, visRight)
+      let shift = 0
+      if (vR > vL) {
+        const visCenter = (vL + vR) / 2
+        const ribbonCenter = (r.left + r.right) / 2
+        shift = visCenter - ribbonCenter
+        const maxShift = Math.max(0, r.width / 2 - 36)   // keep the label inside the bar
+        shift = Math.max(-maxShift, Math.min(maxShift, shift))
+      }
+      el.style.setProperty('--rb-shift', `${shift}px`)
+    })
+  })
+}
+
 let extending = false
 let suppressEdgeChecks = true   // True until initial centring completes
 function onScroll() {
   const c = containerRef.value
   if (!c) return
   updateAnchorFromScroll()
+  positionRibbonLabels()
   if (extending || suppressEdgeChecks || !initialCenterDone) return
 
   if (c.scrollLeft < EDGE_THRESHOLD_PX) {
@@ -351,6 +385,7 @@ onMounted(async () => {
   await nextTick()
   scrollToToday()
   emit('range-change', { startDate: toStr(rangeStart.value), endDate: toStr(rangeEnd.value) })
+  nextTick(positionRibbonLabels)
 })
 onUnmounted(() => {
   if (centerObserver) { centerObserver.disconnect(); centerObserver = null }
@@ -359,8 +394,32 @@ onUnmounted(() => {
   }
 })
 
-// Employees
-const displayEmployees = computed(() => props.filterEmployeeId ? props.employees.filter(e => e.id === props.filterEmployeeId) : props.employees)
+// Employees — alphabetical by name
+const displayEmployees = computed(() => {
+  const list = props.filterEmployeeId
+    ? props.employees.filter(e => e.id === props.filterEmployeeId)
+    : props.employees
+  return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+})
+
+// Project filter (top toolbar). null = show all projects.
+const selectedProjectId = ref(null)
+const projectOptions = computed(() => {
+  const seen = new Map()
+  for (const t of props.tasks) {
+    if (t.project_id && props.projectMap[t.project_id] && !seen.has(t.project_id)) {
+      seen.set(t.project_id, props.projectMap[t.project_id].name || `Project ${t.project_id}`)
+    }
+  }
+  return [...seen.entries()]
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+})
+
+// Re-center ribbon labels whenever the rendered ribbons change.
+watch([visibleDays, displayEmployees, selectedProjectId, () => props.tasks], () => {
+  nextTick(positionRibbonLabels)
+})
 
 // id → { name }, used by the drag-preview label. (Was referenced in the template
 // but never defined — accessing userMap[empId] on a move/clone drag threw
@@ -400,7 +459,7 @@ function isDelayed(t) { return taskDelay(t) > 0 }
 
 function empRibbons(eid) {
   const days = visibleDays.value, vStart = days[0].dateStr, vEnd = days[days.length - 1].dateStr
-  const empTasks = props.tasks.filter(t => t.assigned_to === eid && t.date <= vEnd && (t.end_date || t.date) >= vStart)
+  const empTasks = props.tasks.filter(t => t.assigned_to === eid && (selectedProjectId.value == null || t.project_id === selectedProjectId.value) && t.date <= vEnd && (t.end_date || t.date) >= vStart)
   const lanes = Array.from({ length: days.length }, () => new Set())
   const result = []
   for (const task of empTasks) {
@@ -687,6 +746,11 @@ defineExpose({ anchorDate, rangeStart, rangeEnd, scrollToToday: goToday })
 .resource-calendar { display: flex; flex-direction: column; gap: 16px; min-width: 0; width: 100%; max-width: 100%; }
 .rc-controls { display: flex; justify-content: space-between; align-items: center; }
 .rc-controls-left { display: flex; align-items: center; gap: 4px; }
+.rc-controls-right { display: flex; align-items: center; gap: 6px; }
+.rc-filter-icon { font-size: 18px; color: var(--color-on-surface-variant); }
+.rc-project-filter { height: 32px; padding: 0 10px; border: 1px solid var(--color-outline-variant); border-radius: 4px; background: var(--color-surface); font-family: var(--font-body); font-size: 12px; font-weight: 600; color: var(--color-on-surface); cursor: pointer; max-width: 220px; }
+.rc-project-filter:hover { background: var(--color-surface-container); }
+.rc-project-filter:focus { outline: none; border-color: var(--color-primary); }
 .rc-btn { height: 32px; padding: 0 12px; border: 1px solid var(--color-outline-variant); border-radius: 4px; background: var(--color-surface); font-family: var(--font-body); font-size: 12px; font-weight: 600; color: var(--color-on-surface-variant); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
 .rc-btn:hover { background: var(--color-surface-container); }
 .rc-btn .material-symbols-outlined { font-size: 18px; }
@@ -767,7 +831,7 @@ defineExpose({ anchorDate, rangeStart, rangeEnd, scrollToToday: goToday })
 .rb-handle:hover { opacity: 0.45; }
 .rb-handle-start { left: 0; border-radius: 4px 0 0 4px; }
 .rb-handle-end { right: 0; border-radius: 0 4px 4px 0; }
-.rb-content { display: flex; flex-direction: column; overflow: hidden; padding: 0 10px; line-height: 1.1; flex: 1; min-width: 0; height: 100%; justify-content: center; z-index: 1; cursor: grab; }
+.rb-content { display: flex; flex-direction: column; align-items: center; overflow: hidden; padding: 0 10px; line-height: 1.1; flex: 1; min-width: 0; height: 100%; justify-content: center; transform: translateX(var(--rb-shift, 0px)); z-index: 1; cursor: grab; }
 .rb-content:active { cursor: grabbing; }
 .rb-tools { position: absolute; top: 0; bottom: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; pointer-events: none; z-index: 10; }
 .rb-cut-line { width: 0; height: 100%; border-left: 2px dashed #ef4444; position: absolute; top: 0; pointer-events: none; opacity: 0.8; }
@@ -786,8 +850,8 @@ defineExpose({ anchorDate, rangeStart, rangeEnd, scrollToToday: goToday })
 .rc-tool-toggle:hover { background: var(--color-surface-container); }
 .rc-tool-toggle.active { background: #fee2e2; border-color: #ef4444; color: #ef4444; }
 .rc-tool-toggle .material-symbols-outlined { font-size: 18px; }
-.rb-title { font-weight: 700; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rb-project { font-size: 9px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rb-title { font-weight: 700; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; text-align: center; }
+.rb-project { font-size: 9px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; text-align: center; }
 .rb-delay { flex-shrink: 0; font-size: 8px; font-weight: 700; background: #dc2626; color: #fff; padding: 1px 4px; border-radius: 3px; margin-right: 10px; z-index: 2; }
 
 .rc-legend { display: flex; flex-wrap: wrap; gap: 16px; padding: 4px 0; }
