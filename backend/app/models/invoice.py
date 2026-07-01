@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Numeric, String, Float, DateTime, ForeignKey, Boolean, Date
+from sqlalchemy import Column, Integer, Numeric, String, Float, DateTime, ForeignKey, Boolean, Date, JSON
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import date
@@ -15,6 +15,10 @@ class Invoice(Base):
     bill_to_name = Column(String, nullable=True)
     bill_to_address = Column(String, nullable=True)
     bill_to_gstin = Column(String, nullable=True)
+    bill_to_pan = Column(String, nullable=True)
+    # Snapshot of the client's type at invoice-creation time ('business' or
+    # 'individual') — drives whether GSTIN or PAN is printed on the PDF.
+    customer_type = Column(String, nullable=True)
 
     ship_to_name = Column(String, nullable=True)
     ship_to_address = Column(String, nullable=True)
@@ -28,6 +32,9 @@ class Invoice(Base):
     igst = Column(Numeric(12, 2), default=0)
     total = Column(Numeric(12, 2), default=0)
     tax_type = Column(String, nullable=True)  # CGST_SGST or IGST
+    # Per-tax-bracket breakdown: [{rate, taxable_value, cgst, sgst, igst}, ...]
+    # One entry per distinct item tax_rate present on the invoice.
+    tax_breakdown = Column(JSON, nullable=True)
 
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=True)
@@ -48,5 +55,6 @@ class InvoiceItem(Base):
     description = Column(String, nullable=False)
     hsn_sac = Column(String, nullable=True)
     amount = Column(Numeric(12, 2), nullable=False)
+    tax_rate = Column(Numeric(5, 2), nullable=False, default=18)  # 8, 12, or 18
 
     invoice = relationship("Invoice", back_populates="items")

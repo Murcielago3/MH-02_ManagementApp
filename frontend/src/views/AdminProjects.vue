@@ -125,6 +125,22 @@
                 <label>Project Name *</label>
                 <input v-model="form.name" type="text" required placeholder="e.g. Residence at Banjara Hills" />
               </div>
+              <!-- Display Name (invoice) -->
+              <div class="form-field">
+                <label style="display:flex; align-items:center; justify-content:space-between;">
+                  <span>Invoice Display Name</span>
+                  <label style="display:inline-flex; align-items:center; gap:4px; text-transform:none; letter-spacing:0; font-weight:600; font-size:11px; cursor:pointer;">
+                    <input type="checkbox" v-model="sameAsProjectName" style="width:auto; margin:0;" />
+                    Same as project name
+                  </label>
+                </label>
+                <input
+                  v-model="form.display_name"
+                  type="text"
+                  :disabled="sameAsProjectName"
+                  :placeholder="form.name || 'Name shown on invoices'"
+                />
+              </div>
               <!-- Location -->
               <div class="form-field">
                 <label>Location</label>
@@ -327,6 +343,7 @@ const stages = [
 const form = reactive({
   project_number: '',
   name: '',
+  display_name: '',
   location: '',
   gmap_link: '',
   year: new Date().getFullYear(),
@@ -365,6 +382,9 @@ const projectPresets = [
 ]
 
 const showDraftBanner = ref(false)
+const sameAsProjectName = ref(true)
+watch(sameAsProjectName, (same) => { if (same) form.display_name = '' })
+watch(() => form.name, () => { if (sameAsProjectName.value) form.display_name = '' })
 
 // Auto-save draft when form changes (only during add, not edit)
 watch(() => ({ ...form }), (val) => {
@@ -532,6 +552,8 @@ const filtered = computed(() => {
 function resetForm() {
   form.project_number = ''
   form.name = ''
+  form.display_name = ''
+  sameAsProjectName.value = true
   form.location = ''
   form.gmap_link = ''
   form.year = new Date().getFullYear()
@@ -573,6 +595,8 @@ function openEditModal(p) {
   editingId.value = p.id
   form.project_number = p.project_number
   form.name = p.name
+  form.display_name = p.display_name || ''
+  sameAsProjectName.value = !p.display_name
   form.location = p.location || ''
   form.gmap_link = p.gmap_link || ''
   form.year = p.year || new Date().getFullYear()
@@ -611,6 +635,7 @@ async function handleSubmit() {
     const payload = {
       project_number: form.project_number,
       name: form.name,
+      display_name: sameAsProjectName.value ? null : (form.display_name || null),
       location: form.location || null,
       gmap_link: form.gmap_link || null,
       year: form.year || null,

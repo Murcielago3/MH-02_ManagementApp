@@ -20,24 +20,33 @@
         <thead>
           <tr>
             <th>Name</th>
+            <th>Type</th>
             <th>Email</th>
             <th>Phone</th>
-            <th>Address</th>
+            <th>GSTIN / PAN</th>
             <th class="text-center col-actions">Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="5" class="empty-cell"><div class="loading-text">Loading clients…</div></td>
+            <td colspan="6" class="empty-cell"><div class="loading-text">Loading clients…</div></td>
           </tr>
           <tr v-else-if="filtered.length === 0">
-            <td colspan="5" class="empty-cell">No clients found.</td>
+            <td colspan="6" class="empty-cell">No clients found.</td>
           </tr>
           <tr v-for="c in filtered" :key="c.id" class="proj-row">
-            <td><span class="proj-name">{{ c.name }}</span></td>
+            <td>
+              <span class="proj-name">{{ c.salutation || c.name }}</span>
+              <span v-if="c.salutation" class="muted" style="display:block; font-size:11px;">{{ c.name }}</span>
+            </td>
+            <td>
+              <span class="type-badge" :class="c.customer_type === 'individual' ? 'type-individual' : 'type-business'">
+                {{ c.customer_type === 'individual' ? 'Individual' : 'Business' }}
+              </span>
+            </td>
             <td class="muted">{{ c.email || '—' }}</td>
             <td class="mono muted">{{ c.phone || '—' }}</td>
-            <td class="muted">{{ c.address || '—' }}</td>
+            <td class="mono muted">{{ c.customer_type === 'individual' ? (c.pan || '—') : (c.gstin || c.pan || '—') }}</td>
             <td>
               <div class="row-actions">
                 <button class="action-btn edit-btn" title="Edit" @click="openEditModal(c)">
@@ -79,11 +88,52 @@
               <button type="button" class="draft-discard-btn" @click="discardClientDraft">Discard</button>
             </div>
 
+            <!-- Customer Type -->
+            <div class="form-field span-2" style="margin-bottom: 18px;">
+              <label>Customer Type</label>
+              <div class="type-toggles">
+                <button
+                  type="button"
+                  class="type-toggle-btn"
+                  :class="{ active: form.customer_type === 'business' }"
+                  @click="form.customer_type = 'business'"
+                >
+                  <span class="material-symbols-outlined">apartment</span>
+                  Business
+                </button>
+                <button
+                  type="button"
+                  class="type-toggle-btn"
+                  :class="{ active: form.customer_type === 'individual' }"
+                  @click="onSelectIndividual"
+                >
+                  <span class="material-symbols-outlined">person</span>
+                  Individual
+                </button>
+              </div>
+            </div>
+
             <div class="form-grid">
               <!-- Name -->
               <div class="form-field">
                 <label>Name *</label>
                 <input v-model="form.name" type="text" required placeholder="e.g. ABC Corp" />
+              </div>
+              <!-- Salutation / display name -->
+              <div class="form-field">
+                <label>
+                  Invoice Display Name
+                  <label class="inline-check">
+                    <input type="checkbox" v-model="sameAsClientName" />
+                    Same as name
+                  </label>
+                </label>
+                <input
+                  v-model="form.salutation"
+                  type="text"
+                  :disabled="sameAsClientName"
+                  :placeholder="form.name || 'Name shown on invoices'"
+                />
               </div>
               <!-- Email -->
               <div class="form-field">
@@ -95,15 +145,46 @@
                 <label>Phone</label>
                 <input v-model="form.phone" type="tel" placeholder="+91 9876543210" />
               </div>
-              <!-- Address -->
-              <div class="form-field span-2">
-                <label>Address</label>
-                <textarea v-model="form.address" placeholder="Full address..." rows="3"></textarea>
-              </div>
-              <!-- GSTIN -->
-              <div class="form-field span-2">
+
+              <!-- GSTIN (business only) -->
+              <div v-if="form.customer_type === 'business'" class="form-field">
                 <label>GSTIN</label>
-                <input v-model="form.gstin" type="text" placeholder="e.g. 27AAAAA0000A1Z5" />
+                <TaxIdField v-model="form.gstin" kind="gstin" placeholder="e.g. 27AAAAA0000A1Z5" />
+              </div>
+              <!-- PAN (always; required for individuals) -->
+              <div class="form-field">
+                <label>PAN {{ form.customer_type === 'individual' ? '*' : '' }}</label>
+                <TaxIdField
+                  v-model="form.pan"
+                  kind="pan"
+                  placeholder="e.g. AAAAA9999A"
+                  :required="form.customer_type === 'individual'"
+                />
+              </div>
+
+              <!-- Structured address -->
+              <div class="form-field span-2">
+                <label>Address Line 1</label>
+                <input v-model="form.address_line1" type="text" placeholder="Building, street" />
+              </div>
+              <div class="form-field span-2">
+                <label>Address Line 2</label>
+                <input v-model="form.address_line2" type="text" placeholder="Area, landmark (optional)" />
+              </div>
+              <div class="form-field">
+                <label>City</label>
+                <input v-model="form.city" type="text" placeholder="e.g. Mumbai" />
+              </div>
+              <div class="form-field">
+                <label>State</label>
+                <input v-model="form.state" type="text" list="indian-states" placeholder="e.g. Maharashtra" />
+                <datalist id="indian-states">
+                  <option v-for="s in indianStates" :key="s" :value="s" />
+                </datalist>
+              </div>
+              <div class="form-field">
+                <label>Pincode</label>
+                <input v-model="form.pincode" type="text" maxlength="6" placeholder="e.g. 400001" />
               </div>
             </div>
 
@@ -151,8 +232,20 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
+import TaxIdField from '../components/TaxIdField.vue'
 import { clientsAPI } from '../api/clients'
 import { useDraftStorage } from '../composables/useDraftStorage'
+import { panFromGstin } from '../utils/taxIds'
+
+const indianStates = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat',
+  'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh',
+  'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab',
+  'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand',
+  'West Bengal', 'Andaman and Nicobar Islands', 'Chandigarh',
+  'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir', 'Ladakh',
+  'Lakshadweep', 'Puducherry',
+]
 
 const clients = ref([])
 const loading = ref(true)
@@ -164,6 +257,8 @@ const editingId = ref(null)
 const submitting = ref(false)
 const formError = ref('')
 const deleteTarget = ref(null)
+const sameAsClientName = ref(true)
+const panManuallyEdited = ref(false)
 
 const { draft: clientDraft, saveDraft: saveClientDraft, clearDraft: clearClientDraft, hasDraft: hasClientDraft, load: loadClientDraft } = useDraftStorage('client_create')
 const showDraftBanner = ref(false)
@@ -172,8 +267,15 @@ const form = reactive({
   name: '',
   email: '',
   phone: '',
-  address: '',
   gstin: '',
+  customer_type: 'business',
+  pan: '',
+  salutation: '',
+  address_line1: '',
+  address_line2: '',
+  city: '',
+  state: '',
+  pincode: '',
 })
 
 // Auto-save draft during add mode
@@ -182,6 +284,34 @@ watch(() => ({ ...form }), (val) => {
     saveClientDraft({ ...val })
   }
 }, { deep: true })
+
+// Salutation mirrors the client name until the admin unchecks "Same as name".
+watch(sameAsClientName, (same) => { if (same) form.salutation = '' })
+watch(() => form.name, () => { if (sameAsClientName.value) form.salutation = '' })
+
+function onSelectIndividual() {
+  form.customer_type = 'individual'
+  form.gstin = ''   // GSTIN is not applicable to individual clients
+}
+
+// Auto-fill PAN from the first 10 chars of a completed 15-char GSTIN, unless
+// the admin has already typed a PAN by hand. Implemented via watch() (not a
+// DOM @input listener) so it can't race with TaxIdField's own input handling.
+let autofillingPan = false
+watch(() => form.gstin, (val) => {
+  if (panManuallyEdited.value) return
+  if ((val || '').length === 15) {
+    const extracted = panFromGstin(val)
+    if (extracted) {
+      autofillingPan = true
+      form.pan = extracted
+    }
+  }
+})
+watch(() => form.pan, () => {
+  if (autofillingPan) { autofillingPan = false; return }
+  panManuallyEdited.value = true
+})
 
 async function fetchClients() {
   loading.value = true
@@ -206,7 +336,8 @@ const filtered = computed(() => {
     c.name.toLowerCase().includes(q) ||
     (c.email || '').toLowerCase().includes(q) ||
     (c.phone || '').toLowerCase().includes(q) ||
-    (c.address || '').toLowerCase().includes(q)
+    (c.gstin || '').toLowerCase().includes(q) ||
+    (c.pan || '').toLowerCase().includes(q)
   )
 })
 
@@ -214,8 +345,17 @@ function resetForm() {
   form.name = ''
   form.email = ''
   form.phone = ''
-  form.address = ''
   form.gstin = ''
+  form.customer_type = 'business'
+  form.pan = ''
+  form.salutation = ''
+  form.address_line1 = ''
+  form.address_line2 = ''
+  form.city = ''
+  form.state = ''
+  form.pincode = ''
+  sameAsClientName.value = true
+  panManuallyEdited.value = false
   formError.value = ''
 }
 
@@ -223,6 +363,7 @@ function restoreClientDraft() {
   if (!clientDraft.value) return
   const d = clientDraft.value
   Object.keys(form).forEach(k => { if (d[k] !== undefined) form[k] = d[k] })
+  sameAsClientName.value = !d.salutation
   showDraftBanner.value = false
 }
 
@@ -247,8 +388,22 @@ function openEditModal(c) {
   form.name = c.name
   form.email = c.email || ''
   form.phone = c.phone || ''
-  form.address = c.address || ''
   form.gstin = c.gstin || ''
+  form.customer_type = c.customer_type || 'business'
+  form.pan = c.pan || ''
+  form.salutation = c.salutation || ''
+  form.address_line1 = c.address_line1 || ''
+  form.address_line2 = c.address_line2 || ''
+  form.city = c.city || ''
+  form.state = c.state || ''
+  form.pincode = c.pincode || ''
+  // Legacy clients with a freeform address but no structured fields yet: seed
+  // line 1 from it so the text isn't invisible in the new form.
+  if (!form.address_line1 && !form.city && c.address) {
+    form.address_line1 = c.address.split('\n')[0] || ''
+  }
+  sameAsClientName.value = !c.salutation
+  panManuallyEdited.value = true   // don't clobber an existing PAN on edit
   formError.value = ''
   modalOpen.value = true
 }
@@ -263,8 +418,15 @@ async function handleSubmit() {
       name: form.name,
       email: form.email || null,
       phone: form.phone || null,
-      address: form.address || null,
-      gstin: form.gstin || null,
+      customer_type: form.customer_type,
+      gstin: form.customer_type === 'business' ? (form.gstin || null) : null,
+      pan: form.pan || null,
+      salutation: sameAsClientName.value ? null : (form.salutation || null),
+      address_line1: form.address_line1 || null,
+      address_line2: form.address_line2 || null,
+      city: form.city || null,
+      state: form.state || null,
+      pincode: form.pincode || null,
     }
     if (isEditing.value) {
       await clientsAPI.updateClient(editingId.value, payload)
@@ -405,6 +567,18 @@ async function handleDelete() {
 .mono { font-variant-numeric: tabular-nums; }
 .text-center { text-align: center; }
 .col-actions { width: 90px; }
+
+.type-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: var(--radius-full);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.type-business { background: var(--color-primary-light); color: var(--color-primary); }
+.type-individual { background: #ede9fe; color: #6d28d9; }
 
 /* Empty / loading */
 .empty-cell {
@@ -558,6 +732,26 @@ form .modal-footer {
   border-radius: 0;
 }
 
+/* ─── Type toggle ─── */
+.type-toggles { display: flex; gap: 10px; margin-top: 4px; }
+.type-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border: 1.5px solid var(--color-outline);
+  background: var(--color-surface-dim);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.type-toggle-btn.active { background: var(--color-primary-light); border-color: var(--color-primary); color: var(--color-primary); }
+.type-toggle-btn .material-symbols-outlined { font-size: 17px; }
+
 /* ─── Form ─── */
 .form-grid {
   display: grid;
@@ -578,7 +772,23 @@ form .modal-footer {
   text-transform: uppercase;
   letter-spacing: .05em;
   color: var(--color-on-surface-variant);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
+.inline-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+}
+.inline-check input { width: auto; height: auto; margin: 0; }
+
 .form-field input,
 .form-field textarea {
   padding: 8px 12px;
@@ -599,6 +809,7 @@ form .modal-footer {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px var(--color-primary-light);
 }
+.form-field input:disabled { background: var(--color-surface-dim); color: var(--color-on-surface-variant); cursor: not-allowed; }
 .form-field input::placeholder,
 .form-field textarea::placeholder { color: var(--color-on-surface-variant); }
 .form-field textarea { resize: vertical; }

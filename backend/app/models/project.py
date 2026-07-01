@@ -9,6 +9,9 @@ class Project(Base):
     id = Column(Integer, primary_key=True)
     project_number = Column(String, unique=True, nullable=False)
     name = Column(String, nullable=False)
+    # Alternate name printed on invoices instead of `name`. NULL = "same as
+    # project name" (falls back to `name` wherever it's read).
+    display_name = Column(String, nullable=True)
     location = Column(String, nullable=True)
     gmap_link = Column(String, nullable=True)
     year = Column(Integer, nullable=True)

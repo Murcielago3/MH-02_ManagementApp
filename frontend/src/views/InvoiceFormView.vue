@@ -84,8 +84,13 @@
               </select>
             </div>
             <div v-if="selectedClient" class="client-chip mt-12">
-              <span class="material-symbols-outlined chip-icon">corporate_fare</span>
-              <span><strong>{{ selectedClient.name }}</strong> &nbsp;·&nbsp; GSTIN: {{ selectedClient.gstin || 'N/A' }}</span>
+              <span class="material-symbols-outlined chip-icon">{{ selectedClient.customer_type === 'individual' ? 'person' : 'corporate_fare' }}</span>
+              <span v-if="selectedClient.customer_type === 'individual'">
+                <strong>{{ selectedClient.salutation || selectedClient.name }}</strong> &nbsp;·&nbsp; PAN: {{ selectedClient.pan || 'N/A' }}
+              </span>
+              <span v-else>
+                <strong>{{ selectedClient.salutation || selectedClient.name }}</strong> &nbsp;·&nbsp; GSTIN: {{ selectedClient.gstin || 'N/A' }}
+              </span>
             </div>
             <div v-if="taxTypeIndicator" class="tax-badge mt-8" :class="taxTypeIndicator.class">
               <span class="material-symbols-outlined" style="font-size:14px;">info</span>
@@ -124,9 +129,13 @@
                   <label>Address</label>
                   <textarea v-model="form.bill_to_address" rows="3" placeholder="Full address…"></textarea>
                 </div>
-                <div class="form-group">
+                <div v-if="form.customer_type !== 'individual'" class="form-group">
                   <label>GSTIN</label>
-                  <input v-model="form.bill_to_gstin" type="text" placeholder="e.g. 27XXXXX…" />
+                  <TaxIdField v-model="form.bill_to_gstin" kind="gstin" placeholder="e.g. 27XXXXX…" />
+                </div>
+                <div v-else class="form-group">
+                  <label>PAN</label>
+                  <TaxIdField v-model="form.bill_to_pan" kind="pan" placeholder="e.g. AAAAA9999A" />
                 </div>
               </div>
               <div>
@@ -159,13 +168,23 @@
               <span class="section-number">05</span>
               <h3 class="section-title">Line Items</h3>
             </div>
+            <div class="bulk-tax-bar">
+              <span class="bulk-tax-label">Bulk-apply GST bracket:</span>
+              <select v-model.number="bulkTaxRate" class="bulk-tax-select">
+                <option :value="8">8%</option>
+                <option :value="12">12%</option>
+                <option :value="18">18%</option>
+              </select>
+              <button type="button" class="bulk-tax-btn" @click="applyBulkTaxRate">Apply to All</button>
+            </div>
             <div class="items-table-wrap">
               <table class="items-table">
                 <thead>
                   <tr>
                     <th style="width:36px">#</th>
                     <th>Description</th>
-                    <th style="width:110px">HSN/SAC</th>
+                    <th style="width:100px">HSN/SAC</th>
+                    <th style="width:80px">GST %</th>
                     <th style="width:140px">Amount (₹)</th>
                     <th style="width:40px"></th>
                   </tr>
@@ -178,6 +197,13 @@
                     </td>
                     <td>
                       <input v-model="item.hsn_sac" type="text" placeholder="HSN" />
+                    </td>
+                    <td>
+                      <select v-model.number="item.tax_rate">
+                        <option :value="8">8%</option>
+                        <option :value="12">12%</option>
+                        <option :value="18">18%</option>
+                      </select>
                     </td>
                     <td>
                       <CurrencyInput v-model="item.amount" required />
@@ -232,20 +258,42 @@
               <span class="sr-label">Sub Total</span>
               <span class="sr-value font-mono">₹{{ formatAmount(liveTotals.subtotal) }}</span>
             </div>
-            <template v-if="taxType === 'CGST_SGST'">
-              <div class="summary-row">
-                <span class="sr-label">CGST (9%)</span>
-                <span class="sr-value font-mono">₹{{ formatAmount(liveTotals.cgst) }}</span>
-              </div>
-              <div class="summary-row">
-                <span class="sr-label">SGST (9%)</span>
-                <span class="sr-value font-mono">₹{{ formatAmount(liveTotals.sgst) }}</span>
+            <!-- Single bracket: same compact look as before, but rate-aware -->
+            <template v-if="liveTotals.breakdown.length <= 1">
+              <template v-if="taxType === 'CGST_SGST'">
+                <div class="summary-row">
+                  <span class="sr-label">CGST ({{ singleBracketRate / 2 }}%)</span>
+                  <span class="sr-value font-mono">₹{{ formatAmount(liveTotals.cgst) }}</span>
+                </div>
+                <div class="summary-row">
+                  <span class="sr-label">SGST ({{ singleBracketRate / 2 }}%)</span>
+                  <span class="sr-value font-mono">₹{{ formatAmount(liveTotals.sgst) }}</span>
+                </div>
+              </template>
+              <div v-else class="summary-row">
+                <span class="sr-label">IGST ({{ singleBracketRate }}%)</span>
+                <span class="sr-value font-mono">₹{{ formatAmount(liveTotals.igst) }}</span>
               </div>
             </template>
-            <div v-if="taxType === 'IGST'" class="summary-row">
-              <span class="sr-label">IGST (18%)</span>
-              <span class="sr-value font-mono">₹{{ formatAmount(liveTotals.igst) }}</span>
-            </div>
+            <!-- Multiple brackets: one line (or CGST+SGST pair) per rate -->
+            <template v-else>
+              <template v-for="b in liveTotals.breakdown" :key="b.rate">
+                <template v-if="taxType === 'CGST_SGST'">
+                  <div class="summary-row">
+                    <span class="sr-label">CGST ({{ b.rate / 2 }}%) on ₹{{ formatAmount(b.taxable_value) }}</span>
+                    <span class="sr-value font-mono">₹{{ formatAmount(b.cgst) }}</span>
+                  </div>
+                  <div class="summary-row">
+                    <span class="sr-label">SGST ({{ b.rate / 2 }}%) on ₹{{ formatAmount(b.taxable_value) }}</span>
+                    <span class="sr-value font-mono">₹{{ formatAmount(b.sgst) }}</span>
+                  </div>
+                </template>
+                <div v-else class="summary-row">
+                  <span class="sr-label">IGST ({{ b.rate }}%) on ₹{{ formatAmount(b.taxable_value) }}</span>
+                  <span class="sr-value font-mono">₹{{ formatAmount(b.igst) }}</span>
+                </div>
+              </template>
+            </template>
           </div>
 
           <div class="summary-total">
@@ -288,6 +336,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 import ToastNotification from '../components/ToastNotification.vue'
 import CurrencyInput from '../components/CurrencyInput.vue'
+import TaxIdField from '../components/TaxIdField.vue'
 import { invoicesAPI } from '../api/invoices'
 import { bankAccountsAPI } from '../api/bankAccounts'
 import { projectsAPI } from '../api/projects'
@@ -314,15 +363,22 @@ const form = reactive({
   bill_to_name: '',
   bill_to_address: '',
   bill_to_gstin: '',
+  bill_to_pan: '',
+  customer_type: null,
   ship_to_name: '',
   ship_to_address: '',
   ship_to_gstin: '',
   subject: '',
   bank_account_id: null,
   items: [
-    { description: '', hsn_sac: '', amount: 0 }
+    { description: '', hsn_sac: '', amount: 0, tax_rate: 18 }
   ]
 })
+
+const bulkTaxRate = ref(18)
+function applyBulkTaxRate() {
+  form.items.forEach((i) => { i.tax_rate = bulkTaxRate.value })
+}
 
 const sameAsBillTo = ref(false)
 const projects = ref([])
@@ -361,6 +417,8 @@ function populateFormFromData(data) {
   form.bill_to_name = data.bill_to_name || ''
   form.bill_to_address = data.bill_to_address || ''
   form.bill_to_gstin = data.bill_to_gstin || ''
+  form.bill_to_pan = data.bill_to_pan || ''
+  form.customer_type = data.customer_type || null
   form.ship_to_name = data.ship_to_name || ''
   form.ship_to_address = data.ship_to_address || ''
   form.ship_to_gstin = data.ship_to_gstin || ''
@@ -369,10 +427,11 @@ function populateFormFromData(data) {
   form.items = (data.items || []).map(i => ({
     description: i.description || '',
     hsn_sac: i.hsn_sac || '',
-    amount: Number(i.amount) || 0
+    amount: Number(i.amount) || 0,
+    tax_rate: Number(i.tax_rate) || 18,  // legacy items/drafts pre-date this field
   }))
   if (form.items.length === 0) {
-    form.items = [{ description: '', hsn_sac: '', amount: 0 }]
+    form.items = [{ description: '', hsn_sac: '', amount: 0, tax_rate: 18 }]
   }
 }
 
@@ -387,6 +446,8 @@ function getFormSnapshot() {
     bill_to_name: form.bill_to_name,
     bill_to_address: form.bill_to_address,
     bill_to_gstin: form.bill_to_gstin,
+    bill_to_pan: form.bill_to_pan,
+    customer_type: form.customer_type,
     ship_to_name: form.ship_to_name,
     ship_to_address: form.ship_to_address,
     ship_to_gstin: form.ship_to_gstin,
@@ -502,6 +563,10 @@ const handleSameAsChange = () => {
   }
 }
 
+function projectDisplayName(proj) {
+  return (proj && (proj.display_name || proj.name)) || ''
+}
+
 const onProjectSelect = () => {
   if (!form.project_id) {
     selectedClient.value = null
@@ -511,13 +576,16 @@ const onProjectSelect = () => {
   }
   const proj = projects.value.find(p => p.id === form.project_id)
   if (proj) {
-    if (includeProjectAsSubject.value) form.subject = proj.name
+    if (includeProjectAsSubject.value) form.subject = projectDisplayName(proj)
     if (proj.client) {
       selectedClient.value = proj.client
       form.client_id = proj.client.id
-      form.bill_to_name = proj.client.name
+      form.bill_to_name = proj.client.salutation || proj.client.name
       form.bill_to_address = proj.client.address || ''
-      form.bill_to_gstin = proj.client.gstin || ''
+      form.customer_type = proj.client.customer_type || 'business'
+      form.bill_to_pan = proj.client.pan || ''
+      // Individual clients never carry a GSTIN.
+      form.bill_to_gstin = form.customer_type === 'individual' ? '' : (proj.client.gstin || '')
     } else {
       selectedClient.value = null
       form.client_id = null
@@ -529,39 +597,67 @@ const onProjectSelect = () => {
   }
 }
 
-// Toggling the switch on snaps the subject to the current project name.
+// Toggling the switch on snaps the subject to the current project's display name.
 watch(includeProjectAsSubject, (on) => {
   if (on) {
     const proj = projects.value.find(p => p.id === form.project_id)
-    form.subject = proj ? proj.name : ''
+    form.subject = projectDisplayName(proj)
   }
 })
 
+// Company's home state (Maharashtra, GSTIN prefix "27") — mirrors the backend's
+// determine_tax_type() fallback in app/routers/invoices.py exactly.
+const HOME_STATE_NAME = 'maharashtra'
 const taxType = computed(() => {
   const gst = form.bill_to_gstin
-  if (gst && gst.length >= 2 && !gst.startsWith('27')) return 'IGST'
-  return 'CGST_SGST'
+  if (gst && gst.length >= 2) return gst.startsWith('27') ? 'CGST_SGST' : 'IGST'
+  // No GSTIN (individual clients, or an unregistered business): fall back to
+  // matching place_of_supply against the company's home state.
+  const pos = (form.place_of_supply || '').toLowerCase()
+  return pos.includes(HOME_STATE_NAME) ? 'CGST_SGST' : 'IGST'
 })
 
 const taxTypeIndicator = computed(() => {
-  if (!form.bill_to_gstin) return null
+  if (!form.bill_to_gstin && !form.place_of_supply) return null
   if (taxType.value === 'CGST_SGST') {
-    return { text: 'Tax: CGST + SGST (9% + 9%)', class: 'indicator-teal' }
+    return { text: 'Tax: CGST + SGST (split per item bracket)', class: 'indicator-teal' }
   }
-  return { text: 'Tax: IGST (18%)', class: 'indicator-amber' }
+  return { text: 'Tax: IGST (per item bracket)', class: 'indicator-amber' }
 })
 
+// Groups line items by their tax_rate bracket (8/12/18%) and computes
+// CGST+SGST (half each) or IGST (full rate) per bracket — mirrors
+// calculate_totals() in app/routers/invoices.py exactly, so the live summary
+// always matches what the backend will actually save/print.
 const liveTotals = computed(() => {
   const subtotal = form.items.reduce((s, i) => s + (Number(i.amount) || 0), 0)
-  let cgst = 0, sgst = 0, igst = 0
-  if (taxType.value === 'CGST_SGST') {
-    cgst = subtotal * 0.09
-    sgst = subtotal * 0.09
-  } else {
-    igst = subtotal * 0.18
+  const buckets = new Map()
+  for (const i of form.items) {
+    const rate = Number(i.tax_rate) || 18
+    const amt = Number(i.amount) || 0
+    buckets.set(rate, (buckets.get(rate) || 0) + amt)
   }
-  return { subtotal, cgst, sgst, igst, total: subtotal + cgst + sgst + igst }
+  const breakdown = []
+  let cgst = 0, sgst = 0, igst = 0
+  for (const rate of [...buckets.keys()].sort((a, b) => a - b)) {
+    const taxable = buckets.get(rate)
+    if (taxType.value === 'CGST_SGST') {
+      const half = taxable * (rate / 2) / 100
+      breakdown.push({ rate, taxable_value: taxable, cgst: half, sgst: half, igst: 0 })
+      cgst += half
+      sgst += half
+    } else {
+      const amt = taxable * rate / 100
+      breakdown.push({ rate, taxable_value: taxable, cgst: 0, sgst: 0, igst: amt })
+      igst += amt
+    }
+  }
+  return { subtotal, cgst, sgst, igst, total: subtotal + cgst + sgst + igst, breakdown }
 })
+
+// Rate shown in the compact single-bracket summary display (all items share
+// one rate, or there are no items yet — default to 18%).
+const singleBracketRate = computed(() => liveTotals.value.breakdown[0]?.rate ?? 18)
 
 const isFormValid = computed(() => {
   if (form.invoice_type === 'tax' && taxType.value !== 'IGST' && !form.invoice_number) return false
@@ -886,6 +982,38 @@ const submitInvoice = async () => {
   cursor: pointer;
 }
 
+/* ── Bulk tax bar ── */
+.bulk-tax-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: var(--color-surface-dim);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg);
+}
+.bulk-tax-label { font-size: 12px; font-weight: 600; color: var(--color-on-surface-variant); }
+.bulk-tax-select {
+  padding: 6px 10px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  background: #fff;
+}
+.bulk-tax-btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.bulk-tax-btn:hover { opacity: 0.88; }
+
 /* ── Items Table ── */
 .items-table-wrap {
   border: 1px solid var(--color-outline);
@@ -930,6 +1058,20 @@ const submitInvoice = async () => {
   outline: none;
   border-color: var(--color-primary);
   background: #fff;
+  box-shadow: 0 0 0 2px rgba(40,116,117,0.1);
+}
+.items-table select {
+  width: 100%;
+  padding: 8px 6px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 13px;
+  background: #fff;
+}
+.items-table select:focus {
+  outline: none;
+  border-color: var(--color-primary);
   box-shadow: 0 0 0 2px rgba(40,116,117,0.1);
 }
 

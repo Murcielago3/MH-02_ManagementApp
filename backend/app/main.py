@@ -292,6 +292,53 @@ async def run_migrations():
     except Exception:
         pass
 
+    # Client type/PAN/salutation/structured-address columns
+    client_columns = [
+        ("customer_type", "VARCHAR DEFAULT 'business'"),
+        ("pan", "VARCHAR"),
+        ("salutation", "VARCHAR"),
+        ("address_line1", "VARCHAR"),
+        ("address_line2", "VARCHAR"),
+        ("city", "VARCHAR"),
+        ("state", "VARCHAR"),
+        ("pincode", "VARCHAR"),
+    ]
+    for col_name, col_def in client_columns:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(f"ALTER TABLE clients ADD COLUMN {col_name} {col_def}"))
+        except Exception:
+            pass
+
+    # Project display_name (alternate name printed on invoices)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("ALTER TABLE projects ADD COLUMN display_name VARCHAR"))
+    except Exception:
+        pass
+
+    # Invoice PAN/customer-type snapshot + per-bracket tax breakdown
+    for col_name, col_def in [
+        ("bill_to_pan", "VARCHAR"),
+        ("customer_type", "VARCHAR"),
+        ("tax_breakdown", "JSON"),
+    ]:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(f"ALTER TABLE invoices ADD COLUMN {col_name} {col_def}"))
+        except Exception:
+            pass
+
+    # Per-item GST bracket (8/12/18%) — default 18 matches the historical
+    # hardcoded rate so existing invoices/items are unaffected.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text(
+                "ALTER TABLE invoice_items ADD COLUMN tax_rate NUMERIC(5, 2) DEFAULT 18"
+            ))
+    except Exception:
+        pass
+
     # Create the salary_slips table if missing
     try:
         async with engine.begin() as conn:

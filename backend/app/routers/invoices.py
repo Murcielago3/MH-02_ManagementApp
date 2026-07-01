@@ -16,6 +16,7 @@ class InvoiceItemCreate(BaseModel):
     description: str
     hsn_sac: Optional[str] = None
     amount: float
+    tax_rate: float = 18  # 8, 12, or 18 — per-service GST bracket
 
 class InvoiceCreate(BaseModel):
     invoice_type: str  # tax or proforma
@@ -25,6 +26,8 @@ class InvoiceCreate(BaseModel):
     bill_to_name: Optional[str] = None
     bill_to_address: Optional[str] = None
     bill_to_gstin: Optional[str] = None
+    bill_to_pan: Optional[str] = None
+    customer_type: Optional[str] = None  # 'business' or 'individual', snapshotted from the client
     ship_to_name: Optional[str] = None
     ship_to_address: Optional[str] = None
     ship_to_gstin: Optional[str] = None
@@ -34,29 +37,53 @@ class InvoiceCreate(BaseModel):
     bank_account_id: Optional[int] = None
     items: List[InvoiceItemCreate]
 
-def determine_tax_type(gstin: Optional[str]) -> str:
-    if gstin and gstin[:2] == "27":
+# The company's home state code (Maharashtra = "27"), used both when a GSTIN
+# is present (prefix match) and, for individuals / unregistered businesses
+# with no GSTIN, as a text fallback against place_of_supply.
+HOME_STATE_NAME = "maharashtra"
+
+def determine_tax_type(gstin: Optional[str], place_of_supply: Optional[str] = None) -> str:
+    if gstin:
+        return "CGST_SGST" if gstin[:2] == "27" else "IGST"
+    # No GSTIN (individual clients, or an unregistered business) — fall back
+    # to matching the place of supply against the company's home state.
+    if place_of_supply and HOME_STATE_NAME in place_of_supply.lower():
         return "CGST_SGST"
     return "IGST"
 
 def calculate_totals(items: list, tax_type: str) -> dict:
-    subtotal = sum(item.amount for item in items)
-    if tax_type == "CGST_SGST":
-        cgst = round(subtotal * 0.09, 2)
-        sgst = round(subtotal * 0.09, 2)
-        igst = 0
-        total = round(subtotal + cgst + sgst, 2)
-    else:
-        cgst = 0
-        sgst = 0
-        igst = round(subtotal * 0.18, 2)
-        total = round(subtotal + igst, 2)
+    """Groups line items by their per-item tax_rate bracket (8/12/18%) and
+    computes CGST+SGST (split in half) or IGST (full rate) per bracket, summed
+    into the invoice totals. `tax_breakdown` records each bracket's figures so
+    the PDF can show a per-rate breakdown when more than one bracket is used."""
+    subtotal = round(sum(item.amount for item in items), 2)
+    brackets: dict[float, float] = {}
+    for item in items:
+        rate = float(item.tax_rate if getattr(item, "tax_rate", None) is not None else 18)
+        brackets[rate] = brackets.get(rate, 0) + item.amount
+
+    breakdown = []
+    cgst = sgst = igst = 0.0
+    for rate in sorted(brackets):
+        taxable = round(brackets[rate], 2)
+        if tax_type == "CGST_SGST":
+            half = round(taxable * (rate / 2) / 100, 2)
+            breakdown.append({"rate": rate, "taxable_value": taxable, "cgst": half, "sgst": half, "igst": 0})
+            cgst += half
+            sgst += half
+        else:
+            amt = round(taxable * rate / 100, 2)
+            breakdown.append({"rate": rate, "taxable_value": taxable, "cgst": 0, "sgst": 0, "igst": amt})
+            igst += amt
+
+    total = round(subtotal + cgst + sgst + igst, 2)
     return {
         "subtotal": subtotal,
-        "cgst": cgst,
-        "sgst": sgst,
-        "igst": igst,
-        "total": total
+        "cgst": round(cgst, 2),
+        "sgst": round(sgst, 2),
+        "igst": round(igst, 2),
+        "total": total,
+        "tax_breakdown": breakdown,
     }
 
 @router.get("/")
@@ -98,7 +125,7 @@ async def create_invoice(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(require_admin)
 ):
-    tax_type = determine_tax_type(data.bill_to_gstin)
+    tax_type = determine_tax_type(data.bill_to_gstin, data.place_of_supply)
     totals = calculate_totals(data.items, tax_type)
 
     invoice = Invoice(
@@ -109,6 +136,8 @@ async def create_invoice(
         bill_to_name=data.bill_to_name,
         bill_to_address=data.bill_to_address,
         bill_to_gstin=data.bill_to_gstin,
+        bill_to_pan=data.bill_to_pan,
+        customer_type=data.customer_type,
         ship_to_name=data.ship_to_name,
         ship_to_address=data.ship_to_address,
         ship_to_gstin=data.ship_to_gstin,
@@ -128,7 +157,8 @@ async def create_invoice(
             invoice_id=invoice.id,
             description=item_data.description,
             hsn_sac=item_data.hsn_sac,
-            amount=item_data.amount
+            amount=item_data.amount,
+            tax_rate=item_data.tax_rate,
         )
         db.add(item)
 
@@ -167,7 +197,7 @@ async def update_invoice(
     if not invoice:
         raise HTTPException(404, "Invoice not found")
 
-    tax_type = determine_tax_type(data.bill_to_gstin)
+    tax_type = determine_tax_type(data.bill_to_gstin, data.place_of_supply)
     totals = calculate_totals(data.items, tax_type)
 
     invoice.invoice_type = data.invoice_type
@@ -177,6 +207,8 @@ async def update_invoice(
     invoice.bill_to_name = data.bill_to_name
     invoice.bill_to_address = data.bill_to_address
     invoice.bill_to_gstin = data.bill_to_gstin
+    invoice.bill_to_pan = data.bill_to_pan
+    invoice.customer_type = data.customer_type
     invoice.ship_to_name = data.ship_to_name
     invoice.ship_to_address = data.ship_to_address
     invoice.ship_to_gstin = data.ship_to_gstin
@@ -190,6 +222,7 @@ async def update_invoice(
     invoice.sgst = totals["sgst"]
     invoice.igst = totals["igst"]
     invoice.total = totals["total"]
+    invoice.tax_breakdown = totals["tax_breakdown"]
 
     for old_item in invoice.items:
         await db.delete(old_item)
@@ -200,7 +233,8 @@ async def update_invoice(
             invoice_id=invoice.id,
             description=item_data.description,
             hsn_sac=item_data.hsn_sac,
-            amount=item_data.amount
+            amount=item_data.amount,
+            tax_rate=item_data.tax_rate,
         )
         db.add(item)
 
@@ -439,12 +473,25 @@ def render_invoice_html(invoice, settings=None) -> str:
     except Exception:
         pass
 
+    def fmt_rate(r) -> str:
+        return f"{float(r):g}"
+
+    breakdown = invoice.tax_breakdown or []
+    num_brackets = len(breakdown)
+    rows_per_bracket = 2 if invoice.tax_type == "CGST_SGST" else 1
+    base_tax_rows = 2 if invoice.tax_type == "CGST_SGST" else 1
+    rendered_tax_rows = (num_brackets * rows_per_bracket) if num_brackets > 1 else base_tax_rows
+    extra_tax_rows = max(0, rendered_tax_rows - base_tax_rows)
+
     HEADER_H = 32
     DATE_ROW_H = 8
     BILLSHIP_H = 20
     SUBJECT_H = 7
     ITEMS_THEAD_H = 7
-    FOOTER_H = 36
+    # Base footer fits the single-bracket case unchanged; grows ~4mm per extra
+    # breakdown row so multi-bracket invoices still fit one page (the items
+    # area below donates the space via its existing spacer-row mechanism).
+    FOOTER_H = 36 + extra_tax_rows * 4
     TC_H = 13
     SIG_H = 36
     PRINTABLE_H = 265
@@ -464,6 +511,7 @@ def render_invoice_html(invoice, settings=None) -> str:
             <td style="{base} border-right:1px solid #000 !important; text-align:center;">{i}</td>
             <td style="{base} border-right:1px solid #000 !important;">{item.description}</td>
             <td style="{base} border-right:1px solid #000 !important;">{item.hsn_sac or ''}</td>
+            <td style="{base} border-right:1px solid #000 !important; text-align:center;">{fmt_rate(item.tax_rate)}%</td>
             <td style="{base} text-align:right;">&#8377;{format_indian_currency(float(item.amount))}</td>
         </tr>"""
 
@@ -500,22 +548,55 @@ def render_invoice_html(invoice, settings=None) -> str:
         <div class="invoice-num">{formatted_num}</div>
     """ if formatted_num else ""
 
-    if invoice.tax_type == "CGST_SGST":
-        tax_rows = f"""
-        <tr>
-            <td class="tot-label">CGST(9%)</td>
-            <td class="tot-val">₹{format_indian_currency(float(invoice.cgst))}</td>
-        </tr>
-        <tr>
-            <td class="tot-label">SGST(9%)</td>
-            <td class="tot-val">₹{format_indian_currency(float(invoice.sgst))}</td>
-        </tr>"""
+    if num_brackets <= 1:
+        # Single bracket (or none, e.g. legacy invoices pre-dating tax_breakdown):
+        # same layout as before, but the rate is whatever was actually applied.
+        rate = breakdown[0]["rate"] if breakdown else 18
+        if invoice.tax_type == "CGST_SGST":
+            tax_rows = f"""
+            <tr>
+                <td class="tot-label">CGST({fmt_rate(rate / 2)}%)</td>
+                <td class="tot-val">₹{format_indian_currency(float(invoice.cgst))}</td>
+            </tr>
+            <tr>
+                <td class="tot-label">SGST({fmt_rate(rate / 2)}%)</td>
+                <td class="tot-val">₹{format_indian_currency(float(invoice.sgst))}</td>
+            </tr>"""
+        else:
+            tax_rows = f"""
+            <tr>
+                <td class="tot-label">IGST({fmt_rate(rate)}%)</td>
+                <td class="tot-val">₹{format_indian_currency(float(invoice.igst))}</td>
+            </tr>"""
     else:
-        tax_rows = f"""
-        <tr>
-            <td class="tot-label">IGST(18%)</td>
-            <td class="tot-val">₹{format_indian_currency(float(invoice.igst))}</td>
-        </tr>"""
+        # Multiple brackets — a row (or CGST+SGST pair) per rate, broken down
+        # before the Total / Total-in-words section.
+        rows = []
+        for b in breakdown:
+            rate = b["rate"]
+            taxable = format_indian_currency(float(b["taxable_value"]))
+            if invoice.tax_type == "CGST_SGST":
+                rows.append(
+                    f'<tr><td class="tot-label">CGST({fmt_rate(rate / 2)}%) on ₹{taxable}</td>'
+                    f'<td class="tot-val">₹{format_indian_currency(float(b["cgst"]))}</td></tr>'
+                )
+                rows.append(
+                    f'<tr><td class="tot-label">SGST({fmt_rate(rate / 2)}%) on ₹{taxable}</td>'
+                    f'<td class="tot-val">₹{format_indian_currency(float(b["sgst"]))}</td></tr>'
+                )
+            else:
+                rows.append(
+                    f'<tr><td class="tot-label">IGST({fmt_rate(rate)}%) on ₹{taxable}</td>'
+                    f'<td class="tot-val">₹{format_indian_currency(float(b["igst"]))}</td></tr>'
+                )
+        tax_rows = "".join(rows)
+
+    if invoice.customer_type == "individual" and invoice.bill_to_pan:
+        bill_to_tax_id = f"<br>PAN {invoice.bill_to_pan}"
+    elif invoice.bill_to_gstin:
+        bill_to_tax_id = f"<br>GSTIN {invoice.bill_to_gstin}"
+    else:
+        bill_to_tax_id = ""
 
     total_words = number_to_words(float(invoice.total))
     subtotal = float(invoice.subtotal)
@@ -590,7 +671,8 @@ def render_invoice_html(invoice, settings=None) -> str:
   }}
   .items-row td {{ padding: 5px 6px; font-size: 7px; }}
   .col-num  {{ width: 32px; text-align: center; }}
-  .col-hsn  {{ width: 95px; }}
+  .col-hsn  {{ width: 85px; }}
+  .col-gst  {{ width: 45px; text-align: center; }}
   .col-amt  {{ width: 110px; text-align: right; }}
 
   /* ===== FOOTER (bank + totals) — bumped to match the +3 address size ===== */
@@ -668,7 +750,7 @@ def render_invoice_html(invoice, settings=None) -> str:
         <div class=\"meta-val-bold\">{invoice.bill_to_name or ''}</div>
         <div style=\"font-size:10.5px; line-height:1.4; margin-top:2px;\">
           {(invoice.bill_to_address or '').replace(chr(10), '<br>')}
-          {'<br>GSTIN ' + invoice.bill_to_gstin if invoice.bill_to_gstin else ''}
+          {bill_to_tax_id}
         </div>
       </td>
       <td style=\"padding:5px 8px;\">
@@ -688,15 +770,17 @@ def render_invoice_html(invoice, settings=None) -> str:
     <tr>
       <td colspan=\"2\" style=\"padding:0;\">
         <table class=\"inner\" style=\"border-collapse:collapse;\">
-          <colgroup><col style=\"width:32px\"><col><col style=\"width:95px\"><col style=\"width:110px\"></colgroup>
+          <colgroup><col style=\"width:32px\"><col><col style=\"width:85px\"><col style=\"width:45px\"><col style=\"width:110px\"></colgroup>
           <tr class=\"items-head\" style=\"height:{ITEMS_THEAD_H}mm;\">
             <td class=\"col-num\" style=\"border-right:1px solid #000 !important;\">#</td>
             <td style=\"padding:5px 6px; border-right:1px solid #000 !important;\">Service / Description</td>
             <td style=\"padding-left:6px; border-right:1px solid #000 !important;\">HSN/SAC</td>
+            <td style=\"text-align:center; border-right:1px solid #000 !important;\">GST%</td>
             <td style=\"padding-right:6px; text-align:right;\">Amount</td>
           </tr>
           {items_rows}
           <tr style=\"height:{spacer_height}mm;\">
+            <td style=\"border-right:1px solid #000 !important;\"></td>
             <td style=\"border-right:1px solid #000 !important;\"></td>
             <td style=\"border-right:1px solid #000 !important;\"></td>
             <td style=\"border-right:1px solid #000 !important;\"></td>

@@ -86,6 +86,9 @@ def parse_date(v):
 class ProjectCreate(BaseModel):
     project_number: str
     name: str
+    # Alternate name printed on invoices instead of `name`. None/omitted =
+    # "same as project name".
+    display_name: Optional[str] = None
     location: Optional[str] = None
     gmap_link: Optional[str] = None
     year: Optional[int] = None
@@ -111,6 +114,7 @@ class ProjectCreate(BaseModel):
 class ProjectUpdate(BaseModel):
     project_number: Optional[str] = None
     name: Optional[str] = None
+    display_name: Optional[str] = None
     location: Optional[str] = None
     gmap_link: Optional[str] = None
     year: Optional[int] = None
@@ -365,6 +369,7 @@ async def create_project(
     project = Project(
         project_number=data.project_number,
         name=data.name,
+        display_name=data.display_name,
         location=data.location,
         gmap_link=data.gmap_link,
         year=data.year,
