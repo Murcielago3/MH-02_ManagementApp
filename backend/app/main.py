@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
-from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips, holidays, subtasks, salary as salary_router, drafts
+from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips, holidays, subtasks, salary as salary_router, audit as audit_router, exports as exports_router, drafts
 
 
 security = HTTPBearer()
@@ -52,6 +52,8 @@ app.include_router(holidays.router)
 app.include_router(subtasks.router)
 app.include_router(subtasks.single_router)
 app.include_router(salary_router.router)
+app.include_router(audit_router.router)
+app.include_router(exports_router.router)
 app.include_router(drafts.router)
 
 
@@ -336,6 +338,54 @@ async def run_migrations():
             await conn.execute(text(
                 "ALTER TABLE invoice_items ADD COLUMN tax_rate NUMERIC(5, 2) DEFAULT 18"
             ))
+    except Exception:
+        pass
+
+    # Two-stage timesheet approval columns (PM + admin slots + reject/submit meta).
+    for col_name, col_def in [
+        ("submitted_at", "TIMESTAMP"),
+        ("pm_approved_by", "INTEGER"),
+        ("pm_approved_at", "TIMESTAMP"),
+        ("admin_approved_by", "INTEGER"),
+        ("admin_approved_at", "TIMESTAMP"),
+        ("rejected_by", "INTEGER"),
+        ("rejected_at", "TIMESTAMP"),
+    ]:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(f"ALTER TABLE weekly_timesheets ADD COLUMN {col_name} {col_def}"))
+        except Exception:
+            pass
+
+    # Backfill: pre-existing 'approved' timesheets are fully approved (both slots),
+    # so they keep counting toward cost/reserve under the new derived status.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text(
+                "UPDATE weekly_timesheets SET "
+                "pm_approved_at = COALESCE(pm_approved_at, NOW()), "
+                "admin_approved_at = COALESCE(admin_approved_at, NOW()) "
+                "WHERE status = 'approved'"
+            ))
+    except Exception:
+        pass
+
+    # Audit trail table.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS audit_logs (
+                    id SERIAL PRIMARY KEY,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    actor_id INTEGER REFERENCES users(id),
+                    actor_name VARCHAR,
+                    action VARCHAR NOT NULL,
+                    entity_type VARCHAR,
+                    entity_id INTEGER,
+                    summary VARCHAR,
+                    details JSON
+                )
+            """))
     except Exception:
         pass
 

@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from app.database import get_db
 from app.models.user import User
 from app.auth import get_current_user, require_admin, require_manager, hash_password
+from app.services.audit import log_audit
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -171,6 +172,8 @@ async def create_user(
         documents_url="[]"
     )
     db.add(user)
+    await db.flush()
+    await log_audit(db, current_user, "user.created", "user", user.id, summary=f"Created {user.role} — {user.name}")
     await db.commit()
     await db.refresh(user)
 
@@ -254,6 +257,7 @@ async def delete_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
+    await log_audit(db, current_user, "user.deactivated", "user", user.id, summary=f"Deactivated {user.name}")
     user.is_active = False
     await db.commit()
 

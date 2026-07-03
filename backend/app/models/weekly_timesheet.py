@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, ForeignKey, Numeric, JSON
+from sqlalchemy import Column, Integer, String, Date, DateTime, ForeignKey, Numeric, JSON
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -11,7 +11,17 @@ class WeeklyTimesheet(Base):
     week_end = Column(Date, nullable=False)
     total_hours = Column(Numeric(6, 2), nullable=True) # Changed to Numeric for decimal hours
     description = Column(String, nullable=True) # Keeping global description just in case, but can be optional
-    status = Column(String, nullable=False)
+    # Two-stage approval: a non-admin timesheet is fully approved ('approved')
+    # only when BOTH slots are filled; an admin's own timesheet needs only the
+    # admin slot. Either a PM or an admin can reject at their stage.
+    status = Column(String, nullable=False)  # submitted, pm_approved, admin_approved, approved, rejected
+    submitted_at = Column(DateTime(timezone=True), nullable=True)
+    pm_approved_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    pm_approved_at = Column(DateTime(timezone=True), nullable=True)
+    admin_approved_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    admin_approved_at = Column(DateTime(timezone=True), nullable=True)
+    rejected_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    rejected_at = Column(DateTime(timezone=True), nullable=True)
     rejection_reason = Column(String, nullable=True)
 
     employee = relationship("User", foreign_keys=[employee_id], back_populates="weekly_timesheets")

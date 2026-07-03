@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from app.database import get_db
 from app.models.client import Client
 from app.auth import require_admin, require_manager
+from app.services.audit import log_audit
 from app.utils.tax_ids import validate_pan, validate_gstin, pan_from_gstin
 
 router = APIRouter(prefix="/clients", tags=["clients"])
@@ -157,6 +158,8 @@ async def create_client(
         pincode=payload.get("pincode"),
     )
     db.add(client)
+    await db.flush()
+    await log_audit(db, current_user, "client.created", "client", client.id, summary=f"Created client {client.name}")
     await db.commit()
     await db.refresh(client)
     return client
@@ -189,5 +192,6 @@ async def delete_client(
     client = result.scalar_one_or_none()
     if not client:
         raise HTTPException(404, "Client not found")
+    await log_audit(db, current_user, "client.deleted", "client", client.id, summary=f"Deleted client {client.name}")
     await db.delete(client)
     await db.commit()

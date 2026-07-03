@@ -3,13 +3,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from typing import Optional, List
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezone
 from pydantic import BaseModel
 from app.database import get_db
 from app.models.weekly_timesheet import WeeklyTimesheet, WeeklyTimesheetEntry
 from app.models.user import User
 from app.auth import get_current_user, require_admin, require_manager
 from app.services.slack import notify_event, lookup_user_id
+from app.services.audit import log_audit
 
 router = APIRouter(prefix="/weekly-timesheets", tags=["weekly-timesheets"])
 
@@ -25,8 +26,7 @@ class WeeklyTimesheetCreate(BaseModel):
     description: Optional[str] = None
     entries: List[TimesheetEntryCreate]
 
-class TimesheetAction(BaseModel):
-    status: str  # approved or rejected
+class RejectBody(BaseModel):
     rejection_reason: Optional[str] = None
 
 @router.get("/")
@@ -37,11 +37,16 @@ async def list_timesheets(
     current_user = Depends(require_manager)
 ):
     query = select(WeeklyTimesheet).options(selectinload(WeeklyTimesheet.entries))
+    # Project managers must not see admin-submitted timesheets.
+    if current_user.role == "project_manager":
+        query = query.where(
+            WeeklyTimesheet.employee_id.notin_(select(User.id).where(User.role == "admin"))
+        )
     if employee_id:
         query = query.where(WeeklyTimesheet.employee_id == employee_id)
     if status:
         query = query.where(WeeklyTimesheet.status == status)
-    
+
     result = await db.execute(query)
     timesheets = result.scalars().all()
     return timesheets
@@ -151,7 +156,8 @@ async def submit_timesheet(
         week_end=data.week_end,
         description=data.description,
         total_hours=total_hours,
-        status="submitted"
+        status="submitted",
+        submitted_at=datetime.now(timezone.utc),
     )
     db.add(timesheet)
     await db.flush()
@@ -167,6 +173,8 @@ async def submit_timesheet(
         )
         db.add(entry)
 
+    await log_audit(db, current_user, "timesheet.submitted", "timesheet", timesheet.id,
+                    summary=f"Submitted timesheet for week of {data.week_start} ({total_hours}h)")
     await db.commit()
     await db.refresh(timesheet)
 
@@ -200,49 +208,40 @@ async def get_timesheet(
         raise HTTPException(403, "Not your timesheet")
     return timesheet
 
-@router.patch("/{timesheet_id}/action")
-async def action_timesheet(
-    timesheet_id: int,
-    data: TimesheetAction,
-    background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
-    current_user = Depends(require_admin)
-):
-    if data.status not in ["approved", "rejected"]:
-        raise HTTPException(400, "Status must be approved or rejected")
+def _recompute_status(ts, submitter_is_admin: bool):
+    """Derive the stored `status` from the approval / rejection slots.
 
-    result = await db.execute(
-        select(WeeklyTimesheet).where(WeeklyTimesheet.id == timesheet_id)
-    )
-    timesheet = result.scalar_one_or_none()
-    if not timesheet:
-        raise HTTPException(404, "Timesheet not found")
+    Non-admin submitter → fully 'approved' only when BOTH slots are filled.
+    Admin submitter      → 'approved' once the admin slot is filled (no PM stage).
+    """
+    if ts.rejected_at:
+        ts.status = "rejected"
+    elif ts.admin_approved_at and (submitter_is_admin or ts.pm_approved_at):
+        ts.status = "approved"
+    elif ts.pm_approved_at:
+        ts.status = "pm_approved"
+    elif ts.admin_approved_at:
+        ts.status = "admin_approved"
+    else:
+        ts.status = "submitted"
 
-    timesheet.status = data.status
-    if data.status == "rejected":
-        timesheet.rejection_reason = data.rejection_reason
 
-    # Freeze each entry's employee cost from the salary period(s) covering its
-    # days, so historical project cost is immutable against later raises.
-    if data.status == "approved":
-        from app.services.salary import get_periods, freeze_entry_cost
-        periods = await get_periods(db, timesheet.employee_id)
-        entries = (await db.execute(
-            select(WeeklyTimesheetEntry).where(WeeklyTimesheetEntry.timesheet_id == timesheet.id)
-        )).scalars().all()
-        for e in entries:
-            total, breakdown = freeze_entry_cost(periods, e.daily_hours, e.hours, timesheet.week_start)
-            e.employee_cost = total
-            e.cost_breakdown = breakdown
+async def _freeze_entries(db, timesheet):
+    """Freeze each entry's employee cost from the salary period(s) covering its
+    days, so historical project cost is immutable against later raises."""
+    from app.services.salary import get_periods, freeze_entry_cost
+    periods = await get_periods(db, timesheet.employee_id)
+    entries = (await db.execute(
+        select(WeeklyTimesheetEntry).where(WeeklyTimesheetEntry.timesheet_id == timesheet.id)
+    )).scalars().all()
+    for e in entries:
+        total, breakdown = freeze_entry_cost(periods, e.daily_hours, e.hours, timesheet.week_start)
+        e.employee_cost = total
+        e.cost_breakdown = breakdown
 
-    await db.commit()
-    await db.refresh(timesheet)
 
-    # Notify the team channel in Slack of the decision — tag the employee.
-    emp = (await db.execute(
-        select(User).where(User.id == timesheet.employee_id)
-    )).scalar_one_or_none()
-    def _notify_timesheet_decision(emp, timesheet, status, rejection_reason):
+def _queue_decision_slack(background_tasks, emp, timesheet, status, rejection_reason):
+    def _run(emp, timesheet, status, rejection_reason):
         if emp:
             uid = lookup_user_id(emp.studio_email) or lookup_user_id(emp.personal_mail)
             tag = f"<@{uid}>" if uid else f"*{emp.name}*"
@@ -253,10 +252,106 @@ async def action_timesheet(
         if status == "rejected" and rejection_reason:
             msg += f"\nReason: _{rejection_reason}_"
         notify_event("timesheet_decision", msg)
-    background_tasks.add_task(_notify_timesheet_decision, emp, timesheet, data.status, timesheet.rejection_reason)
+    background_tasks.add_task(_run, emp, timesheet, status, rejection_reason)
 
-    # An approval/rejection changes which hours count toward employee cost,
-    # which affects the reserve balance shown in the sidebar.
-    from app.routers.projects import _invalidate_reserve
-    _invalidate_reserve()
+
+async def _load_ts_and_submitter(db, timesheet_id):
+    timesheet = (await db.execute(
+        select(WeeklyTimesheet).where(WeeklyTimesheet.id == timesheet_id)
+    )).scalar_one_or_none()
+    if not timesheet:
+        raise HTTPException(404, "Timesheet not found")
+    submitter = (await db.execute(
+        select(User).where(User.id == timesheet.employee_id)
+    )).scalar_one_or_none()
+    return timesheet, submitter
+
+
+@router.patch("/{timesheet_id}/approve")
+async def approve_timesheet(
+    timesheet_id: int,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_manager),
+):
+    """Fill the actor's approval slot. Admin → admin slot; PM → PM slot. Full
+    approval (both slots for non-admins; admin slot for admins) freezes cost."""
+    timesheet, submitter = await _load_ts_and_submitter(db, timesheet_id)
+    submitter_is_admin = bool(submitter and submitter.role == "admin")
+    is_admin = current_user.role == "admin"
+
+    if not is_admin and submitter_is_admin:
+        raise HTTPException(403, "Not permitted to approve this timesheet")
+    if timesheet.status == "rejected":
+        raise HTTPException(400, "This timesheet was rejected; the employee must resubmit.")
+
+    now = datetime.now(timezone.utc)
+    if is_admin:
+        if timesheet.admin_approved_at:
+            raise HTTPException(400, "Already approved by an admin")
+        timesheet.admin_approved_by = current_user.id
+        timesheet.admin_approved_at = now
+        slot = "admin"
+    else:  # project_manager
+        if timesheet.pm_approved_at:
+            raise HTTPException(400, "Already approved by a project manager")
+        timesheet.pm_approved_by = current_user.id
+        timesheet.pm_approved_at = now
+        slot = "pm"
+
+    _recompute_status(timesheet, submitter_is_admin)
+    fully_approved = timesheet.status == "approved"
+    if fully_approved:
+        await _freeze_entries(db, timesheet)
+
+    who = submitter.name if submitter else "employee"
+    await log_audit(db, current_user, f"timesheet.{slot}_approved", "timesheet", timesheet.id,
+                    summary=f"{'Admin' if is_admin else 'PM'} approved {who}'s timesheet (week of {timesheet.week_start})")
+    if fully_approved:
+        await log_audit(db, current_user, "timesheet.approved", "timesheet", timesheet.id,
+                        summary=f"Timesheet fully approved — {who} (week of {timesheet.week_start})")
+
+    await db.commit()
+    await db.refresh(timesheet)
+
+    if fully_approved:
+        _queue_decision_slack(background_tasks, submitter, timesheet, "approved", None)
+        from app.routers.projects import _invalidate_reserve
+        _invalidate_reserve()
+    return timesheet
+
+
+@router.patch("/{timesheet_id}/reject")
+async def reject_timesheet(
+    timesheet_id: int,
+    data: RejectBody,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_manager),
+):
+    timesheet, submitter = await _load_ts_and_submitter(db, timesheet_id)
+    submitter_is_admin = bool(submitter and submitter.role == "admin")
+    if current_user.role != "admin" and submitter_is_admin:
+        raise HTTPException(403, "Not permitted to reject this timesheet")
+    if timesheet.status == "rejected":
+        raise HTTPException(400, "Already rejected")
+
+    was_approved = timesheet.status == "approved"
+    timesheet.status = "rejected"
+    timesheet.rejected_by = current_user.id
+    timesheet.rejected_at = datetime.now(timezone.utc)
+    timesheet.rejection_reason = data.rejection_reason
+
+    who = submitter.name if submitter else "employee"
+    await log_audit(db, current_user, "timesheet.rejected", "timesheet", timesheet.id,
+                    summary=f"Rejected {who}'s timesheet (week of {timesheet.week_start})",
+                    details={"reason": data.rejection_reason} if data.rejection_reason else None)
+
+    await db.commit()
+    await db.refresh(timesheet)
+
+    _queue_decision_slack(background_tasks, submitter, timesheet, "rejected", timesheet.rejection_reason)
+    if was_approved:
+        from app.routers.projects import _invalidate_reserve
+        _invalidate_reserve()
     return timesheet

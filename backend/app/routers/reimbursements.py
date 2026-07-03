@@ -9,6 +9,7 @@ from app.models.reimbursement import Reimbursement
 from app.models.user import User
 from app.auth import get_current_user, require_admin, require_manager
 from app.services.slack import notify_event, lookup_user_id
+from app.services.audit import log_audit
 import os, uuid
 
 router = APIRouter(prefix="/reimbursements", tags=["reimbursements"])
@@ -77,6 +78,9 @@ async def create_reimbursement(
         proof_url=proof_url
     )
     db.add(entry)
+    await db.flush()
+    await log_audit(db, current_user, "reimbursement.submitted", "reimbursement", entry.id,
+                    summary=f"{current_user.name} submitted reimbursement of ₹{amount:,.0f} for {reason}")
     await db.commit()
     await db.refresh(entry)
 
@@ -112,6 +116,9 @@ async def action_reimbursement(
     if data.status == "approved":
         entry.month_added = datetime.now().strftime("%Y-%m")
 
+    emp_name = (await db.execute(select(User.name).where(User.id == entry.employee_id))).scalar_one_or_none() or "employee"
+    await log_audit(db, current_user, f"reimbursement.{data.status}", "reimbursement", entry.id,
+                    summary=f"{data.status.capitalize()} {emp_name}'s reimbursement of ₹{float(entry.amount):,.0f}")
     await db.commit()
     await db.refresh(entry)
 

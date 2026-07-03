@@ -9,6 +9,7 @@ from app.models.invoice import Invoice, InvoiceItem
 from app.models.bank_account import BankAccount
 from app.models.client import Client
 from app.auth import require_admin, get_current_user
+from app.services.audit import log_audit
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
@@ -162,6 +163,8 @@ async def create_invoice(
         )
         db.add(item)
 
+    await log_audit(db, current_user, "invoice.created", "invoice", invoice.id,
+                    summary=f"Created {invoice.invoice_type} invoice {invoice.invoice_number or invoice.id} (₹{float(invoice.total):,.0f})")
     await db.commit()
     # Re-fetch with all relationships so bank_account / items / client are nested
     from sqlalchemy.orm import selectinload
@@ -269,6 +272,8 @@ async def delete_invoice(
     invoice = result.scalar_one_or_none()
     if not invoice:
         raise HTTPException(404, "Invoice not found")
+    await log_audit(db, current_user, "invoice.deleted", "invoice", invoice.id,
+                    summary=f"Deleted invoice {invoice.invoice_number or invoice.id}")
     await db.delete(invoice)
     await db.commit()
     from app.routers.projects import _invalidate_reserve

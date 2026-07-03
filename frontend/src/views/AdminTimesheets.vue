@@ -22,7 +22,9 @@
         <select v-model="filterStatus" class="filter-select">
           <option value="">All Statuses</option>
           <option value="submitted">Pending Review</option>
-          <option value="approved">Approved</option>
+          <option value="pm_approved">PM Approved</option>
+          <option value="admin_approved">Admin Approved</option>
+          <option value="approved">Fully Approved</option>
           <option value="rejected">Rejected</option>
         </select>
         <input
@@ -51,12 +53,13 @@
             <th>Week</th>
             <th class="col-center">Hours</th>
             <th>Status</th>
+            <th>Approvals</th>
             <th class="col-actions">Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="5" class="empty-cell">
+            <td colspan="6" class="empty-cell">
               <div class="empty-state">
                 <span class="material-symbols-outlined empty-icon">hourglass_empty</span>
                 <p>Loading timesheets…</p>
@@ -64,7 +67,7 @@
             </td>
           </tr>
           <tr v-else-if="filtered.length === 0">
-            <td colspan="5" class="empty-cell">
+            <td colspan="6" class="empty-cell">
               <div class="empty-state">
                 <span class="material-symbols-outlined empty-icon">schedule</span>
                 <p>No timesheet records found.</p>
@@ -90,19 +93,29 @@
               </span>
             </td>
             <td>
+              <div class="appr-chips">
+                <span v-if="!submitterIsAdmin(ts)" class="appr-chip" :class="ts.pm_approved_at ? 'appr-done' : 'appr-pending'"
+                      :title="ts.pm_approved_at ? 'PM: ' + getUserName(ts.pm_approved_by) : 'Awaiting PM approval'">
+                  <span class="material-symbols-outlined">{{ ts.pm_approved_at ? 'check_circle' : 'schedule' }}</span> PM
+                </span>
+                <span class="appr-chip" :class="ts.admin_approved_at ? 'appr-done' : 'appr-pending'"
+                      :title="ts.admin_approved_at ? 'Admin: ' + getUserName(ts.admin_approved_by) : 'Awaiting admin approval'">
+                  <span class="material-symbols-outlined">{{ ts.admin_approved_at ? 'check_circle' : 'schedule' }}</span> Admin
+                </span>
+              </div>
+            </td>
+            <td>
               <div class="row-actions">
                 <button class="btn-outline-sm" @click="viewDetail(ts)">
                   <span class="material-symbols-outlined">visibility</span>
                   Details
                 </button>
-                <template v-if="ts.status === 'submitted'">
-                  <button class="icon-btn icon-btn-approve" title="Approve" @click="handleAction(ts.id, 'approved')" :disabled="actionLoading === ts.id">
-                    <span class="material-symbols-outlined">check</span>
-                  </button>
-                  <button class="icon-btn icon-btn-reject" title="Reject" @click="openRejectModal(ts.id)" :disabled="actionLoading === ts.id">
-                    <span class="material-symbols-outlined">close</span>
-                  </button>
-                </template>
+                <button v-if="canApprove(ts)" class="icon-btn icon-btn-approve" :title="approveLabel" @click="doApprove(ts.id)" :disabled="actionLoading === ts.id">
+                  <span class="material-symbols-outlined">check</span>
+                </button>
+                <button v-if="canReject(ts)" class="icon-btn icon-btn-reject" title="Reject" @click="openRejectModal(ts.id)" :disabled="actionLoading === ts.id">
+                  <span class="material-symbols-outlined">close</span>
+                </button>
               </div>
             </td>
           </tr>
@@ -147,19 +160,16 @@
           </div>
         </div>
 
-        <div class="modal-footer" v-if="selectedTimesheet.status === 'submitted'">
+        <div class="modal-footer">
           <button class="btn-cancel" @click="closeDetailModal">Close</button>
-          <button class="btn-reject-action" @click="openRejectModal(selectedTimesheet.id)">
+          <button v-if="canReject(selectedTimesheet)" class="btn-reject-action" @click="openRejectModal(selectedTimesheet.id)">
             <span class="material-symbols-outlined">close</span>
             Reject
           </button>
-          <button class="btn-submit" @click="handleAction(selectedTimesheet.id, 'approved')">
+          <button v-if="canApprove(selectedTimesheet)" class="btn-submit" @click="doApprove(selectedTimesheet.id)">
             <span class="material-symbols-outlined">check</span>
-            Approve Timesheet
+            {{ approveLabel }}
           </button>
-        </div>
-        <div class="modal-footer" v-else>
-          <button class="btn-cancel" @click="closeDetailModal">Close</button>
         </div>
       </div>
     </div>
@@ -210,8 +220,12 @@ import TimesheetDailyGrid from '../components/timesheet/TimesheetDailyGrid.vue'
 import { weeklyTimesheetsAPI } from '../api/weekly_timesheets'
 import { usersAPI } from '../api/users'
 import { projectsAPI } from '../api/projects'
+import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
+const isAdmin = computed(() => authStore.role === 'admin')
+const isPM = computed(() => authStore.role === 'project_manager')
 
 const timesheets = ref([])
 const employees = ref([])
@@ -356,30 +370,67 @@ function truncateDesc(desc) {
   return desc.length > 50 ? desc.slice(0, 50) + '...' : desc
 }
 
+const STATUS_LABELS = {
+  submitted: 'Pending Review',
+  pm_approved: 'PM Approved',
+  admin_approved: 'Admin Approved',
+  approved: 'Approved',
+  rejected: 'Rejected',
+}
 function formatTimesheetStatus(s) {
-  if (s === 'submitted') return 'Pending Review'
-  return s.charAt(0).toUpperCase() + s.slice(1)
+  return STATUS_LABELS[s] || (s ? s.charAt(0).toUpperCase() + s.slice(1) : '')
 }
 
 function goToEmployeeProfile(empId) {
   router.push(`/admin/employees/${empId}`)
 }
 
-async function handleAction(tsId, status, reason = null) {
+function _applyUpdate(tsId, data) {
+  const idx = timesheets.value.findIndex(t => t.id === tsId)
+  if (idx !== -1) timesheets.value[idx] = { ...timesheets.value[idx], ...data }
+  if (selectedTimesheet.value?.id === tsId) selectedTimesheet.value = { ...selectedTimesheet.value, ...data }
+}
+
+async function doApprove(tsId) {
   actionLoading.value = tsId
   try {
-    await weeklyTimesheetsAPI.actionTimesheet(tsId, { status, rejection_reason: reason })
-    const idx = timesheets.value.findIndex(t => t.id === tsId)
-    if (idx !== -1) {
-      timesheets.value[idx].status = status
-      timesheets.value[idx].rejection_reason = reason
-    }
+    const res = await weeklyTimesheetsAPI.approveTimesheet(tsId)
+    _applyUpdate(tsId, res.data)
   } catch (e) {
-    console.error('Failed to update status', e)
+    alert(e.response?.data?.detail || 'Approval failed')
   } finally {
     actionLoading.value = null
   }
 }
+
+async function doReject(tsId, reason) {
+  actionLoading.value = tsId
+  try {
+    const res = await weeklyTimesheetsAPI.rejectTimesheet(tsId, reason)
+    _applyUpdate(tsId, res.data)
+  } catch (e) {
+    alert(e.response?.data?.detail || 'Rejection failed')
+  } finally {
+    actionLoading.value = null
+  }
+}
+
+// Which slot the current user can act on.
+function submitterIsAdmin(ts) {
+  return employees.value.find(e => e.id === ts.employee_id)?.role === 'admin'
+}
+function canApprove(ts) {
+  if (ts.status === 'approved' || ts.status === 'rejected') return false
+  if (isAdmin.value) return !ts.admin_approved_at
+  if (isPM.value) return !submitterIsAdmin(ts) && !ts.pm_approved_at
+  return false
+}
+function canReject(ts) {
+  if (ts.status === 'approved' || ts.status === 'rejected') return false
+  if (isPM.value && submitterIsAdmin(ts)) return false
+  return true
+}
+const approveLabel = computed(() => (isAdmin.value ? 'Admin Approve' : 'PM Approve'))
 
 function openRejectModal(tsId) {
   rejectModalTarget.value = tsId
@@ -394,12 +445,8 @@ function closeRejectModal() {
 
 async function confirmReject() {
   if (rejectModalTarget.value) {
-    await handleAction(rejectModalTarget.value, 'rejected', rejectReason.value)
+    await doReject(rejectModalTarget.value, rejectReason.value)
     closeRejectModal()
-    if (selectedTimesheet.value?.id === rejectModalTarget.value) {
-      selectedTimesheet.value.status = 'rejected'
-      selectedTimesheet.value.rejection_reason = rejectReason.value
-    }
   }
 }
 
@@ -580,8 +627,17 @@ function closeDetailModal() {
 }
 .badge-submitted { background: #fef3c7; color: #92400e; }
 .badge-pending   { background: #fef3c7; color: #92400e; }
+.badge-pm_approved { background: #dbeafe; color: #1e40af; }
+.badge-admin_approved { background: #e0e7ff; color: #3730a3; }
 .badge-approved  { background: #dcfce7; color: #166534; }
 .badge-rejected  { background: #fee2e2; color: #991b1b; }
+
+/* Approval chips (PM / Admin) */
+.appr-chips { display: flex; gap: 6px; }
+.appr-chip { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.appr-chip .material-symbols-outlined { font-size: 13px; }
+.appr-done { background: #dcfce7; color: #166534; }
+.appr-pending { background: #f1f5f9; color: #94a3b8; }
 
 /* ── Row Actions ── */
 .row-actions { display: flex; gap: 6px; align-items: center; }

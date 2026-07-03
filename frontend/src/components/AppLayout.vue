@@ -14,8 +14,24 @@
       </div>
 
       <nav class="sidebar-nav">
+        <!-- PM: trimmed nav (timesheet console + self-service) -->
+        <div v-if="isPM" class="nav-section">
+          <router-link
+            v-for="item in pmNavItems"
+            :key="item.path"
+            :to="item.path"
+            :class="['nav-item', { active: isActive(item.path) }]"
+          >
+            <span class="nav-icon material-symbols-outlined"
+              :style="isActive(item.path) ? 'font-variation-settings:\'FILL\' 1' : ''">
+              {{ item.icon }}
+            </span>
+            <span class="nav-label">{{ item.label }}</span>
+          </router-link>
+        </div>
+
         <!-- Top items -->
-        <div class="nav-section">
+        <div v-if="!isPM" class="nav-section">
           <router-link
             v-for="item in navItemsTop"
             :key="item.path"
@@ -30,10 +46,10 @@
           </router-link>
         </div>
 
-        <div class="nav-divider" />
+        <div v-if="!isPM" class="nav-divider" />
 
         <!-- Projects group -->
-        <div class="nav-section">
+        <div v-if="!isPM" class="nav-section">
           <button
             class="nav-item"
             :class="{ active: isProjectsSectionActive }"
@@ -63,10 +79,10 @@
           </transition>
         </div>
 
-        <div class="nav-divider" />
+        <div v-if="!isPM" class="nav-divider" />
 
         <!-- Bottom items -->
-        <div class="nav-section">
+        <div v-if="!isPM" class="nav-section">
           <router-link
             v-for="item in navItemsBottom"
             :key="item.path"
@@ -162,6 +178,7 @@ import { getBrandLogoUrl } from '../utils/logo'
 const route     = useRoute()
 const router    = useRouter()
 const authStore = useAuthStore()
+const isPM = computed(() => authStore.role === 'project_manager')
 const currentUser     = ref(null)
 const showProfileMenu = ref(false)
 const projectsExpanded = ref(false)
@@ -196,7 +213,7 @@ const handleLogout = () => {
   authStore.clearAuth()
   router.push('/login')
 }
-const goToSettings = () => router.push('/admin/settings')
+const goToSettings = () => router.push(isPM.value ? '/employee/profile' : '/admin/settings')
 
 const navItemsTop = [
   { path: '/admin/dashboard', icon: 'dashboard',  label: 'Dashboard' },
@@ -220,6 +237,15 @@ const navItemsBottom = [
   { path: '/admin/invoices',       icon: 'receipt_long',    label: 'Invoices' },
   { path: '/admin/estimates',  icon: 'calculate',       label: 'Estimates' },
   { path: '/admin/hr',         icon: 'badge',           label: 'HR' },
+]
+
+// Project managers get a trimmed nav: the timesheet approval console + their
+// own self-service pages.
+const pmNavItems = [
+  { path: '/admin/timesheets', icon: 'pending_actions', label: 'Timesheets' },
+  { path: '/employee/dashboard', icon: 'dashboard',     label: 'My Dashboard' },
+  { path: '/employee/timesheet', icon: 'schedule',      label: 'My Timesheet' },
+  { path: '/employee/leaves',    icon: 'event_busy',    label: 'My Leaves' },
 ]
 
 watch(() => route.path, (p) => {

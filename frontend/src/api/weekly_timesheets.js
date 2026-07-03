@@ -16,7 +16,10 @@ export const weeklyTimesheetsAPI = {
   getTimesheet(id) {
     return client.get(`/weekly-timesheets/${id}`)
   },
-  actionTimesheet(id, actionPayload) {
-    return client.patch(`/weekly-timesheets/${id}/action`, actionPayload)
-  }
+  approveTimesheet(id) {
+    return client.patch(`/weekly-timesheets/${id}/approve`)
+  },
+  rejectTimesheet(id, rejection_reason) {
+    return client.patch(`/weekly-timesheets/${id}/reject`, { rejection_reason })
+  },
 }

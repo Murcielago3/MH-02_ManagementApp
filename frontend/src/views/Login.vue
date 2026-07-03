@@ -196,7 +196,8 @@ function redirectByRole(role) {
       router.push("/admin/dashboard");
       break;
     case "project_manager":
-      router.push("/pm/dashboard");
+      // PMs land on the timesheet approval console
+      router.push("/admin/timesheets");
       break;
     case "employee":
       router.push("/employee/dashboard");

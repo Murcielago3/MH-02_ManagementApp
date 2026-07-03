@@ -11,6 +11,7 @@ from app.database import get_db
 from app.models.leave import LeaveRequest
 from app.models.user import User
 from app.auth import get_current_user, require_admin, require_manager
+from app.services.audit import log_audit
 
 router = APIRouter(prefix="/leaves", tags=["leaves"])
 
@@ -152,6 +153,9 @@ async def apply_leave(
         days_count=wd,
     )
     db.add(leave)
+    await db.flush()
+    await log_audit(db, current_user, "leave.submitted", "leave", leave.id,
+                    summary=f"Applied for leave {data.start_date} to {data.end_date} ({wd} working days)")
     await db.commit()
     await db.refresh(leave)
     return leave
@@ -191,6 +195,9 @@ async def action_leave(
         leave.unpaid_days = 0
 
     leave.status = data.status
+    await log_audit(db, current_user, f"leave.{data.status}", "leave", leave.id,
+                    summary=f"{data.status.capitalize()} {emp.name if emp else 'employee'}'s leave "
+                            f"{leave.start_date} to {leave.end_date}")
     await db.commit()
     await db.refresh(leave)
     return leave

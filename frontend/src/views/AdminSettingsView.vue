@@ -203,6 +203,16 @@
       <BankAccountsManager />
     </section>
 
+    <!-- DATA EXPORT -->
+    <section v-if="activeTab === 'export'" class="panel">
+      <DataExportPanel />
+    </section>
+
+    <!-- AUDIT TRAIL -->
+    <section v-if="activeTab === 'audit'" class="panel">
+      <AuditTrailPanel />
+    </section>
+
     <ToastNotification v-if="toastMsg" :message="toastMsg" :type="toastType" @done="toastMsg = ''" />
   </AppLayout>
 </template>
@@ -211,6 +221,8 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import BankAccountsManager from '../components/BankAccountsManager.vue'
+import DataExportPanel from '../components/DataExportPanel.vue'
+import AuditTrailPanel from '../components/AuditTrailPanel.vue'
 import ToastNotification from '../components/ToastNotification.vue'
 import { settingsAPI } from '../api/settings'
 import { formatInr } from '../utils/currency'
@@ -219,6 +231,8 @@ const tabs = [
   { key: 'company', label: 'Company Profile', icon: 'business' },
   { key: 'compensation', label: 'Compensation', icon: 'payments' },
   { key: 'bank', label: 'Bank Accounts', icon: 'account_balance' },
+  { key: 'export', label: 'Data Export', icon: 'download' },
+  { key: 'audit', label: 'Audit Trail', icon: 'history' },
 ]
 const activeTab = ref('company')
 

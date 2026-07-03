@@ -32,6 +32,8 @@ def _invalidate_reserve():
     except Exception:
         pass  # dashboard module not yet imported on first call
 
+from app.services.audit import log_audit
+
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
@@ -388,6 +390,9 @@ async def create_project(
         advance_amount=data.advance_amount or 0,
     )
     db.add(project)
+    await db.flush()
+    await log_audit(db, current_user, "project.created", "project", project.id,
+                    summary=f"Created project {project.project_number} — {project.name}")
     await db.commit()
     await db.refresh(project)
     _invalidate_reserve()
@@ -446,6 +451,8 @@ async def delete_project(
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    await log_audit(db, current_user, "project.deleted", "project", project.id,
+                    summary=f"Deleted project {project.project_number} — {project.name}")
     await db.delete(project)
     await db.commit()
     _invalidate_reserve()

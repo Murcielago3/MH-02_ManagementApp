@@ -30,6 +30,7 @@ from app.models.user import User
 from app.auth import require_admin, require_manager, get_current_user
 from app.routers.settings import get_settings_snapshot, get_or_create_settings
 from app.routers.invoices import format_indian_currency
+from app.services.audit import log_audit
 
 router = APIRouter(prefix="/salary-slips", tags=["salary_slips"])
 
@@ -475,6 +476,8 @@ async def approve_slip(
         raise HTTPException(404, "Salary slip not found")
     slip.status = "approved"
     slip.approved_at = datetime.utcnow()
+    await log_audit(db, current_user, "salary_slip.approved", "salary_slip", slip.id,
+                    summary=f"Approved salary slip for {slip.month}")
     await db.commit()
     await db.refresh(slip)
     names = await _name_map(db, {slip.employee_id})
@@ -500,6 +503,9 @@ async def approve_month(
     for s in slips:
         s.status = "approved"
         s.approved_at = now
+    if slips:
+        await log_audit(db, current_user, "salary_slip.approved_month", "salary_slip", None,
+                        summary=f"Approved {len(slips)} salary slips for {data.month}")
     await db.commit()
     return {"approved": len(slips), "month": data.month}
 
@@ -524,6 +530,9 @@ async def approve_bulk(
     for s in slips:
         s.status = "approved"
         s.approved_at = now
+    if slips:
+        await log_audit(db, current_user, "salary_slip.approved_bulk", "salary_slip", None,
+                        summary=f"Approved {len(slips)} salary slips")
     await db.commit()
     return {"approved": len(slips)}
 

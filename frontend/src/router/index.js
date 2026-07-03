@@ -73,7 +73,7 @@ const routes = [
     path: '/admin/timesheets',
     name: 'AdminTimesheets',
     component: () => import('../views/AdminTimesheets.vue'),
-    meta: { requiresAuth: true, roles: ['admin'] },
+    meta: { requiresAuth: true, roles: ['admin', 'project_manager'] },
   },
   {
     path: '/admin/reimbursements',
@@ -228,7 +228,7 @@ function dashboardForRole(role) {
     case 'admin':
       return '/admin/dashboard'
     case 'project_manager':
-      return '/pm/dashboard'
+      return '/admin/timesheets'
     case 'employee':
       return '/employee/dashboard'
     default:
