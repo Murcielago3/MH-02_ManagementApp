@@ -43,4 +43,10 @@ class User(Base):
     manager_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     manager = relationship("User", remote_side=[id])
     assignments = relationship("ProjectAssignment", back_populates="user")
-    weekly_timesheets = relationship("WeeklyTimesheet", back_populates="employee")
+    # weekly_timesheets now has multiple FKs to users (employee_id + the
+    # pm/admin/rejected approval slots) — the join must be pinned to employee_id
+    # or the User mapper fails to configure (which 500s every request).
+    weekly_timesheets = relationship(
+        "WeeklyTimesheet", back_populates="employee",
+        foreign_keys="WeeklyTimesheet.employee_id",
+    )
