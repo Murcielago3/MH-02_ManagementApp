@@ -134,6 +134,15 @@
       </div>
 
       <div class="form-actions">
+        <div v-if="!isValid && missingItems.length" class="submit-hint">
+          <span class="material-symbols-outlined">info</span>
+          <div>
+            <span class="submit-hint-title">Before you can submit:</span>
+            <ul>
+              <li v-for="(m, mi) in missingItems" :key="mi">{{ m }}</li>
+            </ul>
+          </div>
+        </div>
         <button
           type="submit"
           class="btn-submit"
@@ -323,10 +332,31 @@ const grandTotal = computed(() => {
 const isValid = computed(() => {
   if (rows.value.length === 0) return false
   const rowsValid = rows.value.every(r =>
-    r.project_id && rowTotalForRow(r) > 0 && r.description.trim().length > 3
+    r.project_id && rowTotalForRow(r) > 0 && (r.description || '').trim().length > 3
   )
   const descValid = description.value.trim().length >= 20
   return rowsValid && descValid
+})
+
+// Spell out exactly what's blocking submission, so an employee who has "filled
+// everything" can see the one field (usually a per-project description or the
+// 20-char weekly overview) that's still holding the button disabled.
+const missingItems = computed(() => {
+  const out = []
+  if (rows.value.length === 0 || !rows.value.some(r => r.project_id)) {
+    out.push('Add at least one project.')
+  }
+  if (rows.value.some(r => r.project_id && rowTotalForRow(r) <= 0)) {
+    out.push('Log hours for every project row (each must total more than 0).')
+  }
+  if (rows.value.some(r => r.project_id && (r.description || '').trim().length <= 3)) {
+    out.push('Add a task description (4+ characters) for each project.')
+  }
+  if (description.value.trim().length < 20) {
+    const n = description.value.trim().length
+    out.push(`Write a weekly overview of at least 20 characters (${n}/20).`)
+  }
+  return out
 })
 
 const submitLabel = computed(() => {
@@ -709,9 +739,29 @@ textarea {
 .form-actions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
   padding-top: 16px;
   border-top: 1px dashed var(--color-outline-variant);
 }
+
+.submit-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-right: auto;
+  padding: 10px 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-md);
+  color: #1e40af;
+  font-size: 12.5px;
+}
+.submit-hint .material-symbols-outlined { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.submit-hint-title { font-weight: 700; }
+.submit-hint ul { margin: 4px 0 0; padding-left: 16px; }
+.submit-hint li { margin: 2px 0; }
 
 .btn-submit {
   display: flex;

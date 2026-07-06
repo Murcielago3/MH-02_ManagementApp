@@ -174,7 +174,15 @@ function getWeekStatus(week) {
 
 function getStatusLabel(status) {
   if (!status) return ''
-  return status.charAt(0).toUpperCase() + status.slice(1)
+  const labels = {
+    pending: 'Pending',
+    submitted: 'Submitted',
+    pm_approved: 'PM Approved',
+    admin_approved: 'Admin Approved',
+    approved: 'Approved',
+    rejected: 'Rejected',
+  }
+  return labels[status] || (status.charAt(0).toUpperCase() + status.slice(1))
 }
 
 function getWeekClasses(week) {
@@ -187,7 +195,8 @@ function getWeekClasses(week) {
   
   return {
     'status-pending': status === 'pending',
-    'status-submitted': status === 'submitted',
+    // pm_approved / admin_approved are still mid-review — style them like submitted.
+    'status-submitted': status === 'submitted' || status === 'pm_approved' || status === 'admin_approved',
     'status-approved': status === 'approved',
     'status-rejected': status === 'rejected',
     'is-selected': isSelected,

@@ -27,8 +27,11 @@
           @submit="handleSuccess"
         />
         
-        <TimesheetReadOnly 
-          v-else-if="['submitted', 'approved'].includes(selectedWeek.status)"
+        <!-- Any post-submission state (submitted / pm_approved / admin_approved /
+             approved) is read-only. Using v-else guards against a new status
+             leaving the body blank. -->
+        <TimesheetReadOnly
+          v-else
           :timesheet="selectedTimesheet"
           :projects="projects"
         />
@@ -65,8 +68,15 @@ const formattedWeekRange = computed(() => {
 
 function formatStatus(status) {
   if (!status) return ''
-  if (status === 'submitted') return 'Awaiting Review'
-  return status.charAt(0).toUpperCase() + status.slice(1)
+  const labels = {
+    pending: 'Pending',
+    submitted: 'Awaiting Review',
+    pm_approved: 'PM Approved · Awaiting Admin',
+    admin_approved: 'Admin Approved · Awaiting PM',
+    approved: 'Approved',
+    rejected: 'Rejected',
+  }
+  return labels[status] || (status.charAt(0).toUpperCase() + status.slice(1))
 }
 
 function handleSuccess() {
@@ -170,6 +180,8 @@ function handleSuccess() {
 
 .status-badge.pending { background: #fee2e2; color: #ef4444; }
 .status-badge.submitted { background: #fef3c7; color: #d97706; }
+.status-badge.pm_approved,
+.status-badge.admin_approved { background: #dbeafe; color: #1e40af; }
 .status-badge.approved { background: #dcfce7; color: #15803d; }
 .status-badge.rejected { background: #fee2e2; color: #ef4444; }
 
