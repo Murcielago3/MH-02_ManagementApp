@@ -329,28 +329,28 @@ const grandTotal = computed(() => {
   return Math.round(rows.value.reduce((s, r) => s + rowTotalForRow(r), 0) * 10) / 10
 })
 
-const isValid = computed(() => {
-  if (rows.value.length === 0) return false
-  const rowsValid = rows.value.every(r =>
-    r.project_id && rowTotalForRow(r) > 0 && (r.description || '').trim().length > 3
-  )
-  const descValid = description.value.trim().length >= 20
-  return rowsValid && descValid
-})
+// A row only "counts" once it has a project AND some hours. A project row left
+// at 0h means the employee didn't work on it this week — it's ignored, not an
+// error (and gets dropped from the payload on submit).
+function rowIsActive(r) {
+  return !!(r.project_id && rowTotalForRow(r) > 0)
+}
 
 // Spell out exactly what's blocking submission, so an employee who has "filled
-// everything" can see the one field (usually a per-project description or the
-// 20-char weekly overview) that's still holding the button disabled.
+// everything" can see what's still holding the button disabled. This is also the
+// single source of truth for validity (isValid = nothing missing).
 const missingItems = computed(() => {
   const out = []
-  if (rows.value.length === 0 || !rows.value.some(r => r.project_id)) {
-    out.push('Add at least one project.')
+  const active = rows.value.filter(rowIsActive)
+  // Hours logged against a row with no project selected would be silently lost.
+  if (rows.value.some(r => !r.project_id && rowTotalForRow(r) > 0)) {
+    out.push('Select a project for every row that has hours logged.')
   }
-  if (rows.value.some(r => r.project_id && rowTotalForRow(r) <= 0)) {
-    out.push('Log hours for every project row (each must total more than 0).')
+  if (active.length === 0) {
+    out.push('Log hours for at least one project.')
   }
-  if (rows.value.some(r => r.project_id && (r.description || '').trim().length <= 3)) {
-    out.push('Add a task description (4+ characters) for each project.')
+  if (active.some(r => (r.description || '').trim().length <= 3)) {
+    out.push('Add a task description (4+ characters) for each project you logged hours on.')
   }
   if (description.value.trim().length < 20) {
     const n = description.value.trim().length
@@ -358,6 +358,8 @@ const missingItems = computed(() => {
   }
   return out
 })
+
+const isValid = computed(() => missingItems.value.length === 0)
 
 const submitLabel = computed(() => {
   if (submitting.value) return 'Submitting...'
