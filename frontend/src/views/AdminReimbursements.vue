@@ -15,10 +15,15 @@
     <!-- Filter Bar -->
     <div class="filter-bar">
       <div class="filter-bar-left">
-        <select v-model="filterEmployee" class="filter-select">
-          <option value="">All Employees</option>
-          <option v-for="emp in employees" :key="emp.id" :value="emp.id">{{ emp.name }}</option>
-        </select>
+        <div class="search-wrap">
+          <span class="material-symbols-outlined search-icon">search</span>
+          <input
+            v-model="employeeSearch"
+            type="text"
+            class="filter-search"
+            placeholder="Search employee…"
+          />
+        </div>
         <select v-model="filterStatus" class="filter-select">
           <option value="">All Statuses</option>
           <option value="pending">Pending</option>
@@ -142,7 +147,7 @@ const router = useRouter()
 const reimbursements = ref([])
 const employees = ref([])
 const loading = ref(true)
-const filterEmployee = ref('')
+const employeeSearch = ref('')   // client-side name filter over the loaded groups
 const filterStatus = ref('')
 const actionLoading = ref(null)
 
@@ -150,7 +155,6 @@ async function fetchReimbursements() {
   loading.value = true
   try {
     const params = {}
-    if (filterEmployee.value) params.employee_id = filterEmployee.value
     if (filterStatus.value) params.status = filterStatus.value
     const res = await reimbursementsAPI.getReimbursements(params)
     reimbursements.value = res.data.sort((a, b) => new Date(b.date) - new Date(a.date))
@@ -176,14 +180,15 @@ async function fetchAll() {
 
 onMounted(() => fetchAll())
 
-watch([filterEmployee, filterStatus], () => {
+// Status is filtered server-side; employee search is instant/client-side.
+watch(filterStatus, () => {
   fetchReimbursements()
 })
 
-const hasActiveFilters = computed(() => filterEmployee.value || filterStatus.value)
+const hasActiveFilters = computed(() => employeeSearch.value || filterStatus.value)
 
 function clearFilters() {
-  filterEmployee.value = ''
+  employeeSearch.value = ''
   filterStatus.value = ''
   fetchReimbursements()
 }
@@ -211,10 +216,12 @@ const groups = computed(() => {
     })
   }
   out.sort((a, b) => a.name.localeCompare(b.name))
-  return out
+  const q = employeeSearch.value.trim().toLowerCase()
+  return q ? out.filter(g => g.name.toLowerCase().includes(q)) : out
 })
 
-const totalCount = computed(() => reimbursements.value.length)
+// Claims within the currently-visible (searched) employee groups.
+const totalCount = computed(() => groups.value.reduce((s, g) => s + g.items.length, 0))
 
 // ── Expand / collapse ──
 const expanded = ref({})
@@ -347,6 +354,27 @@ async function handleAction(id, status) {
   cursor: pointer;
 }
 .filter-select:focus { border-color: var(--color-primary); background: var(--color-surface); }
+.search-wrap { position: relative; display: flex; align-items: center; }
+.search-icon {
+  position: absolute;
+  left: 10px;
+  font-size: 18px;
+  color: var(--color-on-surface-variant);
+  pointer-events: none;
+}
+.filter-search {
+  padding: 8px 12px 8px 34px;
+  min-width: 220px;
+  background: var(--color-surface-dim);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-on-surface);
+  outline: none;
+  transition: border var(--transition), background var(--transition);
+}
+.filter-search:focus { border-color: var(--color-primary); background: var(--color-surface); }
 .btn-clear-filters {
   display: inline-flex;
   align-items: center;
