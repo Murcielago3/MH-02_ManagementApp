@@ -412,3 +412,20 @@ async def run_migrations():
     except Exception:
         pass
 
+    # Reimbursement submission timestamp — the basis for which salary-slip month a
+    # claim rolls into (submission month -> that month's slip, paid next month).
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("ALTER TABLE reimbursements ADD COLUMN created_at TIMESTAMP DEFAULT NOW()"))
+    except Exception:
+        pass
+    # Backfill existing rows from the expense date so historical claims have a
+    # sensible submission month; only touches rows still missing created_at.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text(
+                "UPDATE reimbursements SET created_at = date::timestamp WHERE created_at IS NULL"
+            ))
+    except Exception:
+        pass
+

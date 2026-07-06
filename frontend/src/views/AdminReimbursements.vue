@@ -32,80 +32,98 @@
       </button>
     </div>
 
-    <!-- Table Card -->
+    <!-- Grouped-by-employee card -->
     <div class="table-card">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Employee</th>
-            <th>Date</th>
-            <th class="col-right">Amount</th>
-            <th>Reason</th>
-            <th>Proof</th>
-            <th>Status</th>
-            <th>Payroll</th>
-            <th class="col-actions">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="loading">
-            <td colspan="8" class="empty-cell">
-              <div class="empty-state">
-                <span class="material-symbols-outlined empty-icon">hourglass_empty</span>
-                <p>Loading reimbursements...</p>
-              </div>
-            </td>
-          </tr>
-          <tr v-else-if="filtered.length === 0">
-            <td colspan="8" class="empty-cell">
-              <div class="empty-state">
-                <span class="material-symbols-outlined empty-icon">receipt_long</span>
-                <p>No reimbursement records found.</p>
-              </div>
-            </td>
-          </tr>
-          <tr v-for="item in filtered" :key="item.id" class="data-row">
-            <td>
-              <span class="row-name row-link" @click="goToEmployeeProfile(item.employee_id)">
-                {{ getUserName(item.employee_id) }}
-              </span>
-            </td>
-            <td class="cell-mono">{{ formatDateShort(item.date) }}</td>
-            <td class="col-right cell-mono amount-cell">{{ formatCurrency(item.amount) }}</td>
-            <td class="reason-cell" :title="item.reason">{{ item.reason }}</td>
-            <td>
-              <a v-if="item.proof_url" :href="resolveUrl(item.proof_url)" target="_blank" class="proof-link">
-                <span class="material-symbols-outlined">attachment</span> View
-              </a>
-              <span v-else class="cell-muted">--</span>
-            </td>
-            <td>
-              <span class="badge" :class="`badge-${item.status}`">
-                {{ formatStatus(item.status) }}
-              </span>
-            </td>
-            <td>
-              <span v-if="item.month_added" class="payroll-badge">{{ item.month_added }}</span>
-              <span v-else class="cell-muted">--</span>
-            </td>
-            <td>
-              <div class="row-actions" v-if="item.status === 'pending'">
-                <button class="icon-btn icon-btn-approve" title="Approve" @click="handleAction(item.id, 'approved')" :disabled="actionLoading === item.id">
-                  <span class="material-symbols-outlined">check</span>
-                </button>
-                <button class="icon-btn icon-btn-reject" title="Reject" @click="handleAction(item.id, 'rejected')" :disabled="actionLoading === item.id">
-                  <span class="material-symbols-outlined">close</span>
-                </button>
-              </div>
-              <span v-else class="cell-muted">--</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div v-if="loading" class="empty-state">
+        <span class="material-symbols-outlined empty-icon">hourglass_empty</span>
+        <p>Loading reimbursements...</p>
+      </div>
+      <div v-else-if="groups.length === 0" class="empty-state">
+        <span class="material-symbols-outlined empty-icon">receipt_long</span>
+        <p>No reimbursement records found.</p>
+      </div>
 
-      <div class="table-footer">
+      <div v-else class="emp-groups">
+        <div v-for="g in groups" :key="g.employee_id" class="emp-group">
+          <!-- Master row: one employee, collapsed -->
+          <div class="emp-row" :class="{ open: isOpen(g.employee_id) }" @click="toggle(g.employee_id)">
+            <span class="material-symbols-outlined chevron" :class="{ open: isOpen(g.employee_id) }">chevron_right</span>
+            <span class="emp-name row-link" @click.stop="goToEmployeeProfile(g.employee_id)">{{ g.name }}</span>
+            <span class="emp-count">{{ g.items.length }} claim{{ g.items.length === 1 ? '' : 's' }}</span>
+            <span v-if="g.pendingCount" class="badge badge-pending">{{ g.pendingCount }} pending</span>
+            <span class="emp-spacer"></span>
+            <span class="emp-total-label">Total</span>
+            <span class="emp-total">{{ formatCurrency(g.total) }}</span>
+          </div>
+
+          <!-- Detail: all of this employee's claims -->
+          <div v-if="isOpen(g.employee_id)" class="emp-detail">
+            <table class="data-table detail-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th class="col-right">Amount</th>
+                  <th>Reason</th>
+                  <th>Proof</th>
+                  <th>Status</th>
+                  <th>Salary slip</th>
+                  <th class="col-actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in g.items" :key="item.id" class="data-row" :class="{ 'is-rejected': item.status === 'rejected' }">
+                  <td class="cell-mono">{{ formatDateShort(item.date) }}</td>
+                  <td class="col-right cell-mono amount-cell">{{ formatCurrency(item.amount) }}</td>
+                  <td class="reason-cell" :title="item.reason">{{ item.reason }}</td>
+                  <td>
+                    <a v-if="item.proof_url" :href="resolveUrl(item.proof_url)" target="_blank" class="proof-link">
+                      <span class="material-symbols-outlined">attachment</span> View
+                    </a>
+                    <span v-else class="cell-muted">--</span>
+                  </td>
+                  <td>
+                    <span class="badge" :class="`badge-${item.status}`">{{ formatStatus(item.status) }}</span>
+                  </td>
+                  <td>
+                    <span v-if="item.status === 'approved' && item.month_added" class="payroll-badge">
+                      {{ payrollLabel(item.month_added) }}
+                    </span>
+                    <span v-else-if="item.status === 'pending'" class="payroll-projected" :title="'Rolls into this slip once approved'">
+                      {{ payrollLabel(projectedMonth(item)) }}
+                    </span>
+                    <span v-else class="cell-muted">--</span>
+                  </td>
+                  <td>
+                    <div class="row-actions" v-if="item.status === 'pending'">
+                      <button class="icon-btn icon-btn-approve" title="Approve" @click="handleAction(item.id, 'approved')" :disabled="actionLoading === item.id">
+                        <span class="material-symbols-outlined">check</span>
+                      </button>
+                      <button class="icon-btn icon-btn-reject" title="Reject" @click="handleAction(item.id, 'rejected')" :disabled="actionLoading === item.id">
+                        <span class="material-symbols-outlined">close</span>
+                      </button>
+                    </div>
+                    <span v-else class="cell-muted">--</span>
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr class="detail-total-row">
+                  <td class="col-right" colspan="2">{{ formatCurrency(g.total) }}</td>
+                  <td colspan="5" class="detail-total-note">
+                    Total across {{ g.items.length }} claim{{ g.items.length === 1 ? '' : 's' }}
+                    <template v-if="g.pendingCount"> · {{ formatCurrency(g.pendingTotal) }} still pending</template>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="!loading && groups.length" class="table-footer">
         <span class="page-info">
-          {{ filtered.length }} {{ filtered.length === 1 ? 'reimbursement' : 'reimbursements' }}
+          {{ totalCount }} {{ totalCount === 1 ? 'reimbursement' : 'reimbursements' }} across
+          {{ groups.length }} {{ groups.length === 1 ? 'employee' : 'employees' }}
         </span>
       </div>
     </div>
@@ -170,12 +188,59 @@ function clearFilters() {
   fetchReimbursements()
 }
 
-const filtered = computed(() => reimbursements.value)
+// ── Group by employee ──
+// One master row per employee; expand to see every claim + the running total.
+const groups = computed(() => {
+  const byEmp = new Map()
+  for (const item of reimbursements.value) {
+    if (!byEmp.has(item.employee_id)) byEmp.set(item.employee_id, [])
+    byEmp.get(item.employee_id).push(item)
+  }
+  const out = []
+  for (const [employee_id, items] of byEmp.entries()) {
+    items.sort((a, b) => new Date(b.date) - new Date(a.date))
+    const total = items.reduce((s, i) => s + Number(i.amount || 0), 0)
+    const pending = items.filter(i => i.status === 'pending')
+    out.push({
+      employee_id,
+      name: getUserName(employee_id),
+      items,
+      total,
+      pendingCount: pending.length,
+      pendingTotal: pending.reduce((s, i) => s + Number(i.amount || 0), 0),
+    })
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name))
+  return out
+})
 
+const totalCount = computed(() => reimbursements.value.length)
+
+// ── Expand / collapse ──
+const expanded = ref({})
+function isOpen(empId) { return !!expanded.value[empId] }
+function toggle(empId) {
+  expanded.value = { ...expanded.value, [empId]: !expanded.value[empId] }
+}
 
 function getUserName(empId) {
   const emp = employees.value.find(e => e.id === empId)
   return emp ? emp.name : `Employee #${empId}`
+}
+
+// The salary-slip month a pending claim will roll into once approved — the month
+// it was submitted (created_at), falling back to the expense date.
+function projectedMonth(item) {
+  const basis = item.created_at || item.date
+  return basis ? String(basis).slice(0, 7) : null
+}
+
+// "2026-06" -> "Jun 2026"
+function payrollLabel(ym) {
+  if (!ym) return '--'
+  const [y, m] = ym.split('-')
+  const d = new Date(Number(y), Number(m) - 1, 1)
+  return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
 }
 
 function formatDateShort(dateStr) {
@@ -203,13 +268,9 @@ async function handleAction(id, status) {
   actionLoading.value = id
   try {
     await reimbursementsAPI.actionReimbursement(id, status)
-    const idx = reimbursements.value.findIndex(r => r.id === id)
-    if (idx !== -1) {
-      reimbursements.value[idx].status = status
-      if (status === 'approved') {
-        reimbursements.value[idx].month_added = new Date().toISOString().slice(0, 7)
-      }
-    }
+    // Refetch so the payroll month (computed server-side from the submission
+    // month) is accurate rather than guessed on the client.
+    await fetchReimbursements()
   } catch (e) {
     console.error('Failed to update reimbursement', e)
   } finally {
@@ -397,6 +458,72 @@ async function handleAction(id, status) {
   font-size: 12px;
   font-weight: 600;
 }
+.payroll-projected {
+  display: inline-block;
+  padding: 3px 8px;
+  border: 1px dashed var(--color-outline);
+  color: var(--color-on-surface-variant);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ── Employee groups (master rows) ── */
+.emp-groups { display: flex; flex-direction: column; }
+.emp-group { border-bottom: 1px solid var(--color-outline); }
+.emp-group:last-child { border-bottom: none; }
+.emp-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.emp-row:hover { background: #fafbfc; }
+.emp-row.open { background: #f8fafc; }
+.chevron {
+  font-size: 20px;
+  color: var(--color-on-surface-variant);
+  transition: transform var(--transition);
+}
+.chevron.open { transform: rotate(90deg); }
+.emp-name { font-weight: 700; font-size: 14px; }
+.emp-count {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  font-weight: 600;
+}
+.emp-spacer { flex: 1; }
+.emp-total-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-on-surface-variant);
+  font-weight: 700;
+}
+.emp-total {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--color-primary);
+  min-width: 96px;
+  text-align: right;
+}
+
+/* ── Detail (expanded) table ── */
+.emp-detail { background: #fcfdfe; padding: 0 16px 12px 40px; }
+.detail-table { background: var(--color-surface); border: 1px solid var(--color-outline); border-radius: var(--radius-lg); overflow: hidden; }
+.detail-table thead { background: #f8fafc; }
+.data-row.is-rejected td:not(.col-actions) { opacity: 0.55; }
+.detail-total-row td {
+  background: #f8fafc;
+  border-top: 1px solid var(--color-outline);
+  font-weight: 800;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+}
+.detail-total-note { font-weight: 600; color: var(--color-on-surface-variant); font-size: 12px; }
 
 /* ── Row Actions ── */
 .row-actions { display: flex; gap: 6px; align-items: center; }
