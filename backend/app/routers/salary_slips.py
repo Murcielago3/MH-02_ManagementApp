@@ -242,17 +242,27 @@ async def ensure_slips(db: AsyncSession, only_month: Optional[str] = None) -> in
             y, m = _parse_month(ms)
             month_end = (date(*_add_months(y, m, 1), 1) - timedelta(days=1))
             base_sal, hourly = _month_pay(u, y, m)
-            # In automatic mode, skip months before the employee joined or
-            # after they left. An explicit admin run includes everyone.
-            if not explicit:
-                if join and month_end < join:
-                    continue
-                if u.end_date and date(y, m, 1) > u.end_date:
-                    continue
 
             reimb = reimb_totals.get((u.id, ms), Decimal("0"))
             paid_days, unpaid_days = leave_totals.get((u.id, ms), (0, 0))
             leave_ded = (hourly * Decimal("8") * Decimal(str(unpaid_days))).quantize(Decimal("0.01"))
+            # A reimbursement or unpaid-leave adjustment is real money owed for the
+            # month even outside the normal employment window.
+            has_money = reimb > 0 or unpaid_days > 0
+            out_of_window = bool(
+                (join and month_end < join) or
+                (u.end_date and date(y, m, 1) > u.end_date)
+            )
+            # In automatic mode, skip months outside employment unless there's a
+            # reimbursement/leave to settle. And for any out-of-window month, never
+            # pay base salary — settle only the claim (guards against e.g. a bad
+            # future joining date producing a full-salary slip).
+            if out_of_window and not has_money and not explicit:
+                continue
+            if out_of_window:
+                base_sal = Decimal("0")
+                leave_ded = Decimal("0")
+
             slip = existing.get((u.id, ms))
 
             # In automatic mode, don't create empty slips for accounts with no
