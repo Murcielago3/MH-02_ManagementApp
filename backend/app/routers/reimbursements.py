@@ -114,13 +114,11 @@ async def action_reimbursement(
     from datetime import datetime
     entry.status = data.status
     if data.status == "approved":
-        # Bundle into the salary slip for the month the claim was *submitted*
-        # (created_at). That slip pays out the following month — e.g. a claim
-        # submitted in June rides June's slip, received ~Jul 7. Fall back to the
-        # expense date, then today, for rows predating the created_at column.
-        basis = entry.created_at or (
-            datetime.combine(entry.date, datetime.min.time()) if entry.date else datetime.now()
-        )
+        # Bundle into the salary slip for the month of the *expense date*. That
+        # slip pays out the following month — e.g. a June-dated bill rides June's
+        # slip, received ~Jul 7. The expense date is the reliable, admin-visible
+        # month for a claim (submission timestamps weren't recorded historically).
+        basis = entry.date or (entry.created_at.date() if entry.created_at else date.today())
         entry.month_added = basis.strftime("%Y-%m")
 
     emp_name = (await db.execute(select(User.name).where(User.id == entry.employee_id))).scalar_one_or_none() or "employee"

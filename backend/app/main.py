@@ -419,12 +419,16 @@ async def run_migrations():
             await conn.execute(text("ALTER TABLE reimbursements ADD COLUMN created_at TIMESTAMP DEFAULT NOW()"))
     except Exception:
         pass
-    # Backfill existing rows from the expense date so historical claims have a
-    # sensible submission month; only touches rows still missing created_at.
+    # The salary-slip month for a claim is derived from its expense date. Self-heal
+    # any approved rows whose month_added drifted (earlier approval-month logic, or
+    # the created_at basis that lost the expense date) so June-dated bills land in
+    # June's slip. month_added is never set manually, so this is safe & idempotent.
     try:
         async with engine.begin() as conn:
             await conn.execute(text(
-                "UPDATE reimbursements SET created_at = date::timestamp WHERE created_at IS NULL"
+                "UPDATE reimbursements SET month_added = to_char(date, 'YYYY-MM') "
+                "WHERE status = 'approved' "
+                "AND (month_added IS NULL OR month_added <> to_char(date, 'YYYY-MM'))"
             ))
     except Exception:
         pass

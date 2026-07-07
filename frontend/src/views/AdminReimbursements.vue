@@ -37,6 +37,29 @@
       </button>
     </div>
 
+    <!-- Month toggle: view bills by the month they belong to (expense date) -->
+    <div v-if="availableMonths.length" class="month-bar">
+      <div class="month-pills">
+        <button class="month-pill" :class="{ active: selectedMonth === '' }" @click="selectedMonth = ''">
+          All months
+        </button>
+        <button
+          v-for="m in availableMonths"
+          :key="m"
+          class="month-pill"
+          :class="{ active: selectedMonth === m }"
+          @click="selectedMonth = m"
+        >
+          {{ payrollLabel(m) }}
+        </button>
+      </div>
+      <div v-if="selectedMonth" class="month-summary">
+        <span class="material-symbols-outlined">payments</span>
+        {{ payrollLabel(selectedMonth) }} bills → paid in {{ payrollLabel(nextMonth(selectedMonth)) }}
+        · <strong>{{ formatCurrency(visibleTotal) }}</strong> across {{ totalCount }} claim{{ totalCount === 1 ? '' : 's' }}
+      </div>
+    </div>
+
     <!-- Grouped-by-employee card -->
     <div class="table-card">
       <div v-if="loading" class="empty-state">
@@ -185,19 +208,35 @@ watch(filterStatus, () => {
   fetchReimbursements()
 })
 
-const hasActiveFilters = computed(() => employeeSearch.value || filterStatus.value)
+const hasActiveFilters = computed(() => employeeSearch.value || filterStatus.value || selectedMonth.value)
 
 function clearFilters() {
   employeeSearch.value = ''
   filterStatus.value = ''
+  selectedMonth.value = ''
   fetchReimbursements()
 }
+
+// ── Month-wise view ──
+// A claim belongs to the month of its expense date — the same month that decides
+// which salary slip it rolls into. The toggle filters to one month at a time.
+function itemMonth(item) {
+  const basis = item.date || item.created_at
+  return basis ? String(basis).slice(0, 7) : ''
+}
+const selectedMonth = ref('')  // '' = all months
+const availableMonths = computed(() => {
+  const s = new Set()
+  for (const i of reimbursements.value) { const m = itemMonth(i); if (m) s.add(m) }
+  return [...s].sort().reverse()
+})
 
 // ── Group by employee ──
 // One master row per employee; expand to see every claim + the running total.
 const groups = computed(() => {
   const byEmp = new Map()
   for (const item of reimbursements.value) {
+    if (selectedMonth.value && itemMonth(item) !== selectedMonth.value) continue
     if (!byEmp.has(item.employee_id)) byEmp.set(item.employee_id, [])
     byEmp.get(item.employee_id).push(item)
   }
@@ -220,8 +259,9 @@ const groups = computed(() => {
   return q ? out.filter(g => g.name.toLowerCase().includes(q)) : out
 })
 
-// Claims within the currently-visible (searched) employee groups.
+// Claims within the currently-visible (searched/month-filtered) employee groups.
 const totalCount = computed(() => groups.value.reduce((s, g) => s + g.items.length, 0))
+const visibleTotal = computed(() => groups.value.reduce((s, g) => s + g.total, 0))
 
 // ── Expand / collapse ──
 const expanded = ref({})
@@ -236,10 +276,17 @@ function getUserName(empId) {
 }
 
 // The salary-slip month a pending claim will roll into once approved — the month
-// it was submitted (created_at), falling back to the expense date.
+// of its expense date. That slip pays out the following month.
 function projectedMonth(item) {
-  const basis = item.created_at || item.date
-  return basis ? String(basis).slice(0, 7) : null
+  return itemMonth(item) || null
+}
+
+// "2026-06" -> "2026-07" (the month a slip pays out)
+function nextMonth(ym) {
+  if (!ym) return ''
+  const [y, m] = ym.split('-').map(Number)
+  const d = new Date(y, m, 1) // m is 1-based -> Date month index m = next month
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
 // "2026-06" -> "Jun 2026"
@@ -392,6 +439,46 @@ async function handleAction(id, status) {
 }
 .btn-clear-filters .material-symbols-outlined { font-size: 16px; }
 .btn-clear-filters:hover { background: #fee2e2; color: #dc2626; border-color: #fca5a5; }
+
+/* ── Month toggle ── */
+.month-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.month-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.month-pill {
+  padding: 7px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-full);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.month-pill:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.month-pill.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+.month-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 8px 14px;
+  background: rgba(40, 116, 117, 0.08);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--color-on-surface);
+}
+.month-summary .material-symbols-outlined { font-size: 17px; color: var(--color-primary); }
+.month-summary strong { color: var(--color-primary); }
 
 /* ── Table Card ── */
 .table-card {
