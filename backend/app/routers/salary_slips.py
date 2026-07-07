@@ -289,8 +289,11 @@ async def ensure_slips(db: AsyncSession, only_month: Optional[str] = None) -> in
                 ))
                 created += 1
             elif slip.status == "pending":
-                # Refresh pending slip so newly-approved reimbursements / leaves flow in.
-                tds_amount, net = _compute(slip.base_salary, slip.tds_percent, reimb, leave_ded)
+                # Refresh pending slip so newly-approved reimbursements / leaves —
+                # and any corrected point-in-time base salary (a raise, or a fixed
+                # joining date that moves the month back in-window) — flow in.
+                slip.base_salary = _q(base_sal)
+                tds_amount, net = _compute(base_sal, slip.tds_percent, reimb, leave_ded)
                 slip.reimbursement_total = reimb
                 slip.paid_leave_days = Decimal(str(paid_days))
                 slip.unpaid_leave_days = Decimal(str(unpaid_days))
