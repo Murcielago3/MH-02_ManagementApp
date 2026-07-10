@@ -317,8 +317,14 @@ async def upload_document(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Upload a document (PDF/image) for the given user. doc_type: aadhar | pan | other"""
-    if current_user.id != user_id and current_user.role not in ("admin", "project_manager"):
+    """Upload a document (PDF/image) for the given user. doc_type: aadhar | pan | other.
+
+    Employees may upload their OWN documents, but only once — a document, once
+    uploaded, can't be changed by the employee. Admins can upload/replace freely.
+    """
+    is_admin = current_user.role == "admin"
+    is_self = current_user.id == user_id
+    if not (is_admin or is_self):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     result = await db.execute(select(User).where(User.id == user_id))
@@ -328,6 +334,17 @@ async def upload_document(
 
     if file.content_type not in ALLOWED_DOC_TYPES:
         raise HTTPException(status_code=400, detail=f"File type {file.content_type} not allowed. Use PDF or image.")
+
+    # Load existing documents list
+    try:
+        docs = json.loads(user.documents_url or "[]")
+    except (json.JSONDecodeError, TypeError):
+        docs = []
+
+    # Once uploaded, an employee can't change their own document — only an admin can.
+    already = any(d.get("doc_type") == doc_type for d in docs)
+    if already and not is_admin:
+        raise HTTPException(status_code=403, detail="This document has already been uploaded and can only be changed by an admin.")
 
     ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "pdf"
     filename = f"{user_id}_{doc_type}_{uuid.uuid4().hex[:8]}.{ext}"
@@ -339,13 +356,7 @@ async def upload_document(
 
     doc_url = f"/static/uploads/documents/{filename}"
 
-    # Load existing documents list
-    try:
-        docs = json.loads(user.documents_url or "[]")
-    except (json.JSONDecodeError, TypeError):
-        docs = []
-
-    # Replace existing doc of same type if present
+    # Replace existing doc of same type if present (admin path)
     docs = [d for d in docs if d.get("doc_type") != doc_type]
     docs.append({
         "doc_type": doc_type,
@@ -390,9 +401,10 @@ async def delete_document(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Remove a specific document from a user's profile."""
-    if current_user.id != user_id and current_user.role not in ("admin", "project_manager"):
-        raise HTTPException(status_code=403, detail="Not authorized")
+    """Remove a specific document from a user's profile. Admin only — employees
+    can't delete their own documents once uploaded."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only an admin can remove documents")
 
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()

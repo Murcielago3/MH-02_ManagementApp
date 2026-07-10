@@ -85,6 +85,44 @@
           </div>
         </div>
 
+        <!-- Identity Documents -->
+        <div class="details-card documents-card">
+          <div class="card-header">
+            <h3 class="card-title">Identity Documents</h3>
+          </div>
+          <div class="doc-body">
+            <div v-for="dt in DOC_TYPES" :key="dt.type" class="doc-row">
+              <div class="doc-row-left">
+                <span class="material-symbols-outlined doc-icon" :class="{ 'has-doc': docFor(dt.type) }">
+                  {{ docFor(dt.type) ? 'task' : 'description' }}
+                </span>
+                <div class="doc-info">
+                  <div class="doc-name">{{ dt.label }}</div>
+                  <div v-if="docFor(dt.type)" class="doc-sub" :title="docFor(dt.type).filename">{{ docFor(dt.type).filename }}</div>
+                  <div v-else class="doc-sub muted">Not uploaded yet</div>
+                </div>
+              </div>
+              <div class="doc-row-right">
+                <a v-if="docFor(dt.type)" :href="docUrl(docFor(dt.type))" target="_blank" rel="noopener" class="btn-doc">
+                  <span class="material-symbols-outlined">visibility</span> View
+                </a>
+                <span v-if="docFor(dt.type)" class="locked-tag" title="Contact an admin to change this">
+                  <span class="material-symbols-outlined">lock</span> Locked
+                </span>
+                <button v-else class="btn-doc btn-doc-primary" @click="triggerUpload(dt.type)" :disabled="uploadingType === dt.type">
+                  <span class="material-symbols-outlined">{{ uploadingType === dt.type ? 'progress_activity' : 'upload' }}</span>
+                  {{ uploadingType === dt.type ? 'Uploading…' : 'Upload' }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <p class="doc-note">
+            <span class="material-symbols-outlined">info</span>
+            Once uploaded, a document is locked and can only be changed by an admin. Accepted: PDF or image.
+          </p>
+          <input ref="fileInput" type="file" accept="application/pdf,image/*" style="display:none" @change="onFileSelected" />
+        </div>
+
         <!-- Activity section -->
         <div class="activity-section">
           <div class="tabs-header">
@@ -269,6 +307,18 @@ const timesheets = ref([])
 const attendance = ref([])
 const leaves = ref([])
 
+// ── Identity documents (employee uploads own PAN / Aadhaar; locked after) ──
+const DOC_TYPES = [
+  { type: 'pan', label: 'PAN Card' },
+  { type: 'aadhar', label: 'Aadhaar Card' },
+]
+const documents = ref([])
+const uploadingType = ref(null)
+const pendingType = ref(null)
+const fileInput = ref(null)
+function docFor(type) { return documents.value.find(d => d.doc_type === type) }
+function docUrl(doc) { return usersAPI.resolveFileUrl(doc.url) }
+
 const showEditModal = ref(false)
 const updating = ref(false)
 const editForm = ref({
@@ -288,10 +338,44 @@ watch(activeTab, (newTab) => {
   fetchTabData(newTab)
 })
 
+const fetchDocuments = async () => {
+  if (!user.value?.id) return
+  try {
+    const res = await usersAPI.getDocuments(user.value.id)
+    documents.value = Array.isArray(res.data) ? res.data : []
+  } catch (err) {
+    console.error('Failed to load documents', err)
+  }
+}
+
+function triggerUpload(type) {
+  pendingType.value = type
+  fileInput.value?.click()
+}
+
+const onFileSelected = async (e) => {
+  const file = e.target.files?.[0]
+  const type = pendingType.value
+  e.target.value = ''
+  if (!file || !type) return
+  uploadingType.value = type
+  try {
+    await usersAPI.uploadDocument(user.value.id, file, type)
+    await fetchDocuments()
+    notifySuccess('Document uploaded.')
+  } catch (err) {
+    alert(err.response?.data?.detail || 'Upload failed')
+  } finally {
+    uploadingType.value = null
+    pendingType.value = null
+  }
+}
+
 const fetchUserData = async () => {
   try {
     const res = await usersAPI.getMe()
     user.value = res.data
+    fetchDocuments()
     // Sync edit form
     editForm.value = {
       phone_number: res.data.phone_number || '',
@@ -562,6 +646,82 @@ const formatCurrency = (val) => {
   color: var(--color-on-surface);
   font-weight: 500;
 }
+
+/* ── Identity documents ── */
+.documents-card { padding-bottom: 8px; }
+.doc-body { display: flex; flex-direction: column; }
+.doc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--color-outline);
+}
+.doc-row-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.doc-icon {
+  font-size: 24px;
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-dim);
+  border-radius: var(--radius-md);
+  padding: 7px;
+}
+.doc-icon.has-doc { color: var(--color-primary); background: var(--color-primary-light); }
+.doc-info { min-width: 0; }
+.doc-name { font-size: 14px; font-weight: 600; color: var(--color-on-surface); }
+.doc-sub {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.doc-sub.muted { font-style: italic; }
+.doc-row-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.btn-doc {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all var(--transition);
+}
+.btn-doc:hover:not(:disabled) { border-color: var(--color-primary); color: var(--color-primary); }
+.btn-doc:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-doc .material-symbols-outlined { font-size: 15px; }
+.btn-doc-primary { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.btn-doc-primary:hover:not(:disabled) { background: #1a5657; border-color: #1a5657; color: #fff; }
+.locked-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-dim);
+  color: var(--color-on-surface-variant);
+  font-size: 12px;
+  font-weight: 600;
+}
+.locked-tag .material-symbols-outlined { font-size: 14px; }
+.doc-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 14px 24px;
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+.doc-note .material-symbols-outlined { font-size: 16px; }
 
 /* ── Activity section ── */
 .activity-section {
