@@ -11,15 +11,19 @@ class WeeklyTimesheet(Base):
     week_end = Column(Date, nullable=False)
     total_hours = Column(Numeric(6, 2), nullable=True) # Changed to Numeric for decimal hours
     description = Column(String, nullable=True) # Keeping global description just in case, but can be optional
-    # Two-stage approval: a non-admin timesheet is fully approved ('approved')
-    # only when BOTH slots are filled; an admin's own timesheet needs only the
-    # admin slot. Either a PM or an admin can reject at their stage.
+    # Approval slots. A non-admin timesheet is fully approved ('approved') only
+    # when the PM slot AND BOTH admin slots are filled — the two admins must be
+    # different accounts (four-eyes on the admin side). An admin's own timesheet
+    # needs only the single admin slot. Either a PM or an admin can reject.
     status = Column(String, nullable=False)  # submitted, pm_approved, admin_approved, approved, rejected
     submitted_at = Column(DateTime(timezone=True), nullable=True)
     pm_approved_by = Column(Integer, ForeignKey('users.id'), nullable=True)
     pm_approved_at = Column(DateTime(timezone=True), nullable=True)
     admin_approved_by = Column(Integer, ForeignKey('users.id'), nullable=True)
     admin_approved_at = Column(DateTime(timezone=True), nullable=True)
+    # Second admin approval (the "second factor"); required for non-admin timesheets.
+    admin2_approved_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    admin2_approved_at = Column(DateTime(timezone=True), nullable=True)
     rejected_by = Column(Integer, ForeignKey('users.id'), nullable=True)
     rejected_at = Column(DateTime(timezone=True), nullable=True)
     rejection_reason = Column(String, nullable=True)

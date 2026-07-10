@@ -100,7 +100,12 @@
                 </span>
                 <span class="appr-chip" :class="ts.admin_approved_at ? 'appr-done' : 'appr-pending'"
                       :title="ts.admin_approved_at ? 'Admin: ' + getUserName(ts.admin_approved_by) : 'Awaiting admin approval'">
-                  <span class="material-symbols-outlined">{{ ts.admin_approved_at ? 'check_circle' : 'schedule' }}</span> Admin
+                  <span class="material-symbols-outlined">{{ ts.admin_approved_at ? 'check_circle' : 'schedule' }}</span>
+                  {{ submitterIsAdmin(ts) ? 'Admin' : 'Admin 1' }}
+                </span>
+                <span v-if="!submitterIsAdmin(ts)" class="appr-chip" :class="ts.admin2_approved_at ? 'appr-done' : 'appr-pending'"
+                      :title="ts.admin2_approved_at ? 'Admin: ' + getUserName(ts.admin2_approved_by) : 'Awaiting second admin approval'">
+                  <span class="material-symbols-outlined">{{ ts.admin2_approved_at ? 'check_circle' : 'schedule' }}</span> Admin 2
                 </span>
               </div>
             </td>
@@ -110,7 +115,7 @@
                   <span class="material-symbols-outlined">visibility</span>
                   Details
                 </button>
-                <button v-if="canApprove(ts)" class="icon-btn icon-btn-approve" :title="approveLabel" @click="doApprove(ts.id)" :disabled="actionLoading === ts.id">
+                <button v-if="canApprove(ts)" class="icon-btn icon-btn-approve" :title="approveLabel(ts)" @click="doApprove(ts.id)" :disabled="actionLoading === ts.id">
                   <span class="material-symbols-outlined">check</span>
                 </button>
                 <button v-if="canReject(ts)" class="icon-btn icon-btn-reject" title="Reject" @click="openRejectModal(ts.id)" :disabled="actionLoading === ts.id">
@@ -168,7 +173,7 @@
           </button>
           <button v-if="canApprove(selectedTimesheet)" class="btn-submit" @click="doApprove(selectedTimesheet.id)">
             <span class="material-symbols-outlined">check</span>
-            {{ approveLabel }}
+            {{ approveLabel(selectedTimesheet) }}
           </button>
         </div>
       </div>
@@ -226,6 +231,8 @@ const router = useRouter()
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.role === 'admin')
 const isPM = computed(() => authStore.role === 'project_manager')
+// Needed to stop the same admin filling both admin slots (four-eyes).
+const currentUserId = ref(null)
 
 const timesheets = ref([])
 const employees = ref([])
@@ -279,6 +286,7 @@ async function fetchProjects() {
 }
 
 onMounted(async () => {
+  try { currentUserId.value = (await usersAPI.getMe()).data.id } catch {}
   await Promise.all([fetchTimesheets(), fetchEmployees(), fetchProjects()])
 })
 
@@ -421,7 +429,15 @@ function submitterIsAdmin(ts) {
 }
 function canApprove(ts) {
   if (ts.status === 'approved' || ts.status === 'rejected') return false
-  if (isAdmin.value) return !ts.admin_approved_at
+  if (isAdmin.value) {
+    // Admin's own timesheet: single admin approval.
+    if (submitterIsAdmin(ts)) return !ts.admin_approved_at
+    // Non-admin timesheet: two DIFFERENT admins. Show approve if a slot is open
+    // for me (and I'm not the admin who already filled the first slot).
+    if (!ts.admin_approved_at) return true
+    if (!ts.admin2_approved_at && ts.admin_approved_by !== currentUserId.value) return true
+    return false
+  }
   if (isPM.value) return !submitterIsAdmin(ts) && !ts.pm_approved_at
   return false
 }
@@ -430,7 +446,12 @@ function canReject(ts) {
   if (isPM.value && submitterIsAdmin(ts)) return false
   return true
 }
-const approveLabel = computed(() => (isAdmin.value ? 'Admin Approve' : 'PM Approve'))
+function approveLabel(ts) {
+  if (!isAdmin.value) return 'PM Approve'
+  // Second, different admin on a non-admin timesheet.
+  if (ts && !submitterIsAdmin(ts) && ts.admin_approved_at) return '2nd Admin Approve'
+  return 'Admin Approve'
+}
 
 function openRejectModal(tsId) {
   rejectModalTarget.value = tsId

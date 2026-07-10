@@ -211,17 +211,21 @@ async def get_timesheet(
 def _recompute_status(ts, submitter_is_admin: bool):
     """Derive the stored `status` from the approval / rejection slots.
 
-    Non-admin submitter → fully 'approved' only when BOTH slots are filled.
-    Admin submitter      → 'approved' once the admin slot is filled (no PM stage).
+    Admin submitter → 'approved' once the single admin slot is filled (no PM,
+        no second admin).
+    Non-admin submitter → 'approved' only when the PM slot AND both admin slots
+        are filled (two distinct admins).
     """
     if ts.rejected_at:
         ts.status = "rejected"
-    elif ts.admin_approved_at and (submitter_is_admin or ts.pm_approved_at):
+    elif submitter_is_admin:
+        ts.status = "approved" if ts.admin_approved_at else "submitted"
+    elif ts.pm_approved_at and ts.admin_approved_at and ts.admin2_approved_at:
         ts.status = "approved"
-    elif ts.pm_approved_at:
-        ts.status = "pm_approved"
     elif ts.admin_approved_at:
         ts.status = "admin_approved"
+    elif ts.pm_approved_at:
+        ts.status = "pm_approved"
     else:
         ts.status = "submitted"
 
@@ -274,8 +278,9 @@ async def approve_timesheet(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(require_manager),
 ):
-    """Fill the actor's approval slot. Admin → admin slot; PM → PM slot. Full
-    approval (both slots for non-admins; admin slot for admins) freezes cost."""
+    """Fill the actor's approval slot. A non-admin timesheet needs a PM plus two
+    DIFFERENT admins; an admin's own timesheet needs the single admin slot. Full
+    approval freezes cost."""
     timesheet, submitter = await _load_ts_and_submitter(db, timesheet_id)
     submitter_is_admin = bool(submitter and submitter.role == "admin")
     is_admin = current_user.role == "admin"
@@ -286,12 +291,28 @@ async def approve_timesheet(
         raise HTTPException(400, "This timesheet was rejected; the employee must resubmit.")
 
     now = datetime.now(timezone.utc)
-    if is_admin:
+    if is_admin and submitter_is_admin:
+        # Admin's own timesheet: single admin approval, no second factor.
         if timesheet.admin_approved_at:
             raise HTTPException(400, "Already approved by an admin")
         timesheet.admin_approved_by = current_user.id
         timesheet.admin_approved_at = now
         slot = "admin"
+    elif is_admin:
+        # Non-admin timesheet: needs two DIFFERENT admins. First admin fills the
+        # admin slot; a second, different admin fills the second-factor slot.
+        if timesheet.admin_approved_at is None:
+            timesheet.admin_approved_by = current_user.id
+            timesheet.admin_approved_at = now
+            slot = "admin"
+        elif timesheet.admin2_approved_at is None:
+            if timesheet.admin_approved_by == current_user.id:
+                raise HTTPException(400, "You gave the first admin approval — a different admin must give the second.")
+            timesheet.admin2_approved_by = current_user.id
+            timesheet.admin2_approved_at = now
+            slot = "admin2"
+        else:
+            raise HTTPException(400, "Both admin approvals are already recorded")
     else:  # project_manager
         if timesheet.pm_approved_at:
             raise HTTPException(400, "Already approved by a project manager")

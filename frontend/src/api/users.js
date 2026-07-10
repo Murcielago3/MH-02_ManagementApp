@@ -18,8 +18,8 @@ export const usersAPI = {
     return client.post('/users/', userData)
   },
 
-  getUsers: () => {
-    return client.get('/users/')
+  getUsers: (params) => {
+    return client.get('/users/', { params })
   },
 
   getMe: () => {

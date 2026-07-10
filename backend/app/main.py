@@ -342,12 +342,15 @@ async def run_migrations():
         pass
 
     # Two-stage timesheet approval columns (PM + admin slots + reject/submit meta).
+    # admin2_* is the second-admin ("second factor") slot for non-admin timesheets.
     for col_name, col_def in [
         ("submitted_at", "TIMESTAMP"),
         ("pm_approved_by", "INTEGER"),
         ("pm_approved_at", "TIMESTAMP"),
         ("admin_approved_by", "INTEGER"),
         ("admin_approved_at", "TIMESTAMP"),
+        ("admin2_approved_by", "INTEGER"),
+        ("admin2_approved_at", "TIMESTAMP"),
         ("rejected_by", "INTEGER"),
         ("rejected_at", "TIMESTAMP"),
     ]:

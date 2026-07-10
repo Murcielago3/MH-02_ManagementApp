@@ -89,17 +89,21 @@ class UserUpdate(BaseModel):
 @router.get("/")
 async def list_users(
     response: Response,
+    include_ended: bool = False,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db)
 ):
     # The employee roster is read by many views; salary/profile changes
     # propagate within 20s. Trade-off for fewer round-trips.
     response.headers["Cache-Control"] = "private, max-age=20"
-    result = await db.execute(
-        select(User)
-        .where(User.is_active == True)
-        .order_by(User.id.desc())
-    )
+    query = select(User).where(User.is_active == True)
+    # Employees whose end date has passed drop out of the normal roster (task
+    # pickers, reimbursements, salary slips, …). The Employees page passes
+    # include_ended=true to still see them.
+    if not include_ended:
+        today = date.today()
+        query = query.where((User.end_date == None) | (User.end_date >= today))  # noqa: E711
+    result = await db.execute(query.order_by(User.id.desc()))
     users = result.scalars().all()
     return users
 

@@ -52,6 +52,7 @@
               v-for="emp in filteredEmployees"
               :key="emp.id"
               class="employee-card"
+              :class="{ 'is-ended': hasLeft(emp) }"
               @click="goToProfile(emp)"
             >
               <div class="employee-card-top">
@@ -60,7 +61,10 @@
                     {{ initials(emp.name) }}
                   </div>
                   <div>
-                    <div class="emp-name">{{ emp.name }}</div>
+                    <div class="emp-name">
+                      {{ emp.name }}
+                      <span v-if="hasLeft(emp)" class="left-tag" :title="`Left on ${formatDate(emp.end_date)}`">Left</span>
+                    </div>
                     <div class="emp-id">EMP-{{ String(emp.id).padStart(3, '0') }}</div>
                   </div>
                 </div>
@@ -451,7 +455,9 @@ const salaryPerHour = computed(() => {
 async function fetchEmployees() {
   loading.value = true
   try {
-    const res = await usersAPI.getUsers()
+    // The Employees page is the one place that still shows people whose end date
+    // has passed (they're hidden from every other roster).
+    const res = await usersAPI.getUsers({ include_ended: true })
     employees.value = res.data
     managers.value = res.data.filter(u => u.role === 'project_manager' || u.role === 'admin')
   } catch (err) {
@@ -462,6 +468,15 @@ async function fetchEmployees() {
 }
 
 onMounted(fetchEmployees)
+
+// An employee whose end date has passed — shown only here, hidden elsewhere.
+function hasLeft(emp) {
+  if (!emp.end_date) return false
+  const end = new Date(emp.end_date)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return end < today
+}
 
 // ── Filtered + paginated ──
 const filteredEmployees = computed(() => {
@@ -937,7 +952,19 @@ function formatRole(role) {
   color: var(--color-primary);
   flex-shrink: 0;
 }
-.emp-name { font-weight: 600; color: var(--color-on-surface); }
+.emp-name { font-weight: 600; color: var(--color-on-surface); display: inline-flex; align-items: center; gap: 8px; }
+.left-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  background: #f1f5f9;
+  color: #64748b;
+}
+.employee-card.is-ended { opacity: 0.62; }
+.employee-card.is-ended:hover { opacity: 1; }
 .emp-id {
   font-family: 'Courier New', monospace;
   font-size: 11px;

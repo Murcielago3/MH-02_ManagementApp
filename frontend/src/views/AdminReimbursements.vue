@@ -233,9 +233,15 @@ const availableMonths = computed(() => {
 
 // ── Group by employee ──
 // One master row per employee; expand to see every claim + the running total.
+// Employees still in the normal roster (excludes those whose end date has passed).
+const rosterIds = computed(() => new Set(employees.value.map(e => e.id)))
+
 const groups = computed(() => {
   const byEmp = new Map()
+  const haveRoster = employees.value.length > 0
   for (const item of reimbursements.value) {
+    // Hide claims of employees who have left (not in the roster).
+    if (haveRoster && !rosterIds.value.has(item.employee_id)) continue
     if (selectedMonth.value && itemMonth(item) !== selectedMonth.value) continue
     if (!byEmp.has(item.employee_id)) byEmp.set(item.employee_id, [])
     byEmp.get(item.employee_id).push(item)

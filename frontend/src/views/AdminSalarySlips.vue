@@ -362,8 +362,13 @@ async function fetchEmployees() {
 
 onMounted(() => { fetchSlips(); fetchEmployees() })
 
+// Employees still in the normal roster (excludes those whose end date has passed).
+const rosterIds = computed(() => new Set(employees.value.map(e => e.id)))
+
 const filtered = computed(() => {
   let list = [...slips.value]
+  // Hide slips of employees who have left (not in the roster).
+  if (employees.value.length) list = list.filter(s => rosterIds.value.has(s.employee_id))
   if (filterMonth.value) list = list.filter(s => s.month === filterMonth.value)
   if (filterEmployee.value) list = list.filter(s => s.employee_id === Number(filterEmployee.value))
   if (filterStatus.value) list = list.filter(s => s.status === filterStatus.value)
