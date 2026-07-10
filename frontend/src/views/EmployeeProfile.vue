@@ -238,6 +238,49 @@
           </table>
         </div>
       </div>
+
+      <!-- Documents Tab (admin only) -->
+      <div v-if="activeTab === 'documents'" class="documents-section">
+        <div class="info-grid id-grid">
+          <div class="info-item">
+            <label>PAN Number</label>
+            <span class="mono-id">{{ employee.pan_number || '—' }}</span>
+          </div>
+          <div class="info-item">
+            <label>Aadhaar Number</label>
+            <span class="mono-id">{{ employee.aadhar_number || '—' }}</span>
+          </div>
+        </div>
+
+        <div class="doc-cards">
+          <div v-for="dt in DOC_TYPES" :key="dt.type" class="doc-card">
+            <div class="doc-card-head">
+              <span class="material-symbols-outlined doc-icon" :class="{ 'has-doc': docFor(dt.type) }">
+                {{ docFor(dt.type) ? 'task' : 'description' }}
+              </span>
+              <div class="doc-meta">
+                <div class="doc-label">{{ dt.label }}</div>
+                <div v-if="docFor(dt.type)" class="doc-file" :title="docFor(dt.type).filename">{{ docFor(dt.type).filename }}</div>
+                <div v-else class="doc-file muted">Not uploaded</div>
+              </div>
+            </div>
+            <div class="doc-actions">
+              <a v-if="docFor(dt.type)" :href="docUrl(docFor(dt.type))" target="_blank" rel="noopener" class="btn-doc">
+                <span class="material-symbols-outlined">visibility</span> View
+              </a>
+              <button class="btn-doc" @click="triggerUpload(dt.type)" :disabled="uploadingType === dt.type">
+                <span class="material-symbols-outlined">{{ uploadingType === dt.type ? 'progress_activity' : 'upload' }}</span>
+                {{ uploadingType === dt.type ? 'Uploading…' : (docFor(dt.type) ? 'Replace' : 'Upload') }}
+              </button>
+              <button v-if="docFor(dt.type)" class="btn-doc btn-doc-danger" @click="removeDoc(dt.type)" title="Remove">
+                <span class="material-symbols-outlined">delete</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <p class="doc-hint">Accepted formats: PDF or image (JPG/PNG). Uploading replaces any existing file of the same type.</p>
+        <input ref="fileInput" type="file" accept="application/pdf,image/*" style="display:none" @change="onFileSelected" />
+      </div>
     </div>
 
     <!-- Detail Modal -->
@@ -301,9 +344,12 @@ import { weeklyTimesheetsAPI } from '../api/weekly_timesheets'
 import { leavesAPI } from '../api/leaves'
 import { tasksAPI } from '../api/tasks'
 import { projectsAPI } from '../api/projects'
+import { useAuthStore } from '../stores/auth'
 
 const route = useRoute()
 const employeeId = route.params.id
+const authStore = useAuthStore()
+const isAdmin = computed(() => authStore.role === 'admin')
 
 const employee = ref({})
 const timesheets = ref([])
@@ -323,12 +369,80 @@ const showDetailModal = ref(false)
 const selectedTimesheet = ref(null)
 const projects = ref([])
 
-const tabs = [
-  { key: 'profile', label: 'Profile' },
-  { key: 'timesheet', label: 'Timesheet' },
-  { key: 'leaves', label: 'Leave Requests' },
-  { key: 'tasks', label: 'Assigned Tasks' },
+const tabs = computed(() => {
+  const t = [
+    { key: 'profile', label: 'Profile' },
+    { key: 'timesheet', label: 'Timesheet' },
+    { key: 'leaves', label: 'Leave Requests' },
+    { key: 'tasks', label: 'Assigned Tasks' },
+  ]
+  // PAN/Aadhaar are sensitive — documents are admin-only.
+  if (isAdmin.value) t.push({ key: 'documents', label: 'Documents' })
+  return t
+})
+
+// ── Documents (PAN / Aadhaar / other) ──
+const DOC_TYPES = [
+  { type: 'pan', label: 'PAN Card' },
+  { type: 'aadhar', label: 'Aadhaar Card' },
+  { type: 'other', label: 'Other Document' },
 ]
+const documents = ref([])
+const loadingDocs = ref(false)
+const uploadingType = ref(null)
+const pendingType = ref(null)
+const fileInput = ref(null)
+
+function docFor(type) {
+  return documents.value.find(d => d.doc_type === type)
+}
+function docUrl(doc) {
+  return usersAPI.resolveFileUrl(doc.url)
+}
+
+async function fetchDocuments() {
+  loadingDocs.value = true
+  try {
+    const res = await usersAPI.getDocuments(employeeId)
+    documents.value = Array.isArray(res.data) ? res.data : []
+  } catch (e) {
+    console.error(e)
+  } finally {
+    loadingDocs.value = false
+  }
+}
+
+function triggerUpload(type) {
+  pendingType.value = type
+  fileInput.value?.click()
+}
+
+async function onFileSelected(e) {
+  const file = e.target.files?.[0]
+  const type = pendingType.value
+  e.target.value = ''
+  if (!file || !type) return
+  uploadingType.value = type
+  try {
+    await usersAPI.uploadDocument(employeeId, file, type)
+    await fetchDocuments()
+  } catch (err) {
+    alert(err.response?.data?.detail || 'Upload failed')
+  } finally {
+    uploadingType.value = null
+    pendingType.value = null
+  }
+}
+
+async function removeDoc(type) {
+  if (!confirm('Remove this document?')) return
+  try {
+    await usersAPI.deleteDocument(employeeId, type)
+    await fetchDocuments()
+  } catch (err) {
+    alert(err.response?.data?.detail || 'Delete failed')
+  }
+}
 
 const initials = computed(() => {
   const name = employee.value.name || ''
@@ -415,13 +529,15 @@ async function fetchProjects() {
 }
 
 onMounted(async () => {
-  await Promise.all([
+  const jobs = [
     fetchEmployee(),
     fetchTimesheets(),
     fetchLeaves(),
     fetchTasks(),
     fetchProjects()
-  ])
+  ]
+  if (isAdmin.value) jobs.push(fetchDocuments())
+  await Promise.all(jobs)
 })
 
 // Helpers
@@ -592,6 +708,67 @@ function isDueToday(task) {
 .info-item span {
   font-size: 14px; color: var(--color-on-surface); font-weight: 500;
 }
+
+/* ── Documents tab ── */
+.id-grid { margin-bottom: 24px; }
+.mono-id { font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+.doc-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+.doc-card {
+  border: 1px solid var(--color-surface-container-high);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--color-background);
+}
+.doc-card-head { display: flex; align-items: center; gap: 12px; }
+.doc-icon {
+  font-size: 28px;
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container);
+  border-radius: var(--radius-md);
+  padding: 6px;
+}
+.doc-icon.has-doc { color: var(--color-primary); background: var(--color-primary-light); }
+.doc-meta { min-width: 0; }
+.doc-label { font-size: 14px; font-weight: 600; color: var(--color-on-surface); }
+.doc-file {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.doc-file.muted { font-style: italic; }
+.doc-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn-doc {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: #fff;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-md);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+.btn-doc:hover:not(:disabled) { border-color: var(--color-primary); color: var(--color-primary); }
+.btn-doc:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-doc .material-symbols-outlined { font-size: 15px; }
+.btn-doc-danger { color: #dc2626; }
+.btn-doc-danger:hover { border-color: #dc2626; background: #fef2f2; color: #dc2626; }
+.doc-hint { margin: 16px 0 0; font-size: 12px; color: var(--color-on-surface-variant); }
 
 .table-card {
   background: #fff; border: 1px solid var(--color-surface-container-high); border-radius: var(--radius-lg);
