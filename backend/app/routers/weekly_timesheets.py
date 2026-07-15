@@ -244,6 +244,63 @@ async def _freeze_entries(db, timesheet):
         e.cost_breakdown = breakdown
 
 
+async def _grant_overtime_credits(db, timesheet):
+    """On full approval, turn overtime days into comp-off leave credits:
+    a day with 13h+ earns 1.0 day, 11h+ (but under 13h) earns 0.5 day. Each
+    credit is valid for 40 days from that work date. Idempotent per
+    (timesheet, day); never touches a credit that's already been consumed."""
+    from decimal import Decimal
+    from app.models.overtime_leave import OvertimeLeave
+
+    entries = (await db.execute(
+        select(WeeklyTimesheetEntry).where(WeeklyTimesheetEntry.timesheet_id == timesheet.id)
+    )).scalars().all()
+    # Sum hours per weekday (Mon..Sun) across all projects.
+    totals = [Decimal("0")] * 7
+    for e in entries:
+        for i, h in enumerate((e.daily_hours or [])[:7]):
+            totals[i] += Decimal(str(h or 0))
+
+    existing = {c.work_date: c for c in (await db.execute(
+        select(OvertimeLeave).where(OvertimeLeave.timesheet_id == timesheet.id)
+    )).scalars().all()}
+
+    for i in range(7):
+        wd = timesheet.week_start + timedelta(days=i)
+        hrs = totals[i]
+        amount = Decimal("1.0") if hrs >= 13 else (Decimal("0.5") if hrs >= 11 else Decimal("0"))
+        cur = existing.get(wd)
+        if amount > 0:
+            if cur is None:
+                db.add(OvertimeLeave(
+                    employee_id=timesheet.employee_id,
+                    timesheet_id=timesheet.id,
+                    work_date=wd,
+                    hours=hrs,
+                    amount=amount,
+                    consumed=Decimal("0"),
+                    expires_on=wd + timedelta(days=40),
+                ))
+            elif Decimal(str(cur.consumed or 0)) == 0:
+                cur.hours = hrs
+                cur.amount = amount
+                cur.expires_on = wd + timedelta(days=40)
+        elif cur is not None and Decimal(str(cur.consumed or 0)) == 0:
+            await db.delete(cur)
+
+
+async def _revoke_overtime_credits(db, timesheet_id):
+    """Drop a timesheet's unconsumed overtime credits (e.g. on rejection)."""
+    from decimal import Decimal
+    from app.models.overtime_leave import OvertimeLeave
+    creds = (await db.execute(
+        select(OvertimeLeave).where(OvertimeLeave.timesheet_id == timesheet_id)
+    )).scalars().all()
+    for c in creds:
+        if Decimal(str(c.consumed or 0)) == 0:
+            await db.delete(c)
+
+
 def _queue_decision_slack(background_tasks, emp, timesheet, status, rejection_reason):
     def _run(emp, timesheet, status, rejection_reason):
         if emp:
@@ -324,6 +381,8 @@ async def approve_timesheet(
     fully_approved = timesheet.status == "approved"
     if fully_approved:
         await _freeze_entries(db, timesheet)
+        # Overtime days (11h+/13h+) become comp-off leave credits.
+        await _grant_overtime_credits(db, timesheet)
 
     who = submitter.name if submitter else "employee"
     await log_audit(db, current_user, f"timesheet.{slot}_approved", "timesheet", timesheet.id,
@@ -362,6 +421,8 @@ async def reject_timesheet(
     timesheet.rejected_by = current_user.id
     timesheet.rejected_at = datetime.now(timezone.utc)
     timesheet.rejection_reason = data.rejection_reason
+    # A rejected timesheet no longer justifies its overtime credits.
+    await _revoke_overtime_credits(db, timesheet.id)
 
     who = submitter.name if submitter else "employee"
     await log_audit(db, current_user, "timesheet.rejected", "timesheet", timesheet.id,

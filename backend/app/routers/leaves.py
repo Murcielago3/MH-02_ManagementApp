@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from app.database import get_db
 from app.models.leave import LeaveRequest
 from app.models.user import User
+from app.models.overtime_leave import OvertimeLeave
 from app.auth import get_current_user, require_admin, require_manager
 from app.services.audit import log_audit
 
@@ -102,6 +103,95 @@ def classify_leave(leave: LeaveRequest, user: User):
     return paid, unpaid, bal
 
 
+# ─── Overtime (comp-off) credits ─────────────────────────────────────────────
+async def _available_credits(db: AsyncSession, employee_id: int, as_of: date):
+    """Non-expired, not-fully-consumed overtime credits, soonest-expiry first."""
+    res = await db.execute(
+        select(OvertimeLeave)
+        .where(OvertimeLeave.employee_id == employee_id, OvertimeLeave.expires_on >= as_of)
+        .order_by(OvertimeLeave.expires_on.asc(), OvertimeLeave.id.asc())
+    )
+    return [c for c in res.scalars().all()
+            if (Decimal(str(c.amount)) - Decimal(str(c.consumed or 0))) > 0]
+
+
+def _remaining(c: OvertimeLeave) -> Decimal:
+    return Decimal(str(c.amount)) - Decimal(str(c.consumed or 0))
+
+
+def _serialize_credit(c: OvertimeLeave) -> dict:
+    return {
+        "id": c.id,
+        "work_date": c.work_date.isoformat() if c.work_date else None,
+        "hours": float(c.hours or 0),
+        "amount": float(c.amount or 0),
+        "remaining": float(_remaining(c)),
+        "expires_on": c.expires_on.isoformat() if c.expires_on else None,
+    }
+
+
+async def consume_for_leave(db: AsyncSession, leave: LeaveRequest, user: User):
+    """Pay a leave's working days from overtime credits (soonest-expiry first),
+    then the monthly paid balance, then unpaid. Credits are eligible if not
+    expired as of the leave's start date. Records what was drawn from each credit
+    on leave.overtime_consumed so approval can be reversed. Mutates `user` +
+    credit rows in the session; returns nothing (caller commits)."""
+    pend = probation_end(user.joining_date)
+    bal = Decimal(str(user.paid_leave_balance or 0))
+    creds = await _available_credits(db, user.id, leave.start_date)
+    rem = {c.id: _remaining(c) for c in creds}
+    credmap = {c.id: c for c in creds}
+    ot_total = sum(rem.values(), Decimal(0))
+    ot_used: dict[int, Decimal] = {}
+    paid = 0
+    unpaid = 0
+    for d in working_days(leave.start_date, leave.end_date):
+        # Regular balance can't be spent during probation; overtime still can.
+        bal_allowed = Decimal(0) if (pend and d < pend) else bal
+        if ot_total + bal_allowed >= 1:
+            need = Decimal(1)
+            for cid in list(rem.keys()):
+                if need <= 0:
+                    break
+                take = rem[cid] if rem[cid] < need else need
+                if take > 0:
+                    rem[cid] -= take
+                    ot_total -= take
+                    ot_used[cid] = ot_used.get(cid, Decimal(0)) + take
+                    need -= take
+            if need > 0:
+                bal -= need
+            paid += 1
+        else:
+            unpaid += 1
+    leave.paid_days = paid
+    leave.unpaid_days = unpaid
+    user.paid_leave_balance = bal
+    consumed_json = []
+    for cid, amt in ot_used.items():
+        credmap[cid].consumed = Decimal(str(credmap[cid].consumed or 0)) + amt
+        consumed_json.append({"id": cid, "amt": float(amt)})
+    leave.overtime_consumed = consumed_json or None
+
+
+async def restore_leave(db: AsyncSession, leave: LeaveRequest, user: User):
+    """Reverse a previously-approved leave: give back the balance portion and
+    un-consume the overtime credits it drew from."""
+    consumed = leave.overtime_consumed or []
+    ot_restored = Decimal(0)
+    for item in consumed:
+        c = await db.get(OvertimeLeave, item["id"])
+        if c is not None:
+            back = Decimal(str(c.consumed or 0)) - Decimal(str(item["amt"]))
+            c.consumed = back if back > 0 else Decimal(0)
+        ot_restored += Decimal(str(item["amt"]))
+    bal_portion = Decimal(str(leave.paid_days or 0)) - ot_restored
+    user.paid_leave_balance = Decimal(str(user.paid_leave_balance or 0)) + bal_portion
+    leave.paid_days = 0
+    leave.unpaid_days = 0
+    leave.overtime_consumed = None
+
+
 # ─── Schemas ──────────────────────────────────────────────────────────────────
 class LeaveCreate(BaseModel):
     start_date: date
@@ -184,15 +274,11 @@ async def action_leave(
     was_approved = leave.status == "approved"
 
     if data.status == "approved" and not was_approved:
-        paid, unpaid, new_bal = classify_leave(leave, emp)
-        leave.paid_days = paid
-        leave.unpaid_days = unpaid
-        emp.paid_leave_balance = new_bal
+        # Draw from overtime credits first, then the monthly paid balance.
+        await consume_for_leave(db, leave, emp)
     elif data.status == "rejected" and was_approved:
-        # Restore consumed paid days back to the balance
-        emp.paid_leave_balance = Decimal(str(emp.paid_leave_balance or 0)) + Decimal(str(leave.paid_days or 0))
-        leave.paid_days = 0
-        leave.unpaid_days = 0
+        # Give back the balance portion + un-consume the overtime credits.
+        await restore_leave(db, leave, emp)
 
     leave.status = data.status
     await log_audit(db, current_user, f"leave.{data.status}", "leave", leave.id,
@@ -201,3 +287,31 @@ async def action_leave(
     await db.commit()
     await db.refresh(leave)
     return leave
+
+
+# ─── Overtime (comp-off) balance ─────────────────────────────────────────────
+@router.get("/overtime/my")
+async def my_overtime(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """The requesting employee's currently-usable overtime leave."""
+    creds = await _available_credits(db, current_user.id, date.today())
+    return {
+        "available": float(sum((_remaining(c) for c in creds), Decimal(0))),
+        "credits": [_serialize_credit(c) for c in creds],
+    }
+
+
+@router.get("/overtime")
+async def overtime_for_employee(
+    employee_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_manager),
+):
+    """An employee's currently-usable overtime leave (admin/PM view)."""
+    creds = await _available_credits(db, employee_id, date.today())
+    return {
+        "available": float(sum((_remaining(c) for c in creds), Decimal(0))),
+        "credits": [_serialize_credit(c) for c in creds],
+    }

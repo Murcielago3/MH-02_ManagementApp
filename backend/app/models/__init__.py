@@ -17,5 +17,6 @@ from app.models.salary_slip import SalarySlip
 from app.models.holiday import Holiday
 from app.models.subtask import Subtask
 from app.models.salary_history import SalaryHistory
+from app.models.overtime_leave import OvertimeLeave
 from app.models.audit_log import AuditLog
 from app.models.draft import Draft

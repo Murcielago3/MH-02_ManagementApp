@@ -128,7 +128,6 @@
           <div class="tabs-header">
             <button class="tab-btn" :class="{ active: activeTab === 'tasks' }" @click="activeTab = 'tasks'">Tasks</button>
             <button class="tab-btn" :class="{ active: activeTab === 'timesheets' }" @click="activeTab = 'timesheets'">Timesheets</button>
-            <button class="tab-btn" :class="{ active: activeTab === 'attendance' }" @click="activeTab = 'attendance'">Attendance</button>
             <button class="tab-btn" :class="{ active: activeTab === 'leaves' }" @click="activeTab = 'leaves'">Leaves</button>
           </div>
 
@@ -179,35 +178,6 @@
                     <td class="desc-cell">{{ t.description || '—' }}</td>
                     <td>
                       <span class="status-badge" :class="t.status">{{ t.status }}</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <!-- Attendance Tab -->
-            <div v-if="activeTab === 'attendance'">
-              <div v-if="attendance.length === 0" class="empty-state">
-                <span class="material-symbols-outlined">person_check</span>
-                <p>No recent attendance records</p>
-              </div>
-              <table v-else class="data-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Check In</th>
-                    <th>Check Out</th>
-                    <th>Type</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="a in attendance" :key="a.id">
-                    <td class="mono">{{ formatDateShort(a.date) }}</td>
-                    <td>{{ a.check_in || '—' }}</td>
-                    <td>{{ a.check_out || '—' }}</td>
-                    <td>
-                      <span v-if="a.is_site_visit" class="site-badge">Site: {{ a.site_name }}</span>
-                      <span v-else class="type-label">Office</span>
                     </td>
                   </tr>
                 </tbody>
@@ -293,7 +263,6 @@ import EmployeeLayout from '../../components/EmployeeLayout.vue'
 import { usersAPI } from '../../api/users'
 import { tasksAPI } from '../../api/tasks'
 import { weeklyTimesheetsAPI } from '../../api/weekly_timesheets'
-import { attendanceAPI } from '../../api/attendance'
 import { leavesAPI } from '../../api/leaves'
 import { notifySuccess } from '../../stores/notifier'
 
@@ -304,7 +273,6 @@ const photoInput = ref(null)
 const activeTab = ref('tasks')
 const tasks = ref([])
 const timesheets = ref([])
-const attendance = ref([])
 const leaves = ref([])
 
 // ── Identity documents (employee uploads own PAN / Aadhaar; locked after) ──
@@ -399,9 +367,6 @@ const fetchTabData = async (tab) => {
     } else if (tab === 'timesheets') {
       const res = await weeklyTimesheetsAPI.getMyTimesheets()
       timesheets.value = res.data.sort((a,b) => new Date(b.week_start) - new Date(a.week_start)).slice(0,10)
-    } else if (tab === 'attendance' && attendance.value.length === 0) {
-      const res = await attendanceAPI.getMyAttendance()
-      attendance.value = res.data.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0,30)
     } else if (tab === 'leaves' && leaves.value.length === 0) {
       const res = await leavesAPI.getMyLeaves()
       leaves.value = res.data.sort((a,b) => new Date(b.start_date) - new Date(a.start_date))

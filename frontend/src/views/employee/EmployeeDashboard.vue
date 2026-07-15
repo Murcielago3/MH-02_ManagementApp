@@ -72,7 +72,6 @@ import CalendarGrid from '../../components/CalendarGrid.vue'
 import TaskDetailDrawer from '../../components/TaskDetailDrawer.vue'
 import ToastNotification from '../../components/ToastNotification.vue'
 import { usersAPI } from '../../api/users'
-import { attendanceAPI } from '../../api/attendance'
 import { tasksAPI } from '../../api/tasks'
 import { leavesAPI } from '../../api/leaves'
 import { projectsAPI } from '../../api/projects'
@@ -113,9 +112,8 @@ async function fetchDashboardData() {
     timesheetStore.fetchPendingWeeks()
     timesheetStore.fetchMyTimesheets()
 
-    const [uRes, aRes, lRes, tRes, pRes, hRes] = await Promise.all([
+    const [uRes, lRes, tRes, pRes, hRes] = await Promise.all([
       usersAPI.getMe(),
-      attendanceAPI.getMyAttendance(),
       leavesAPI.getMyLeaves(),
       tasksAPI.getMyTasks(),
       projectsAPI.getProjects().catch(() => ({ data: [] })), // may fail for employee role

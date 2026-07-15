@@ -152,6 +152,15 @@
 
       <!-- Leave Requests Tab -->
       <div v-if="activeTab === 'leaves'" class="leaves-section">
+        <div class="ot-banner">
+          <span class="material-symbols-outlined">bolt</span>
+          <div>
+            <strong>{{ overtimeAvailable }}</strong> day{{ overtimeAvailable === 1 ? '' : 's' }} of overtime leave available
+            <span v-if="overtime.credits && overtime.credits.length" class="ot-sub">
+              · soonest expires {{ formatDate(overtime.credits[0].expires_on) }}
+            </span>
+          </div>
+        </div>
         <div class="table-card">
           <table class="proj-table">
             <thead>
@@ -354,6 +363,8 @@ const isAdmin = computed(() => authStore.role === 'admin')
 const employee = ref({})
 const timesheets = ref([])
 const leaves = ref([])
+const overtime = ref({ available: 0, credits: [] })
+const overtimeAvailable = computed(() => Number(overtime.value?.available || 0))
 const tasks = ref([])
 const loadingTimesheets = ref(false)
 const loadingLeaves = ref(false)
@@ -503,6 +514,14 @@ async function fetchLeaves() {
   }
 }
 
+async function fetchOvertime() {
+  try {
+    overtime.value = (await leavesAPI.getOvertime(employeeId)).data || { available: 0, credits: [] }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
 async function fetchTasks() {
   loadingTasks.value = true
   try {
@@ -533,6 +552,7 @@ onMounted(async () => {
     fetchEmployee(),
     fetchTimesheets(),
     fetchLeaves(),
+    fetchOvertime(),
     fetchTasks(),
     fetchProjects()
   ]
@@ -790,6 +810,22 @@ function isDueToday(task) {
 .proj-row:hover { background: var(--color-background); }
 .proj-name { font-weight: 500; }
 .muted { color: var(--color-on-surface-variant); }
+
+.ot-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: var(--color-primary-light);
+  border: 1px solid rgba(40, 116, 117, 0.2);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  color: var(--color-on-surface);
+}
+.ot-banner .material-symbols-outlined { color: var(--color-primary); }
+.ot-banner strong { color: var(--color-primary); font-size: 16px; }
+.ot-sub { color: var(--color-on-surface-variant); font-size: 13px; }
 .mono { font-variant-numeric: tabular-nums; }
 .unpaid-flag { color: #b45309; font-weight: 700; }
 

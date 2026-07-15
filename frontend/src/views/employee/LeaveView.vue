@@ -34,6 +34,16 @@
             <span class="kpi-sub">Deducted from salary</span>
           </div>
         </div>
+        <div class="kpi-card">
+          <div class="kpi-icon-wrap">
+            <span class="material-symbols-outlined">bolt</span>
+          </div>
+          <div class="kpi-body">
+            <span class="kpi-value">{{ overtimeAvailable }}</span>
+            <span class="kpi-label">Overtime Leave</span>
+            <span class="kpi-sub">{{ overtimeSub }}</span>
+          </div>
+        </div>
       </div>
 
       <!-- Content grid -->
@@ -175,6 +185,7 @@ const currentUser = ref(null)
 const leaveHistory = ref([])
 const loadingHistory = ref(true)
 const submitting = ref(false)
+const overtime = ref({ available: 0, credits: [] })
 
 const todayDate = new Date().toISOString().split('T')[0]
 
@@ -194,7 +205,28 @@ const form = reactive({
 
 onMounted(async () => {
   await fetchUserData()
-  await fetchLeaveHistory()
+  await Promise.all([fetchLeaveHistory(), fetchOvertime()])
+})
+
+const fetchOvertime = async () => {
+  try {
+    overtime.value = (await leavesAPI.getMyOvertime()).data || { available: 0, credits: [] }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+function fmtDate(s) {
+  return s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : ''
+}
+const overtimeAvailable = computed(() => Number(overtime.value?.available || 0))
+// Backend returns credits soonest-expiry first.
+const overtimeSub = computed(() => {
+  const cs = overtime.value?.credits || []
+  if (overtimeAvailable.value > 0 && cs.length) {
+    return `Soonest expires ${fmtDate(cs[0].expires_on)}`
+  }
+  return '½ day per 11h+ day · 1 day per 13h+'
 })
 
 const fetchUserData = async () => {
@@ -245,10 +277,11 @@ const calculatedDays = computed(() => {
   return countWorkingDays(form.start_date, form.end_date)
 })
 
-// Estimated paid/unpaid split for the request being composed
+// Estimated paid/unpaid split for the request being composed. Overtime credits
+// pay even during probation; the regular balance only applies post-probation.
 const estimatedPaid = computed(() => {
-  if (onProbation.value) return 0
-  return Math.min(calculatedDays.value, Math.floor(paidLeaveBalance.value))
+  const capacity = overtimeAvailable.value + (onProbation.value ? 0 : paidLeaveBalance.value)
+  return Math.min(calculatedDays.value, Math.floor(capacity))
 })
 const estimatedUnpaid = computed(() => Math.max(0, calculatedDays.value - estimatedPaid.value))
 

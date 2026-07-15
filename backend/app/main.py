@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
-from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, attendance, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips, holidays, subtasks, salary as salary_router, audit as audit_router, exports as exports_router, drafts
+from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips, holidays, subtasks, salary as salary_router, audit as audit_router, exports as exports_router, drafts
 
 
 security = HTTPBearer()
@@ -36,7 +36,6 @@ app.include_router(projects.router)
 app.include_router(dashboard.router)
 app.include_router(expenses.router)
 app.include_router(leaves.router)
-app.include_router(attendance.router)
 app.include_router(tasks.router)
 app.include_router(timesheets.router)
 app.include_router(uploads.router)
@@ -433,6 +432,31 @@ async def run_migrations():
                 "WHERE status = 'approved' "
                 "AND (month_added IS NULL OR month_added <> to_char(date, 'YYYY-MM'))"
             ))
+    except Exception:
+        pass
+
+    # Overtime → comp-off leave: the credit ledger + the leave-consumption column.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS overtime_leaves (
+                    id SERIAL PRIMARY KEY,
+                    employee_id INTEGER NOT NULL REFERENCES users(id),
+                    timesheet_id INTEGER REFERENCES weekly_timesheets(id) ON DELETE CASCADE,
+                    work_date DATE NOT NULL,
+                    hours NUMERIC(6, 2) NOT NULL,
+                    amount NUMERIC(3, 1) NOT NULL,
+                    consumed NUMERIC(3, 1) NOT NULL DEFAULT 0,
+                    expires_on DATE NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    CONSTRAINT uq_overtime_ts_day UNIQUE (timesheet_id, work_date)
+                )
+            """))
+    except Exception:
+        pass
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("ALTER TABLE leave_requests ADD COLUMN overtime_consumed JSON"))
     except Exception:
         pass
 
