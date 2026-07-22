@@ -968,6 +968,7 @@ function isDueToday(task) {
 .detail-modal {
   max-width: 800px;
   width: 90%;
+  max-height: 90vh;
   padding: 0;
   overflow: hidden;
   display: flex;
@@ -981,6 +982,7 @@ function isDueToday(task) {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .header-info h3 {
@@ -1006,7 +1008,9 @@ function isDueToday(task) {
 .modal-body {
   padding: 24px;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -1087,6 +1091,7 @@ function isDueToday(task) {
   padding: 20px 24px;
   background: var(--color-surface-container-low);
   border-top: 1px solid var(--color-outline-variant);
+  flex-shrink: 0;
 }
 
 .footer-actions {
