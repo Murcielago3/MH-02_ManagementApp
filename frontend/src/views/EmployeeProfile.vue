@@ -589,15 +589,21 @@ function formatRole(role) {
 async function handleAction(tsId, status, reason = null) {
   actionLoading.value = tsId
   try {
-    await weeklyTimesheetsAPI.actionTimesheet(tsId, { status, rejection_reason: reason })
-    // update locally
+    const res = status === 'approved'
+      ? await weeklyTimesheetsAPI.approveTimesheet(tsId)
+      : await weeklyTimesheetsAPI.rejectTimesheet(tsId, reason)
+    // apply the server's updated record (status may still be pending under two-admin approval)
+    const data = res.data
     const idx = timesheets.value.findIndex(t => t.id === tsId)
     if (idx !== -1) {
-      timesheets.value[idx].status = status
-      timesheets.value[idx].rejection_reason = reason
+      timesheets.value[idx] = { ...timesheets.value[idx], ...data }
+    }
+    if (selectedTimesheet.value?.id === tsId) {
+      selectedTimesheet.value = { ...selectedTimesheet.value, ...data }
     }
   } catch (e) {
     console.error('Failed to update status', e)
+    alert(e.response?.data?.detail || 'Failed to update timesheet status')
   } finally {
     actionLoading.value = null
   }
