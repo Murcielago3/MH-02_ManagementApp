@@ -1085,6 +1085,9 @@ function isDueToday(task) {
   font-size: 14px;
   line-height: 1.6;
   white-space: pre-wrap;
+  max-height: 220px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .modal-footer {

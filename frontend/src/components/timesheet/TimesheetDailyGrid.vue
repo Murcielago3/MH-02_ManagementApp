@@ -275,5 +275,15 @@ function getProjectName(id) {
   max-width: 180px;
   flex-shrink: 0;
 }
-.desc-text { font-size: 13px; color: var(--color-on-surface-variant); line-height: 1.5; }
+.desc-text {
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  line-height: 1.5;
+  flex: 1;
+  min-width: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  white-space: pre-wrap;
+}
 </style>
