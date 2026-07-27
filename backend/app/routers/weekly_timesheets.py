@@ -241,11 +241,28 @@ async def _freeze_entries(db, timesheet):
         e.cost_breakdown = breakdown
 
 
+def comp_amount_for_day(day_index: int, hrs) -> "Decimal":
+    """Comp-off days earned for one day, by weekday index (0=Mon .. 6=Sun).
+
+    Saturday (5): any work earns comp — 8h+ = 1.0 day, under 8h = 0.5 day.
+    Sunday (6): no work / no comp.
+    Mon–Fri (0–4): 14h+ = 1.0 day, 12h+ (under 14h) = 0.5 day.
+    """
+    from decimal import Decimal
+    hrs = Decimal(str(hrs or 0))
+    if day_index == 5:  # Saturday
+        return Decimal("1.0") if hrs >= 8 else (Decimal("0.5") if hrs > 0 else Decimal("0"))
+    if day_index == 6:  # Sunday — strictly no work
+        return Decimal("0")
+    return Decimal("1.0") if hrs >= 14 else (Decimal("0.5") if hrs >= 12 else Decimal("0"))
+
+
 async def _grant_overtime_credits(db, timesheet):
-    """On full approval, turn overtime days into comp-off leave credits:
-    a day with 14h+ earns 1.0 day, 12h+ (but under 14h) earns 0.5 day. Each
-    credit is valid for 50 days from that work date. Idempotent per
-    (timesheet, day); never touches a credit that's already been consumed."""
+    """On full approval, turn overtime days into comp-off leave credits.
+    Weekdays: 14h+ = 1.0 day, 12h+ = 0.5 day. Saturday: 8h+ = 1.0, any work
+    under 8h = 0.5. Sunday: none. Each credit is valid for 50 days from that
+    work date. Idempotent per (timesheet, day); never touches a credit that's
+    already been consumed."""
     from decimal import Decimal
     from app.models.overtime_leave import OvertimeLeave
 
@@ -265,7 +282,7 @@ async def _grant_overtime_credits(db, timesheet):
     for i in range(7):
         wd = timesheet.week_start + timedelta(days=i)
         hrs = totals[i]
-        amount = Decimal("1.0") if hrs >= 14 else (Decimal("0.5") if hrs >= 12 else Decimal("0"))
+        amount = comp_amount_for_day(i, hrs)
         cur = existing.get(wd)
         if amount > 0:
             if cur is None:
@@ -369,7 +386,7 @@ async def approve_timesheet(
     fully_approved = timesheet.status == "approved"
     if fully_approved:
         await _freeze_entries(db, timesheet)
-        # Overtime days (12h+/14h+) become comp-off leave credits.
+        # Overtime days (weekday 12h+/14h+, Saturday 8h+) become comp-off leave credits.
         await _grant_overtime_credits(db, timesheet)
 
     who = submitter.name if submitter else "employee"

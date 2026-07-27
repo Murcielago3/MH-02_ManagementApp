@@ -21,7 +21,7 @@
               <span class="project-tag">{{ getProjectName(entry.project_id) }}</span>
             </td>
             <td v-for="(d, di) in weekDays" :key="di" class="day-cell" :class="{ 'is-weekend': di >= 5 }">
-              <span class="day-val" :class="{ 'has-hours': Number(entry.daily_hours[di]) > 0 }">
+              <span class="day-val" :class="{ 'has-hours': Number(entry.daily_hours[di]) > 0, 'sat-hours': di === 5 && Number(entry.daily_hours[di]) > 0 }">
                 {{ Number(entry.daily_hours[di]) > 0 ? entry.daily_hours[di] + 'h' : '—' }}
               </span>
             </td>
@@ -31,7 +31,7 @@
         <tfoot>
           <tr>
             <td class="total-label">Daily Total</td>
-            <td v-for="(d, di) in weekDays" :key="di" class="day-total" :class="{ 'over-8': dayTotal(di) > 8, 'is-weekend': di >= 5 }">
+            <td v-for="(d, di) in weekDays" :key="di" class="day-total" :class="{ 'over-8': dayTotal(di) > 8, 'is-weekend': di >= 5, 'sat-total': di === 5 && dayTotal(di) > 0 }">
               {{ dayTotal(di) }}h
             </td>
             <td class="grand-total">{{ grandTotal }}h</td>
@@ -40,12 +40,12 @@
       </table>
     </div>
 
-    <!-- Overtime comp-off days earned this week (12h+ = ½ day, 14h+ = 1 day) -->
+    <!-- Overtime comp-off days earned this week (weekday 12h+/14h+, Saturday 8h+) -->
     <div v-if="hasDailyBreakdown && overtimeCompDays > 0" class="comp-banner">
       <span class="material-symbols-outlined">bolt</span>
       <span>
         <strong>{{ overtimeCompDays }}</strong> comp-off day{{ overtimeCompDays === 1 ? '' : 's' }} earned from overtime
-        <span class="comp-sub">· 12h+ = ½ day, 14h+ = 1 day · granted on full approval, valid 50 days</span>
+        <span class="comp-sub">· Mon–Fri 12h+ = ½, 14h+ = 1 · Sat 8h+ = 1, under 8h = ½ · granted on full approval, valid 50 days</span>
       </span>
     </div>
 
@@ -134,9 +134,12 @@ const grandTotal = computed(() => {
 })
 
 // Comp-off days earned per day, mirroring the backend grant rule
-// (weekly_timesheets.py:_grant_overtime_credits): 14h+ → 1 day, 12h+ → ½ day.
+// Mirrors weekly_timesheets.py:comp_amount_for_day (di: 0=Mon .. 6=Sun):
+// Sat (5) → 8h+ = 1, any work under 8h = ½; Sun (6) → none; Mon–Fri → 14h+ = 1, 12h+ = ½.
 function dayCompDays(di) {
   const h = dayTotal(di)
+  if (di === 5) return h >= 8 ? 1 : (h > 0 ? 0.5 : 0)
+  if (di === 6) return 0
   return h >= 14 ? 1 : (h >= 12 ? 0.5 : 0)
 }
 const overtimeCompDays = computed(() => {
@@ -204,6 +207,8 @@ function getProjectName(id) {
   color: var(--color-outline);
 }
 .day-val.has-hours { color: var(--color-on-surface); }
+/* Saturday work is comp-earning — flag its hours in red. */
+.day-val.sat-hours { color: #dc2626; font-weight: 700; }
 
 .row-total {
   text-align: center;
@@ -228,6 +233,7 @@ function getProjectName(id) {
 }
 .day-total { text-align: center; font-weight: 700; font-size: 13px; color: var(--color-on-surface); }
 .day-total.over-8 { color: #dc2626; }
+.day-total.sat-total { color: #dc2626; }
 .grand-total { text-align: center; font-weight: 800; font-size: 15px; color: var(--color-primary); }
 
 .project-tag {

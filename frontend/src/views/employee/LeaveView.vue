@@ -216,7 +216,7 @@ const overtimeSub = computed(() => {
   if (overtimeAvailable.value > 0 && cs.length) {
     return `Soonest expires ${fmtDate(cs[0].expires_on)}`
   }
-  return '½ day per 12h+ day · 1 day per 14h+'
+  return 'Weekday 12h+ = ½, 14h+ = 1 · Sat 8h+ = 1, under 8h = ½'
 })
 
 const fetchUserData = async () => {
