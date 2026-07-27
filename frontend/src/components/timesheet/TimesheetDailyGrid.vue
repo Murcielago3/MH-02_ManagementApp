@@ -1,7 +1,8 @@
 <template>
   <div class="daily-grid-container">
-    <!-- Day-by-day grid: same layout employees fill in, read-only -->
-    <div v-if="hasDailyBreakdown" class="grid-table-wrapper">
+    <!-- Day-by-day grid + comp-off banner (whenever a daily breakdown exists) -->
+    <template v-if="hasDailyBreakdown">
+    <div class="grid-table-wrapper">
       <table class="grid-table">
         <thead>
           <tr>
@@ -41,13 +42,14 @@
     </div>
 
     <!-- Overtime comp-off days earned this week (weekday 12h+/14h+, Saturday 8h+) -->
-    <div v-if="hasDailyBreakdown && overtimeCompDays > 0" class="comp-banner">
+    <div v-if="overtimeCompDays > 0" class="comp-banner">
       <span class="material-symbols-outlined">bolt</span>
       <span>
         <strong>{{ overtimeCompDays }}</strong> comp-off day{{ overtimeCompDays === 1 ? '' : 's' }} earned from overtime
         <span class="comp-sub">· Mon–Fri 12h+ = ½, 14h+ = 1 · Sat 8h+ = 1, under 8h = ½ · granted on full approval, valid 50 days</span>
       </span>
     </div>
+    </template>
 
     <!-- Fallback for timesheets submitted before daily breakdown was tracked -->
     <div v-else class="table-wrapper">
