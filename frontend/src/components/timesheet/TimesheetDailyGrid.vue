@@ -125,9 +125,18 @@ const weekDays = computed(() => {
   return days
 })
 
+// Per-day totals, computed once per data change. The template reads these many
+// times per render (cell values + two class bindings each + the comp tally), so
+// this must not re-reduce over every entry on each access.
+const dayTotals = computed(() => {
+  const totals = new Array(7).fill(0)
+  for (const e of entriesWithDaily.value) {
+    for (let i = 0; i < 7; i++) totals[i] += Number(e.daily_hours[i]) || 0
+  }
+  return totals.map((t) => Math.round(t * 10) / 10)
+})
 function dayTotal(di) {
-  const sum = entriesWithDaily.value.reduce((s, e) => s + (Number(e.daily_hours[di]) || 0), 0)
-  return Math.round(sum * 10) / 10
+  return dayTotals.value[di]
 }
 
 const grandTotal = computed(() => {
@@ -135,11 +144,11 @@ const grandTotal = computed(() => {
   return Math.round(sum * 10) / 10
 })
 
-// Comp-off days earned per day, mirroring the backend grant rule
-// Mirrors weekly_timesheets.py:comp_amount_for_day (di: 0=Mon .. 6=Sun):
-// Sat (5) → 8h+ = 1, any work under 8h = ½; Sun (6) → none; Mon–Fri → 14h+ = 1, 12h+ = ½.
+// Comp-off days earned per day. Mirrors weekly_timesheets.py:comp_amount_for_day
+// (di: 0=Mon .. 6=Sun): Sat (5) → 8h+ = 1, any work under 8h = ½; Sun (6) → none;
+// Mon–Fri → 14h+ = 1, 12h+ = ½.
 function dayCompDays(di) {
-  const h = dayTotal(di)
+  const h = dayTotals.value[di]
   if (di === 5) return h >= 8 ? 1 : (h > 0 ? 0.5 : 0)
   if (di === 6) return 0
   return h >= 14 ? 1 : (h >= 12 ? 0.5 : 0)

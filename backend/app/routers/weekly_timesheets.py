@@ -80,6 +80,17 @@ async def get_pending_weeks(
     # Monday of the current week (latest week to show)
     current_monday = today - timedelta(days=today.weekday())
 
+    # Fetch every timesheet in the window up front — one query instead of one
+    # per week — and index it by week_start.
+    existing_rows = (await db.execute(
+        select(WeeklyTimesheet).where(
+            WeeklyTimesheet.employee_id == current_user.id,
+            WeeklyTimesheet.week_start >= first_monday,
+            WeeklyTimesheet.week_start <= current_monday,
+        )
+    )).scalars().all()
+    by_week = {ts.week_start: ts for ts in existing_rows}
+
     week_start = first_monday
     while week_start <= current_monday:
         week_end = week_start + timedelta(days=6)
@@ -89,15 +100,7 @@ async def get_pending_weeks(
             week_start += timedelta(weeks=1)
             continue
 
-        # Check if a timesheet already exists for this week
-        result = await db.execute(
-            select(WeeklyTimesheet).where(
-                WeeklyTimesheet.employee_id == current_user.id,
-                WeeklyTimesheet.week_start == week_start
-            )
-        )
-        existing = result.scalar_one_or_none()
-
+        existing = by_week.get(week_start)
         if not existing:
             weeks.append({
                 "week_start": str(week_start),
@@ -227,14 +230,19 @@ def _recompute_status(ts, submitter_is_admin: bool):
         ts.status = "submitted"
 
 
-async def _freeze_entries(db, timesheet):
+async def _load_entries(db, timesheet_id):
+    """This timesheet's entries. Fetched once per approval and shared by the
+    freeze + comp-off steps, which both need the same rows."""
+    return (await db.execute(
+        select(WeeklyTimesheetEntry).where(WeeklyTimesheetEntry.timesheet_id == timesheet_id)
+    )).scalars().all()
+
+
+async def _freeze_entries(db, timesheet, entries):
     """Freeze each entry's employee cost from the salary period(s) covering its
     days, so historical project cost is immutable against later raises."""
     from app.services.salary import get_periods, freeze_entry_cost
     periods = await get_periods(db, timesheet.employee_id)
-    entries = (await db.execute(
-        select(WeeklyTimesheetEntry).where(WeeklyTimesheetEntry.timesheet_id == timesheet.id)
-    )).scalars().all()
     for e in entries:
         total, breakdown = freeze_entry_cost(periods, e.daily_hours, e.hours, timesheet.week_start)
         e.employee_cost = total
@@ -257,7 +265,7 @@ def comp_amount_for_day(day_index: int, hrs) -> "Decimal":
     return Decimal("1.0") if hrs >= 14 else (Decimal("0.5") if hrs >= 12 else Decimal("0"))
 
 
-async def _grant_overtime_credits(db, timesheet):
+async def _grant_overtime_credits(db, timesheet, entries):
     """On full approval, turn overtime days into comp-off leave credits.
     Weekdays: 14h+ = 1.0 day, 12h+ = 0.5 day. Saturday: 8h+ = 1.0, any work
     under 8h = 0.5. Sunday: none. Each credit is valid for 50 days from that
@@ -266,9 +274,6 @@ async def _grant_overtime_credits(db, timesheet):
     from decimal import Decimal
     from app.models.overtime_leave import OvertimeLeave
 
-    entries = (await db.execute(
-        select(WeeklyTimesheetEntry).where(WeeklyTimesheetEntry.timesheet_id == timesheet.id)
-    )).scalars().all()
     # Sum hours per weekday (Mon..Sun) across all projects.
     totals = [Decimal("0")] * 7
     for e in entries:
@@ -385,9 +390,10 @@ async def approve_timesheet(
     _recompute_status(timesheet, submitter_is_admin)
     fully_approved = timesheet.status == "approved"
     if fully_approved:
-        await _freeze_entries(db, timesheet)
+        entries = await _load_entries(db, timesheet.id)
+        await _freeze_entries(db, timesheet, entries)
         # Overtime days (weekday 12h+/14h+, Saturday 8h+) become comp-off leave credits.
-        await _grant_overtime_credits(db, timesheet)
+        await _grant_overtime_credits(db, timesheet, entries)
 
     who = submitter.name if submitter else "employee"
     await log_audit(db, current_user, f"timesheet.{slot}_approved", "timesheet", timesheet.id,
