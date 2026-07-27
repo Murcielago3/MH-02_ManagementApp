@@ -211,21 +211,18 @@ async def get_timesheet(
 def _recompute_status(ts, submitter_is_admin: bool):
     """Derive the stored `status` from the approval / rejection slots.
 
-    Admin submitter → 'approved' once the single admin slot is filled (no PM,
-        no second admin).
-    Non-admin submitter → 'approved' only when the PM slot AND both admin slots
-        are filled (two distinct admins).
+    Admin submitter → 'approved' once the single admin slot is filled.
+    Non-admin submitter → 'approved' when BOTH admin slots are filled (two
+        distinct admins). No PM approval is involved.
     """
     if ts.rejected_at:
         ts.status = "rejected"
     elif submitter_is_admin:
         ts.status = "approved" if ts.admin_approved_at else "submitted"
-    elif ts.pm_approved_at and ts.admin_approved_at and ts.admin2_approved_at:
+    elif ts.admin_approved_at and ts.admin2_approved_at:
         ts.status = "approved"
     elif ts.admin_approved_at:
         ts.status = "admin_approved"
-    elif ts.pm_approved_at:
-        ts.status = "pm_approved"
     else:
         ts.status = "submitted"
 
@@ -247,7 +244,7 @@ async def _freeze_entries(db, timesheet):
 async def _grant_overtime_credits(db, timesheet):
     """On full approval, turn overtime days into comp-off leave credits:
     a day with 13h+ earns 1.0 day, 11h+ (but under 13h) earns 0.5 day. Each
-    credit is valid for 40 days from that work date. Idempotent per
+    credit is valid for 50 days from that work date. Idempotent per
     (timesheet, day); never touches a credit that's already been consumed."""
     from decimal import Decimal
     from app.models.overtime_leave import OvertimeLeave
@@ -279,12 +276,12 @@ async def _grant_overtime_credits(db, timesheet):
                     hours=hrs,
                     amount=amount,
                     consumed=Decimal("0"),
-                    expires_on=wd + timedelta(days=40),
+                    expires_on=wd + timedelta(days=50),
                 ))
             elif Decimal(str(cur.consumed or 0)) == 0:
                 cur.hours = hrs
                 cur.amount = amount
-                cur.expires_on = wd + timedelta(days=40)
+                cur.expires_on = wd + timedelta(days=50)
         elif cur is not None and Decimal(str(cur.consumed or 0)) == 0:
             await db.delete(cur)
 
@@ -333,29 +330,26 @@ async def approve_timesheet(
     timesheet_id: int,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(require_manager),
+    current_user = Depends(require_admin),
 ):
-    """Fill the actor's approval slot. A non-admin timesheet needs a PM plus two
-    DIFFERENT admins; an admin's own timesheet needs the single admin slot. Full
-    approval freezes cost."""
+    """Fill the actor's approval slot. A non-admin timesheet needs two DIFFERENT
+    admins; an admin's own timesheet needs the single admin slot. Full approval
+    freezes cost. (Project managers no longer approve timesheets.)"""
     timesheet, submitter = await _load_ts_and_submitter(db, timesheet_id)
     submitter_is_admin = bool(submitter and submitter.role == "admin")
-    is_admin = current_user.role == "admin"
 
-    if not is_admin and submitter_is_admin:
-        raise HTTPException(403, "Not permitted to approve this timesheet")
     if timesheet.status == "rejected":
         raise HTTPException(400, "This timesheet was rejected; the employee must resubmit.")
 
     now = datetime.now(timezone.utc)
-    if is_admin and submitter_is_admin:
+    if submitter_is_admin:
         # Admin's own timesheet: single admin approval, no second factor.
         if timesheet.admin_approved_at:
             raise HTTPException(400, "Already approved by an admin")
         timesheet.admin_approved_by = current_user.id
         timesheet.admin_approved_at = now
         slot = "admin"
-    elif is_admin:
+    else:
         # Non-admin timesheet: needs two DIFFERENT admins. First admin fills the
         # admin slot; a second, different admin fills the second-factor slot.
         if timesheet.admin_approved_at is None:
@@ -370,12 +364,6 @@ async def approve_timesheet(
             slot = "admin2"
         else:
             raise HTTPException(400, "Both admin approvals are already recorded")
-    else:  # project_manager
-        if timesheet.pm_approved_at:
-            raise HTTPException(400, "Already approved by a project manager")
-        timesheet.pm_approved_by = current_user.id
-        timesheet.pm_approved_at = now
-        slot = "pm"
 
     _recompute_status(timesheet, submitter_is_admin)
     fully_approved = timesheet.status == "approved"
@@ -386,7 +374,7 @@ async def approve_timesheet(
 
     who = submitter.name if submitter else "employee"
     await log_audit(db, current_user, f"timesheet.{slot}_approved", "timesheet", timesheet.id,
-                    summary=f"{'Admin' if is_admin else 'PM'} approved {who}'s timesheet (week of {timesheet.week_start})")
+                    summary=f"Admin approved {who}'s timesheet (week of {timesheet.week_start})")
     if fully_approved:
         await log_audit(db, current_user, "timesheet.approved", "timesheet", timesheet.id,
                         summary=f"Timesheet fully approved — {who} (week of {timesheet.week_start})")
@@ -407,12 +395,9 @@ async def reject_timesheet(
     data: RejectBody,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(require_manager),
+    current_user = Depends(require_admin),
 ):
     timesheet, submitter = await _load_ts_and_submitter(db, timesheet_id)
-    submitter_is_admin = bool(submitter and submitter.role == "admin")
-    if current_user.role != "admin" and submitter_is_admin:
-        raise HTTPException(403, "Not permitted to reject this timesheet")
     if timesheet.status == "rejected":
         raise HTTPException(400, "Already rejected")
 

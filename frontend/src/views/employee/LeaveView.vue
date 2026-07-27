@@ -10,7 +10,7 @@
           </div>
           <div class="kpi-body">
             <span class="kpi-value">{{ paidLeaveBalance }}</span>
-            <span class="kpi-label">Paid Leave Balance</span>
+            <span class="kpi-label">Leaves Allowed</span>
             <span class="kpi-sub">+1.5 days added each month</span>
           </div>
         </div>
@@ -25,22 +25,12 @@
           </div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-icon-wrap warn">
-            <span class="material-symbols-outlined">money_off</span>
-          </div>
-          <div class="kpi-body">
-            <span class="kpi-value">{{ unpaidDaysTaken }}</span>
-            <span class="kpi-label">Unpaid Days Taken</span>
-            <span class="kpi-sub">Deducted from salary</span>
-          </div>
-        </div>
-        <div class="kpi-card">
           <div class="kpi-icon-wrap">
             <span class="material-symbols-outlined">bolt</span>
           </div>
           <div class="kpi-body">
             <span class="kpi-value">{{ overtimeAvailable }}</span>
-            <span class="kpi-label">Overtime Leave</span>
+            <span class="kpi-label">Comp-off Leaves</span>
             <span class="kpi-sub">{{ overtimeSub }}</span>
           </div>
         </div>

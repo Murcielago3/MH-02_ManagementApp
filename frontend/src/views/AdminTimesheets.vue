@@ -22,7 +22,6 @@
         <select v-model="filterStatus" class="filter-select">
           <option value="">All Statuses</option>
           <option value="submitted">Pending Review</option>
-          <option value="pm_approved">PM Approved</option>
           <option value="admin_approved">Admin Approved</option>
           <option value="approved">Fully Approved</option>
           <option value="rejected">Rejected</option>
@@ -94,10 +93,6 @@
             </td>
             <td>
               <div class="appr-chips">
-                <span v-if="!submitterIsAdmin(ts)" class="appr-chip" :class="ts.pm_approved_at ? 'appr-done' : 'appr-pending'"
-                      :title="ts.pm_approved_at ? 'PM: ' + getUserName(ts.pm_approved_by) : 'Awaiting PM approval'">
-                  <span class="material-symbols-outlined">{{ ts.pm_approved_at ? 'check_circle' : 'schedule' }}</span> PM
-                </span>
                 <span class="appr-chip" :class="ts.admin_approved_at ? 'appr-done' : 'appr-pending'"
                       :title="ts.admin_approved_at ? 'Admin: ' + getUserName(ts.admin_approved_by) : 'Awaiting admin approval'">
                   <span class="material-symbols-outlined">{{ ts.admin_approved_at ? 'check_circle' : 'schedule' }}</span>
@@ -230,7 +225,6 @@ import { useAuthStore } from '../stores/auth'
 const router = useRouter()
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.role === 'admin')
-const isPM = computed(() => authStore.role === 'project_manager')
 // Needed to stop the same admin filling both admin slots (four-eyes).
 const currentUserId = ref(null)
 
@@ -380,7 +374,6 @@ function truncateDesc(desc) {
 
 const STATUS_LABELS = {
   submitted: 'Pending Review',
-  pm_approved: 'PM Approved',
   admin_approved: 'Admin Approved',
   approved: 'Approved',
   rejected: 'Rejected',
@@ -429,25 +422,20 @@ function submitterIsAdmin(ts) {
 }
 function canApprove(ts) {
   if (ts.status === 'approved' || ts.status === 'rejected') return false
-  if (isAdmin.value) {
-    // Admin's own timesheet: single admin approval.
-    if (submitterIsAdmin(ts)) return !ts.admin_approved_at
-    // Non-admin timesheet: two DIFFERENT admins. Show approve if a slot is open
-    // for me (and I'm not the admin who already filled the first slot).
-    if (!ts.admin_approved_at) return true
-    if (!ts.admin2_approved_at && ts.admin_approved_by !== currentUserId.value) return true
-    return false
-  }
-  if (isPM.value) return !submitterIsAdmin(ts) && !ts.pm_approved_at
+  if (!isAdmin.value) return false
+  // Admin's own timesheet: single admin approval.
+  if (submitterIsAdmin(ts)) return !ts.admin_approved_at
+  // Non-admin timesheet: two DIFFERENT admins. Show approve if a slot is open
+  // for me (and I'm not the admin who already filled the first slot).
+  if (!ts.admin_approved_at) return true
+  if (!ts.admin2_approved_at && ts.admin_approved_by !== currentUserId.value) return true
   return false
 }
 function canReject(ts) {
   if (ts.status === 'approved' || ts.status === 'rejected') return false
-  if (isPM.value && submitterIsAdmin(ts)) return false
-  return true
+  return isAdmin.value
 }
 function approveLabel(ts) {
-  if (!isAdmin.value) return 'PM Approve'
   // Second, different admin on a non-admin timesheet.
   if (ts && !submitterIsAdmin(ts) && ts.admin_approved_at) return '2nd Admin Approve'
   return 'Admin Approve'

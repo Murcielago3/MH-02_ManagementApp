@@ -76,11 +76,11 @@
           </div>
           <div class="info-item">
             <label>Leaves Allowed</label>
-            <span>{{ employee.leaves_allowed }}</span>
+            <span>{{ Number(employee.paid_leave_balance || 0) }} days</span>
           </div>
           <div class="info-item">
-            <label>Paid Leave Balance</label>
-            <span>{{ Number(employee.paid_leave_balance || 0) }} days</span>
+            <label>Comp-off Leaves</label>
+            <span>{{ overtimeAvailable }} day{{ overtimeAvailable === 1 ? '' : 's' }}</span>
           </div>
           <div class="info-item">
             <label>Probation</label>
@@ -155,7 +155,7 @@
         <div class="ot-banner">
           <span class="material-symbols-outlined">bolt</span>
           <div>
-            <strong>{{ overtimeAvailable }}</strong> day{{ overtimeAvailable === 1 ? '' : 's' }} of overtime leave available
+            <strong>{{ overtimeAvailable }}</strong> day{{ overtimeAvailable === 1 ? '' : 's' }} of comp-off leave available
             <span v-if="overtime.credits && overtime.credits.length" class="ot-sub">
               · soonest expires {{ formatDate(overtime.credits[0].expires_on) }}
             </span>

@@ -40,6 +40,15 @@
       </table>
     </div>
 
+    <!-- Overtime comp-off days earned this week (11h+ = ½ day, 13h+ = 1 day) -->
+    <div v-if="hasDailyBreakdown && overtimeCompDays > 0" class="comp-banner">
+      <span class="material-symbols-outlined">bolt</span>
+      <span>
+        <strong>{{ overtimeCompDays }}</strong> comp-off day{{ overtimeCompDays === 1 ? '' : 's' }} earned from overtime
+        <span class="comp-sub">· 11h+ = ½ day, 13h+ = 1 day · granted on full approval, valid 50 days</span>
+      </span>
+    </div>
+
     <!-- Fallback for timesheets submitted before daily breakdown was tracked -->
     <div v-else class="table-wrapper">
       <table class="entries-table">
@@ -121,6 +130,18 @@ function dayTotal(di) {
 
 const grandTotal = computed(() => {
   const sum = entriesWithDaily.value.reduce((s, e) => s + (Number(e.hours) || 0), 0)
+  return Math.round(sum * 10) / 10
+})
+
+// Comp-off days earned per day, mirroring the backend grant rule
+// (weekly_timesheets.py:_grant_overtime_credits): 13h+ → 1 day, 11h+ → ½ day.
+function dayCompDays(di) {
+  const h = dayTotal(di)
+  return h >= 13 ? 1 : (h >= 11 ? 0.5 : 0)
+}
+const overtimeCompDays = computed(() => {
+  let sum = 0
+  for (let i = 0; i < 7; i++) sum += dayCompDays(i)
   return Math.round(sum * 10) / 10
 })
 
@@ -219,6 +240,22 @@ function getProjectName(id) {
   font-weight: 600;
   color: var(--color-primary);
 }
+
+/* ─── Overtime comp-off banner ─── */
+.comp-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: #9a3412;
+}
+.comp-banner .material-symbols-outlined { font-size: 20px; color: #ea580c; }
+.comp-banner strong { font-weight: 800; }
+.comp-sub { color: #b45309; font-weight: 500; }
 
 /* ─── Legacy fallback table ─── */
 .table-wrapper {
