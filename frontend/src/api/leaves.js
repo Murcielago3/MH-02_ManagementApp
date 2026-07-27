@@ -17,7 +17,7 @@ export const leavesAPI = {
     return client.patch(`/leaves/${leaveId}/action`, { status })
   },
 
-  // Overtime (comp-off) leave earned from 11h+/13h+ days.
+  // Overtime (comp-off) leave earned from 12h+/14h+ days.
   getMyOvertime: () => {
     return client.get('/leaves/overtime/my')
   },

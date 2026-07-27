@@ -40,12 +40,12 @@
       </table>
     </div>
 
-    <!-- Overtime comp-off days earned this week (11h+ = ½ day, 13h+ = 1 day) -->
+    <!-- Overtime comp-off days earned this week (12h+ = ½ day, 14h+ = 1 day) -->
     <div v-if="hasDailyBreakdown && overtimeCompDays > 0" class="comp-banner">
       <span class="material-symbols-outlined">bolt</span>
       <span>
         <strong>{{ overtimeCompDays }}</strong> comp-off day{{ overtimeCompDays === 1 ? '' : 's' }} earned from overtime
-        <span class="comp-sub">· 11h+ = ½ day, 13h+ = 1 day · granted on full approval, valid 50 days</span>
+        <span class="comp-sub">· 12h+ = ½ day, 14h+ = 1 day · granted on full approval, valid 50 days</span>
       </span>
     </div>
 
@@ -134,10 +134,10 @@ const grandTotal = computed(() => {
 })
 
 // Comp-off days earned per day, mirroring the backend grant rule
-// (weekly_timesheets.py:_grant_overtime_credits): 13h+ → 1 day, 11h+ → ½ day.
+// (weekly_timesheets.py:_grant_overtime_credits): 14h+ → 1 day, 12h+ → ½ day.
 function dayCompDays(di) {
   const h = dayTotal(di)
-  return h >= 13 ? 1 : (h >= 11 ? 0.5 : 0)
+  return h >= 14 ? 1 : (h >= 12 ? 0.5 : 0)
 }
 const overtimeCompDays = computed(() => {
   let sum = 0

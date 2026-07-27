@@ -1,7 +1,7 @@
 """Compensatory ("comp-off") leave earned from overtime.
 
-One row per (timesheet, work_date) that qualified: an 11h+ day earns 0.5 day and
-a 13h+ day earns 1.0 day of paid leave, granted when the timesheet is fully
+One row per (timesheet, work_date) that qualified: a 12h+ day earns 0.5 day and
+a 14h+ day earns 1.0 day of paid leave, granted when the timesheet is fully
 approved. Each credit is valid for 50 days from the *work date* (not the approval
 date). Consumed automatically, soonest-expiry first, when a leave is approved.
 """

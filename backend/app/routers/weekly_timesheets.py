@@ -243,7 +243,7 @@ async def _freeze_entries(db, timesheet):
 
 async def _grant_overtime_credits(db, timesheet):
     """On full approval, turn overtime days into comp-off leave credits:
-    a day with 13h+ earns 1.0 day, 11h+ (but under 13h) earns 0.5 day. Each
+    a day with 14h+ earns 1.0 day, 12h+ (but under 14h) earns 0.5 day. Each
     credit is valid for 50 days from that work date. Idempotent per
     (timesheet, day); never touches a credit that's already been consumed."""
     from decimal import Decimal
@@ -265,7 +265,7 @@ async def _grant_overtime_credits(db, timesheet):
     for i in range(7):
         wd = timesheet.week_start + timedelta(days=i)
         hrs = totals[i]
-        amount = Decimal("1.0") if hrs >= 13 else (Decimal("0.5") if hrs >= 11 else Decimal("0"))
+        amount = Decimal("1.0") if hrs >= 14 else (Decimal("0.5") if hrs >= 12 else Decimal("0"))
         cur = existing.get(wd)
         if amount > 0:
             if cur is None:
@@ -369,7 +369,7 @@ async def approve_timesheet(
     fully_approved = timesheet.status == "approved"
     if fully_approved:
         await _freeze_entries(db, timesheet)
-        # Overtime days (11h+/13h+) become comp-off leave credits.
+        # Overtime days (12h+/14h+) become comp-off leave credits.
         await _grant_overtime_credits(db, timesheet)
 
     who = submitter.name if submitter else "employee"
