@@ -636,7 +636,6 @@ function closeDetailModal() {
 }
 .badge-submitted { background: #fef3c7; color: #92400e; }
 .badge-pending   { background: #fef3c7; color: #92400e; }
-.badge-pm_approved { background: #dbeafe; color: #1e40af; }
 .badge-admin_approved { background: #e0e7ff; color: #3730a3; }
 .badge-approved  { background: #dcfce7; color: #166534; }
 .badge-rejected  { background: #fee2e2; color: #991b1b; }

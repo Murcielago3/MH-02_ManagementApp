@@ -12,11 +12,13 @@ class WeeklyTimesheet(Base):
     total_hours = Column(Numeric(6, 2), nullable=True) # Changed to Numeric for decimal hours
     description = Column(String, nullable=True) # Keeping global description just in case, but can be optional
     # Approval slots. A non-admin timesheet is fully approved ('approved') only
-    # when the PM slot AND BOTH admin slots are filled — the two admins must be
-    # different accounts (four-eyes on the admin side). An admin's own timesheet
-    # needs only the single admin slot. Either a PM or an admin can reject.
-    status = Column(String, nullable=False)  # submitted, pm_approved, admin_approved, approved, rejected
+    # when BOTH admin slots are filled — the two admins must be different
+    # accounts (four-eyes). An admin's own timesheet needs only the single admin
+    # slot. Only admins approve or reject.
+    status = Column(String, nullable=False)  # submitted, admin_approved, approved, rejected
     submitted_at = Column(DateTime(timezone=True), nullable=True)
+    # Deprecated: project managers no longer approve timesheets. Retained so the
+    # historical record (and CSV exports) of past PM approvals stays intact.
     pm_approved_by = Column(Integer, ForeignKey('users.id'), nullable=True)
     pm_approved_at = Column(DateTime(timezone=True), nullable=True)
     admin_approved_by = Column(Integer, ForeignKey('users.id'), nullable=True)

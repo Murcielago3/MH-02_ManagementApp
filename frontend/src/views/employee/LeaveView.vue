@@ -243,12 +243,6 @@ const fetchLeaveHistory = async () => {
 
 const paidLeaveBalance = computed(() => Number(currentUser.value?.paid_leave_balance || 0))
 
-const unpaidDaysTaken = computed(() => {
-  return leaveHistory.value
-    .filter(l => l.status === 'approved')
-    .reduce((total, l) => total + (Number(l.unpaid_days) || 0), 0)
-})
-
 // Probation = 3 months from joining date
 const probationEndDate = computed(() => {
   const j = currentUser.value?.joining_date

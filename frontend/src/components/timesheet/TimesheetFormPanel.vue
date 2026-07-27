@@ -27,9 +27,9 @@
           @submit="handleSuccess"
         />
         
-        <!-- Any post-submission state (submitted / pm_approved / admin_approved /
-             approved) is read-only. Using v-else guards against a new status
-             leaving the body blank. -->
+        <!-- Any post-submission state (submitted / admin_approved / approved)
+             is read-only. Using v-else guards against a new status leaving the
+             body blank. -->
         <TimesheetReadOnly
           v-else
           :timesheet="selectedTimesheet"
@@ -71,8 +71,7 @@ function formatStatus(status) {
   const labels = {
     pending: 'Pending',
     submitted: 'Awaiting Review',
-    pm_approved: 'PM Approved · Awaiting Admin',
-    admin_approved: 'Admin Approved · Awaiting PM',
+    admin_approved: 'Admin Approved · Awaiting 2nd Admin',
     approved: 'Approved',
     rejected: 'Rejected',
   }
@@ -180,7 +179,6 @@ function handleSuccess() {
 
 .status-badge.pending { background: #fee2e2; color: #ef4444; }
 .status-badge.submitted { background: #fef3c7; color: #d97706; }
-.status-badge.pm_approved,
 .status-badge.admin_approved { background: #dbeafe; color: #1e40af; }
 .status-badge.approved { background: #dcfce7; color: #15803d; }
 .status-badge.rejected { background: #fee2e2; color: #ef4444; }

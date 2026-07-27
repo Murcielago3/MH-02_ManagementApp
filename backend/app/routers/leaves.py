@@ -85,24 +85,6 @@ async def accrue_all(db: AsyncSession) -> int:
     return changed
 
 
-def classify_leave(leave: LeaveRequest, user: User):
-    """Split a leave's working days into paid/unpaid against the user's balance
-    and probation window. Returns (paid_days, unpaid_days, new_balance)."""
-    bal = Decimal(str(user.paid_leave_balance or 0))
-    pend = probation_end(user.joining_date)
-    paid = 0
-    unpaid = 0
-    for d in working_days(leave.start_date, leave.end_date):
-        if pend and d < pend:
-            unpaid += 1
-        elif bal >= 1:
-            paid += 1
-            bal -= 1
-        else:
-            unpaid += 1
-    return paid, unpaid, bal
-
-
 # ─── Overtime (comp-off) credits ─────────────────────────────────────────────
 async def _available_credits(db: AsyncSession, employee_id: int, as_of: date):
     """Non-expired, not-fully-consumed overtime credits, soonest-expiry first."""

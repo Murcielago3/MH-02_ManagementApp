@@ -76,7 +76,6 @@ import { tasksAPI } from '../../api/tasks'
 import { leavesAPI } from '../../api/leaves'
 import { projectsAPI } from '../../api/projects'
 import { holidaysAPI } from '../../api/holidays'
-import { countWorkingDays } from '../../stores/estimate'
 import { useTimesheetStore } from '../../stores/timesheet'
 
 const router = useRouter()
@@ -153,12 +152,10 @@ const projectMap = computed(() => {
   return map
 })
 
-const leavesRemaining = computed(() => {
-  if (!user.value) return 0
-  const allowed = user.value.leaves_allowed || 0
-  const used = approvedLeaves.value.reduce((acc, l) => acc + countWorkingDays(l.start_date, l.end_date), 0)
-  return Math.max(0, allowed - used)
-})
+// The running paid-leave balance is the single source of truth: it accrues
+// +1.5/month and is already drawn down when a leave is approved. (The old
+// `leaves_allowed − days taken` maths double-counted and ignored accrual.)
+const leavesRemaining = computed(() => Number(user.value?.paid_leave_balance || 0))
 
 // ── Task interactions ──
 function openTaskDrawer(task) {

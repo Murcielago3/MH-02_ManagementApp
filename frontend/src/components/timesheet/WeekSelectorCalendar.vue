@@ -177,7 +177,6 @@ function getStatusLabel(status) {
   const labels = {
     pending: 'Pending',
     submitted: 'Submitted',
-    pm_approved: 'PM Approved',
     admin_approved: 'Admin Approved',
     approved: 'Approved',
     rejected: 'Rejected',
@@ -195,8 +194,8 @@ function getWeekClasses(week) {
   
   return {
     'status-pending': status === 'pending',
-    // pm_approved / admin_approved are still mid-review — style them like submitted.
-    'status-submitted': status === 'submitted' || status === 'pm_approved' || status === 'admin_approved',
+    // admin_approved is still mid-review (awaiting 2nd admin) — style like submitted.
+    'status-submitted': status === 'submitted' || status === 'admin_approved',
     'status-approved': status === 'approved',
     'status-rejected': status === 'rejected',
     'is-selected': isSelected,

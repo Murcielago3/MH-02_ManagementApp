@@ -79,7 +79,7 @@
               </div>
               <div class="detail-item">
                 <span class="detail-label">Leaves Allowed</span>
-                <span class="detail-value">{{ user.leaves_allowed || 0 }} days / year</span>
+                <span class="detail-value">{{ Number(user.paid_leave_balance || 0) }} days available</span>
               </div>
             </div>
           </div>
