@@ -42,7 +42,7 @@
         <div class="panel apply-panel">
           <div class="panel-header">
             <h3 class="panel-title">Apply for Leave</h3>
-            <span class="panel-hint">Backdated requests accepted up to 1 month.</span>
+            <span class="panel-hint">Backdated requests accepted within the current month.</span>
           </div>
           <div class="panel-body">
             <form @submit.prevent="submitLeave" class="leave-form">
@@ -179,12 +179,14 @@ const overtime = ref({ available: 0, credits: [] })
 
 const todayDate = new Date().toISOString().split('T')[0]
 
-// Employees can backdate leaves up to one month — for emergencies or forgotten
-// applications. Anything older has to be filed by an admin.
+// Employees can backdate leaves to the start of the current calendar month —
+// for emergencies or forgotten applications, and to stay aligned with the
+// monthly payroll cycle. Anything earlier has to be filed by an admin.
+// Built from local date parts (not toISOString, which is UTC) to avoid an
+// off-by-one on the 1st of the month.
 const minLeaveDate = (() => {
   const d = new Date()
-  d.setMonth(d.getMonth() - 1)
-  return d.toISOString().split('T')[0]
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
 })()
 
 const form = reactive({
