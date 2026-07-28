@@ -96,6 +96,33 @@ def _q(val) -> Decimal:
     return Decimal(str(val or 0))
 
 
+def _employed_calendar_days(y: int, m: int, joining_date, end_date):
+    """(payable_days, total_days) for month y-m by calendar days.
+
+    Returns the full month unless the employee joined or left partway through
+    it, in which case only the days they were actually employed count. Used
+    both to prorate the stored base salary and to show TOTAL PAY DAYS on the
+    slip, so the two always agree.
+    """
+    total = monthrange(y, m)[1]
+    month_first = date(y, m, 1)
+    month_last = date(y, m, total)
+    start = max(month_first, joining_date) if joining_date else month_first
+    end = min(month_last, end_date) if end_date else month_last
+    if start > end:
+        return 0, total
+    return (end - start).days + 1, total
+
+
+def _prorate_for_partial_month(base_sal: Decimal, y: int, m: int, joining_date, end_date) -> Decimal:
+    """Scale base salary to the portion of the month actually employed. No-op
+    for a full month (joined before it, still employed at month end)."""
+    payable, total = _employed_calendar_days(y, m, joining_date, end_date)
+    if payable >= total or total == 0:
+        return base_sal
+    return (base_sal * Decimal(payable) / Decimal(total)).quantize(Decimal("0.01"))
+
+
 # ─── Generation ───────────────────────────────────────────────────────────────
 async def _reimbursement_totals(db: AsyncSession, months: list[str]) -> dict:
     """Map of (employee_id, month) -> summed approved reimbursement amount."""
@@ -127,7 +154,11 @@ async def reopen_month_slip(db: AsyncSession, user_id: int, month_str: str):
     y, m = _parse_month(month_str)
     period = await resolve_period(db, user_id, date(y, m, 1))
     if period is not None and period.monthly_salary is not None:
-        slip.base_salary = _q(period.monthly_salary)
+        emp = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+        base = _q(period.monthly_salary)
+        if emp is not None:
+            base = _prorate_for_partial_month(base, y, m, emp.joining_date, emp.end_date)
+        slip.base_salary = base
     tds_amount, net = _compute(slip.base_salary, slip.tds_percent, slip.reimbursement_total, slip.leave_deduction)
     slip.tds_amount = tds_amount
     slip.net_total = net
@@ -262,6 +293,11 @@ async def ensure_slips(db: AsyncSession, only_month: Optional[str] = None) -> in
             if out_of_window:
                 base_sal = Decimal("0")
                 leave_ded = Decimal("0")
+            else:
+                # Joined or left partway through the month → pay only for the
+                # days actually employed (e.g. joined 29th of a 30-day month =
+                # 2/30 of base), not the whole month.
+                base_sal = _prorate_for_partial_month(base_sal, y, m, join, u.end_date)
 
             slip = existing.get((u.id, ms))
 
@@ -640,7 +676,10 @@ def render_salary_slip_html(slip, employee, settings, reimb_total) -> str:
     # Trim trailing .0 for whole-day counts
     def _days(v):
         return int(v) if float(v).is_integer() else v
-    total_pay_days = _days(calendar_days - unpaid_leaves)
+    # Days actually employed this month (prorated for a mid-month join/leave),
+    # then less any unpaid leave — this is the basis the prorated Basic reflects.
+    payable_days, _total_days = _employed_calendar_days(y, m, employee.joining_date, employee.end_date)
+    total_pay_days = _days(payable_days - unpaid_leaves)
 
     base = float(slip.base_salary or 0)
     reimb = float(reimb_total or 0)

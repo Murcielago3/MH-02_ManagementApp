@@ -2,8 +2,10 @@ from fastapi import FastAPI
 from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+import logging
 import os
-from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips, holidays, subtasks, salary as salary_router, audit as audit_router, exports as exports_router, drafts
+from sqlalchemy import select as sa_select
+from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips, holidays, subtasks, salary as salary_router, audit as audit_router, exports as exports_router, drafts, reports as reports_router
 
 
 security = HTTPBearer()
@@ -54,6 +56,7 @@ app.include_router(salary_router.router)
 app.include_router(audit_router.router)
 app.include_router(exports_router.router)
 app.include_router(drafts.router)
+app.include_router(reports_router.router)
 
 
 @app.get("/health")
@@ -225,6 +228,8 @@ async def run_migrations():
                     title VARCHAR NOT NULL,
                     description VARCHAR,
                     duration_hours NUMERIC(6, 2),
+                    start_date DATE,
+                    due_date DATE,
                     status VARCHAR DEFAULT 'pending',
                     created_by INTEGER REFERENCES users(id),
                     created_at TIMESTAMP DEFAULT NOW()
@@ -232,6 +237,25 @@ async def run_migrations():
             """))
     except Exception:
         pass
+
+    # Subtask window: assigned-on date → deadline (replaces duration_hours)
+    for col_name, col_def in [("start_date", "DATE"), ("due_date", "DATE")]:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(f"ALTER TABLE subtasks ADD COLUMN {col_name} {col_def}"))
+        except Exception:
+            pass
+
+    # Transition stamps powering the quarterly task/subtask report. Left NULL on
+    # existing rows on purpose — the report shows those as "timing unknown"
+    # rather than inventing an on-time completion.
+    for table in ("subtasks", "tasks"):
+        for col_name in ("started_at", "completed_at"):
+            try:
+                async with engine.begin() as conn:
+                    await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_name} TIMESTAMP"))
+            except Exception:
+                pass
 
     # Effective-dated salary history (point-in-time pay). SERIAL on Postgres,
     # but CREATE TABLE IF NOT EXISTS is portable enough for our two backends.
@@ -459,4 +483,41 @@ async def run_migrations():
             await conn.execute(text("ALTER TABLE leave_requests ADD COLUMN overtime_consumed JSON"))
     except Exception:
         pass
+
+    # ── PM approval stage removed: re-derive timesheet status ──
+    # Approval is admin-only now, so a sheet holding both admin slots is fully
+    # approved regardless of the PM slot. Promotions must go through the ORM
+    # path so cost freezing and comp-off credits fire — a raw UPDATE would leave
+    # entries uncosted and credits ungranted. Idempotent; no-ops once settled.
+    try:
+        from app.database import AsyncSessionLocal
+        from app.models.weekly_timesheet import WeeklyTimesheet
+        from app.models.user import User
+        from app.routers.weekly_timesheets import (
+            _recompute_status, _load_entries, _freeze_entries, _grant_overtime_credits,
+        )
+
+        async with AsyncSessionLocal() as db:
+            rows = (await db.execute(
+                sa_select(WeeklyTimesheet, User.role)
+                .join(User, User.id == WeeklyTimesheet.employee_id)
+                .where(WeeklyTimesheet.status.notin_(["approved", "rejected"]))
+            )).all()
+            promoted = 0
+            for ts, role in rows:
+                before = ts.status
+                _recompute_status(ts, role == "admin")
+                if ts.status == "approved" and before != "approved":
+                    entries = await _load_entries(db, ts.id)
+                    await _freeze_entries(db, ts, entries)
+                    await _grant_overtime_credits(db, ts, entries)
+                    promoted += 1
+            if rows:
+                await db.commit()
+            if promoted:
+                logging.info("PM-stage removal: promoted %s timesheet(s) to approved", promoted)
+                from app.routers.projects import _invalidate_reserve
+                _invalidate_reserve()
+    except Exception:
+        logging.exception("PM-stage status re-derivation failed (non-fatal)")
 

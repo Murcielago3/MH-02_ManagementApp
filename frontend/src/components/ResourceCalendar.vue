@@ -108,7 +108,11 @@
                       <span class="material-symbols-outlined">content_cut</span>
                     </div>
                   </div>
-                  <span v-if="isDelayed(rb.task)" class="rb-delay">{{ taskDelay(rb.task) }}d</span>
+                  <span
+                    v-if="isDelayed(rb.task)"
+                    class="rb-delay"
+                    :title="`${overdueSubtasks(rb.task)} subtask(s) past deadline — worst is ${taskDelay(rb.task)}d late`"
+                  >{{ overdueSubtasks(rb.task) }}× · {{ taskDelay(rb.task) }}d</span>
                   <div 
                     class="rb-handle rb-handle-end" 
                     @mousedown.stop.prevent="onHandleDown($event, rb.task, 'resize-end')"
@@ -454,8 +458,11 @@ function hrsClass(eid) { if (isOverloaded(eid)) return 'hrs-over'; const r = get
 // Ribbons
 const priorityColors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' }
 function rbColor(t) { if (t.project_id && props.projectMap[t.project_id]?.color) return props.projectMap[t.project_id].color; return priorityColors[t.priority] ?? '#287475' }
-function taskDelay(t) { if (t.status === 'completed') return 0; const dl = t.end_date || t.date; if (!dl) return 0; const d = daysBetween(dl, todayStr); return d > 0 ? d : 0 }
-function isDelayed(t) { return taskDelay(t) > 0 }
+// Delay comes from subtask deadlines only — a parent task past its own end date
+// is not flagged.
+function taskDelay(t) { return t.status === 'completed' ? 0 : (t.subtask_delay_days || 0) }
+function overdueSubtasks(t) { return t.status === 'completed' ? 0 : (t.overdue_subtasks || 0) }
+function isDelayed(t) { return overdueSubtasks(t) > 0 }
 
 function empRibbons(eid) {
   const days = visibleDays.value, vStart = days[0].dateStr, vEnd = days[days.length - 1].dateStr

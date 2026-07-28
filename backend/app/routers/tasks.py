@@ -5,10 +5,52 @@ from typing import Optional, List
 from datetime import date as date_type
 from pydantic import BaseModel
 from app.database import get_db
-from app.models import Task, User
+from app.models import Task, User, Subtask
 from app.auth import get_current_user, require_manager
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+
+
+async def subtask_overdue_map(db: AsyncSession, task_ids: list) -> dict:
+    """{task_id: {"overdue_subtasks": n, "subtask_delay_days": worst}} for the
+    given tasks. Overdue = an unfinished subtask whose deadline has passed.
+    Parent-task deadlines are deliberately not considered here."""
+    if not task_ids:
+        return {}
+    today = date_type.today()
+    rows = (await db.execute(
+        select(Subtask.task_id, Subtask.due_date).where(
+            Subtask.task_id.in_(task_ids),
+            Subtask.due_date.isnot(None),
+            Subtask.due_date < today,
+            Subtask.status != "completed",
+        )
+    )).all()
+    out = {}
+    for task_id, due in rows:
+        entry = out.setdefault(task_id, {"overdue_subtasks": 0, "subtask_delay_days": 0})
+        entry["overdue_subtasks"] += 1
+        entry["subtask_delay_days"] = max(entry["subtask_delay_days"], (today - due).days)
+    return out
+
+
+def with_subtask_delay(task: Task, overdue: dict) -> dict:
+    info = overdue.get(task.id)
+    return {
+        "id": task.id,
+        "title": task.title,
+        "description": task.description,
+        "date": str(task.date),
+        "end_date": str(task.end_date) if task.end_date else None,
+        "duration_hours": task.duration_hours,
+        "priority": task.priority,
+        "status": task.status,
+        "project_id": task.project_id,
+        "assigned_to": task.assigned_to,
+        "assigned_by": task.assigned_by,
+        "overdue_subtasks": info["overdue_subtasks"] if info else 0,
+        "subtask_delay_days": info["subtask_delay_days"] if info else 0,
+    }
 
 class TaskCreate(BaseModel):
     title: str
@@ -48,7 +90,9 @@ async def list_tasks(
         query = query.where(Task.date == date_filter)
 
     result = await db.execute(query)
-    return result.scalars().all()
+    tasks = result.scalars().all()
+    overdue = await subtask_overdue_map(db, [t.id for t in tasks])
+    return [with_subtask_delay(t, overdue) for t in tasks]
 
 @router.get("/my")
 async def my_tasks(
@@ -57,7 +101,9 @@ async def my_tasks(
 ):
     query = select(Task).where(Task.assigned_to == current_user.id)
     result = await db.execute(query)
-    return result.scalars().all()
+    tasks = result.scalars().all()
+    overdue = await subtask_overdue_map(db, [t.id for t in tasks])
+    return [with_subtask_delay(t, overdue) for t in tasks]
 
 @router.get("/calendar")
 async def calendar_tasks(
@@ -100,22 +146,8 @@ async def calendar_tasks(
     result = await db.execute(query)
     tasks = result.scalars().all()
 
-    return [
-        {
-            "id": t.id,
-            "title": t.title,
-            "description": t.description,
-            "date": str(t.date),
-            "end_date": str(t.end_date) if t.end_date else None,
-            "duration_hours": t.duration_hours,
-            "priority": t.priority,
-            "status": t.status,
-            "assigned_to": t.assigned_to,
-            "assigned_by": t.assigned_by,
-            "project_id": t.project_id,
-        }
-        for t in tasks
-    ]
+    overdue = await subtask_overdue_map(db, [t.id for t in tasks])
+    return [with_subtask_delay(t, overdue) for t in tasks]
 
 @router.post("/", status_code=201)
 async def create_task(
@@ -179,6 +211,22 @@ async def bulk_assign(
     await db.commit()
     return {"created": len(created)}
 
+def _stamp_task_transition(task):
+    """Record when a task started / completed, for the quarterly report.
+    Reopening clears the completion stamp so it stops counting as delivered."""
+    from datetime import datetime
+    now = datetime.now()
+    if task.status == "completed":
+        if task.completed_at is None:
+            task.completed_at = now
+        if task.started_at is None:
+            task.started_at = now
+    else:
+        task.completed_at = None
+        if task.status == "in-progress" and task.started_at is None:
+            task.started_at = now
+
+
 def parse_task_update_value(task, field, value):
     if field in ["date", "end_date"]:
         if value is None:
@@ -202,8 +250,11 @@ async def update_task(
     task = result.scalar_one_or_none()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    for field, value in data.model_dump(exclude_unset=True).items():
+    fields = data.model_dump(exclude_unset=True)
+    for field, value in fields.items():
         setattr(task, field, parse_task_update_value(task, field, value))
+    if "status" in fields:
+        _stamp_task_transition(task)
     await db.commit()
     await db.refresh(task)
     return task
@@ -219,8 +270,11 @@ async def patch_task(
     task = result.scalar_one_or_none()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    for field, value in data.model_dump(exclude_unset=True).items():
+    fields = data.model_dump(exclude_unset=True)
+    for field, value in fields.items():
         setattr(task, field, parse_task_update_value(task, field, value))
+    if "status" in fields:
+        _stamp_task_transition(task)
     await db.commit()
     await db.refresh(task)
     return task
@@ -244,6 +298,7 @@ async def update_task_status(
     if current_user.role == "employee" and task.assigned_to != current_user.id:
         raise HTTPException(status_code=403, detail="You can only update your own tasks")
     task.status = data.status
+    _stamp_task_transition(task)
     await db.commit()
     await db.refresh(task)
     return task

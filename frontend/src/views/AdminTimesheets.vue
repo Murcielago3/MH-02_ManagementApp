@@ -22,7 +22,7 @@
         <select v-model="filterStatus" class="filter-select">
           <option value="">All Statuses</option>
           <option value="submitted">Pending Review</option>
-          <option value="admin_approved">Admin Approved</option>
+          <option value="admin_approved">Admin 1 Approved</option>
           <option value="approved">Fully Approved</option>
           <option value="rejected">Rejected</option>
         </select>
@@ -146,17 +146,43 @@
           </button>
         </div>
 
-        <div class="modal-body">
-          <!-- Daily Hours Breakdown -->
-          <div class="detail-section">
-            <label class="section-label">Daily Hours Log</label>
-            <TimesheetDailyGrid :timesheet="selectedTimesheet" :projects="projects" />
-          </div>
+        <div class="modal-tabs">
+          <button
+            type="button"
+            class="modal-tab"
+            :class="{ active: detailTab === 'hours' }"
+            @click="detailTab = 'hours'"
+          >Hours</button>
+          <button
+            type="button"
+            class="modal-tab"
+            :class="{ active: detailTab === 'delivery' }"
+            @click="detailTab = 'delivery'"
+          >Delivery</button>
+        </div>
 
-          <!-- Weekly Overview -->
-          <div v-if="selectedTimesheet.description" class="detail-section">
-            <label class="section-label">Weekly Overview</label>
-            <div class="overview-box">{{ selectedTimesheet.description }}</div>
+        <div class="modal-body">
+          <template v-if="detailTab === 'hours'">
+            <!-- Daily Hours Breakdown -->
+            <div class="detail-section">
+              <label class="section-label">Daily Hours Log</label>
+              <TimesheetDailyGrid :timesheet="selectedTimesheet" :projects="projects" />
+            </div>
+
+            <!-- Weekly Overview -->
+            <div v-if="selectedTimesheet.description" class="detail-section">
+              <label class="section-label">Weekly Overview</label>
+              <div class="overview-box">{{ selectedTimesheet.description }}</div>
+            </div>
+          </template>
+
+          <div v-else class="detail-section">
+            <label class="section-label">Quarterly Delivery</label>
+            <QuarterlyDeliveryReport
+              :employee-id="selectedTimesheet.employee_id"
+              :employee-name="getUserName(selectedTimesheet.employee_id)"
+              :week-start="selectedTimesheet.week_start"
+            />
           </div>
         </div>
 
@@ -217,6 +243,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 import TimesheetDailyGrid from '../components/timesheet/TimesheetDailyGrid.vue'
+import QuarterlyDeliveryReport from '../components/QuarterlyDeliveryReport.vue'
 import { weeklyTimesheetsAPI } from '../api/weekly_timesheets'
 import { usersAPI } from '../api/users'
 import { projectsAPI } from '../api/projects'
@@ -242,6 +269,7 @@ const rejectModalTarget = ref(null)
 const rejectReason = ref('')
 
 const showDetailModal = ref(false)
+const detailTab = ref('hours')   // 'hours' | 'delivery'
 const selectedTimesheet = ref(null)
 const projects = ref([])
 
@@ -374,7 +402,9 @@ function truncateDesc(desc) {
 
 const STATUS_LABELS = {
   submitted: 'Pending Review',
-  admin_approved: 'Admin Approved',
+  // Legacy rows only — the PM stage was removed; nothing writes this any more.
+  pm_approved: 'Pending Review',
+  admin_approved: 'Awaiting 2nd Admin',
   approved: 'Approved',
   rejected: 'Rejected',
 }
@@ -420,9 +450,10 @@ async function doReject(tsId, reason) {
 function submitterIsAdmin(ts) {
   return employees.value.find(e => e.id === ts.employee_id)?.role === 'admin'
 }
+// Approval is admin-only — project managers get this console read-only.
 function canApprove(ts) {
-  if (ts.status === 'approved' || ts.status === 'rejected') return false
   if (!isAdmin.value) return false
+  if (ts.status === 'approved' || ts.status === 'rejected') return false
   // Admin's own timesheet: single admin approval.
   if (submitterIsAdmin(ts)) return !ts.admin_approved_at
   // Non-admin timesheet: two DIFFERENT admins. Show approve if a slot is open
@@ -432,8 +463,8 @@ function canApprove(ts) {
   return false
 }
 function canReject(ts) {
-  if (ts.status === 'approved' || ts.status === 'rejected') return false
-  return isAdmin.value
+  if (!isAdmin.value) return false
+  return ts.status !== 'approved' && ts.status !== 'rejected'
 }
 function approveLabel(ts) {
   // Second, different admin on a non-admin timesheet.
@@ -461,6 +492,7 @@ async function confirmReject() {
 
 function viewDetail(ts) {
   selectedTimesheet.value = ts
+  detailTab.value = 'hours'
   showDetailModal.value = true
 }
 
@@ -636,6 +668,8 @@ function closeDetailModal() {
 }
 .badge-submitted { background: #fef3c7; color: #92400e; }
 .badge-pending   { background: #fef3c7; color: #92400e; }
+/* Legacy status — the PM stage is gone; show it as plain pending review. */
+.badge-pm_approved { background: #fef3c7; color: #92400e; }
 .badge-admin_approved { background: #e0e7ff; color: #3730a3; }
 .badge-approved  { background: #dcfce7; color: #166534; }
 .badge-rejected  { background: #fee2e2; color: #991b1b; }
@@ -791,6 +825,28 @@ function closeDetailModal() {
 }
 .modal-close:hover { background: var(--color-outline-variant); }
 .modal-close .material-symbols-outlined { font-size: 18px; color: var(--color-on-surface-variant); }
+
+.modal-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--color-outline-variant);
+  flex-shrink: 0;
+}
+.modal-tab {
+  padding: 11px 4px;
+  margin-right: 20px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.modal-tab:hover { color: var(--color-on-surface); }
+.modal-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
 
 .modal-body {
   padding: 24px;

@@ -214,9 +214,14 @@ async def get_timesheet(
 def _recompute_status(ts, submitter_is_admin: bool):
     """Derive the stored `status` from the approval / rejection slots.
 
+    Approval is admin-only. The project-manager stage was removed entirely —
+    it stalled 1100+ hours for three weeks because PMs never worked the queue.
+    The pm_approved_* columns are retained for historical rows but no longer
+    influence status.
+
     Admin submitter → 'approved' once the single admin slot is filled.
-    Non-admin submitter → 'approved' when BOTH admin slots are filled (two
-        distinct admins). No PM approval is involved.
+    Non-admin submitter → 'approved' when both admin slots are filled
+        (two distinct admins — four-eyes is preserved on the admin side).
     """
     if ts.rejected_at:
         ts.status = "rejected"
@@ -356,7 +361,7 @@ async def approve_timesheet(
 ):
     """Fill the actor's approval slot. A non-admin timesheet needs two DIFFERENT
     admins; an admin's own timesheet needs the single admin slot. Full approval
-    freezes cost. (Project managers no longer approve timesheets.)"""
+    freezes cost. Project managers no longer take part in approval."""
     timesheet, submitter = await _load_ts_and_submitter(db, timesheet_id)
     submitter_is_admin = bool(submitter and submitter.role == "admin")
 

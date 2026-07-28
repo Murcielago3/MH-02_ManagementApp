@@ -50,6 +50,7 @@
         :loading="!!statusUpdating"
         @close="selectedTask = null"
         @update-status="onDrawerStatusUpdate"
+        @subtasks-changed="fetchDashboardData"
       />
 
       <!-- Toast -->

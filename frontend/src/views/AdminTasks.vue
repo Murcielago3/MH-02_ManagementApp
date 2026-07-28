@@ -42,6 +42,7 @@
       @close="selectedTask = null"
       @edit="onEditTask"
       @delete="onDeleteTask"
+      @subtasks-changed="fetchTasks"
     />
 
     <!-- Add / Edit Task Modal -->

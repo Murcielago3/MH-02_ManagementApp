@@ -177,7 +177,9 @@ function getStatusLabel(status) {
   const labels = {
     pending: 'Pending',
     submitted: 'Submitted',
-    admin_approved: 'Admin Approved',
+    // pm_approved is a legacy status — the PM stage no longer exists.
+    pm_approved: 'Submitted',
+    admin_approved: 'Awaiting 2nd Admin',
     approved: 'Approved',
     rejected: 'Rejected',
   }

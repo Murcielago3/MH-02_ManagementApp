@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, ForeignKey
+from sqlalchemy import Column, Integer, String, Date, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -13,6 +13,9 @@ class Task(Base):
     duration_hours = Column(Integer, nullable=True)  # e.g. 4 hours
     priority = Column(String, default="medium") # low, medium, high
     status = Column(String, default="pending")  # pending, in-progress, completed
+    # Transition stamps for quarterly on-time / never-started stats.
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
 
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
     assigned_to = Column(Integer, ForeignKey("users.id"), nullable=False)

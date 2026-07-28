@@ -80,9 +80,13 @@
                 <span v-if="isAdmin && userMap[ribbon.task.assigned_to]" class="ribbon-assignee">→ {{ userMap[ribbon.task.assigned_to].name }}</span>
                 <span v-if="!isAdmin && ribbon.project" class="ribbon-project">{{ ribbon.project.name }}</span>
               </div>
-              <!-- Delay badge -->
-              <span v-if="isDelayed(ribbon.task)" class="delay-badge">
-                {{ getTaskDelay(ribbon.task) }}d late
+              <!-- Subtask delay badge -->
+              <span
+                v-if="isDelayed(ribbon.task)"
+                class="delay-badge"
+                :title="`${overdueSubtaskCount(ribbon.task)} subtask(s) past deadline — worst is ${getTaskDelay(ribbon.task)}d late`"
+              >
+                {{ overdueSubtaskCount(ribbon.task) }} subtask{{ overdueSubtaskCount(ribbon.task) > 1 ? 's' : '' }} · {{ getTaskDelay(ribbon.task) }}d late
               </span>
               <!-- Drag handle (admin only) -->
               <div
@@ -154,16 +158,20 @@ const anchorDate = ref(new Date())
 const todayStr = new Date().toISOString().split('T')[0]
 
 // ── Delay detection ──
+// Driven by subtask deadlines only. A parent task running past its own end date
+// is NOT flagged here — only an unfinished subtask past its deadline is.
 function getTaskDelay(task) {
   if (task.status === 'completed') return 0
-  const deadline = task.end_date || task.date
-  if (!deadline) return 0
-  const diff = daysBetween(deadline, todayStr)
-  return diff > 0 ? diff : 0
+  return task.subtask_delay_days || 0
+}
+
+function overdueSubtaskCount(task) {
+  if (task.status === 'completed') return 0
+  return task.overdue_subtasks || 0
 }
 
 function isDelayed(task) {
-  return getTaskDelay(task) > 0
+  return overdueSubtaskCount(task) > 0
 }
 
 // Priority fallback colors

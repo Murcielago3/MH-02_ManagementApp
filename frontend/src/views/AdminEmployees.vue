@@ -196,9 +196,19 @@
               </div>
               <div class="form-field" v-if="isAdmin">
                 <label>Salary / Month (₹)</label>
-                <CurrencyInput v-model="form.salary_month" placeholder="e.g. 25000" />
+                <CurrencyInput v-if="!isEditing" v-model="form.salary_month" placeholder="e.g. 25000" />
+                <template v-else>
+                  <input
+                    :value="form.salary_month ? `₹${Number(form.salary_month).toLocaleString('en-IN')}` : '—'"
+                    type="text" disabled class="readonly-input"
+                  />
+                  <p class="field-hint">
+                    Salary is effective-dated — change it in
+                    <router-link to="/admin/hr">HR → Salary increments</router-link>.
+                  </p>
+                </template>
               </div>
-              <div class="form-field" v-if="isAdmin">
+              <div class="form-field" v-if="isAdmin && !isEditing">
                 <label>Hourly Rate (₹) — auto</label>
                 <input :value="salaryPerHour" type="text" disabled class="readonly-input" />
               </div>
@@ -612,8 +622,11 @@ async function handleSubmit() {
     let userId
     if (isEditing.value) {
       const payload = {}
+      // salary_month/salary_hour are deliberately omitted: the backend manages
+      // salary only through the effective-dated HR increment flow and silently
+      // ignores them here, so sending them would look like a save that didn't.
       const fields = ['name', 'designation', 'studio_email', 'personal_mail', 'role',
-        'joining_date', 'end_date', 'birthdate', 'salary_month', 'salary_hour', 'leaves_allowed', 'paid_leave_balance', 'manager_id',
+        'joining_date', 'end_date', 'birthdate', 'leaves_allowed', 'paid_leave_balance', 'manager_id',
         'pan_number', 'aadhar_number', 'gender', 'location', 'bank_name', 'bank_account_number', 'bank_ifsc_code',
         'phone_number', 'emergency_contact_name', 'emergency_contact_number', 'emergency_contact_relationship']
       for (const f of fields) {
@@ -1362,6 +1375,12 @@ form .modal-footer {
   color: var(--color-on-surface-variant) !important;
   cursor: not-allowed;
 }
+.field-hint {
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  margin: 4px 0 0;
+}
+.field-hint a { color: var(--color-primary); font-weight: 600; }
 
 /* Draft banner */
 .draft-banner {

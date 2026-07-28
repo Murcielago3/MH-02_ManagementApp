@@ -59,16 +59,18 @@
           </div>
 
           <ul v-if="subtasks.length" class="subtasks-list">
-            <li v-for="s in subtasks" :key="s.id" class="subtask-item" :class="{ done: s.status === 'completed' }">
+            <li v-for="s in subtasks" :key="s.id" class="subtask-item" :class="{ done: s.status === 'completed', overdue: isSubtaskOverdue(s) }">
               <button class="subtask-check" :class="{ checked: s.status === 'completed' }" @click="toggleSubtask(s)" :title="s.status === 'completed' ? 'Mark as pending' : 'Mark as complete'">
                 <span v-if="s.status === 'completed'" class="material-symbols-outlined">check</span>
               </button>
               <div class="subtask-body">
                 <div class="subtask-title">{{ s.title }}</div>
                 <div class="subtask-meta">
-                  <span v-if="s.duration_hours" class="subtask-duration">
-                    <span class="material-symbols-outlined">schedule</span>{{ s.duration_hours }}h
+                  <span v-if="s.due_date" class="subtask-window" :class="{ late: isSubtaskOverdue(s) }">
+                    <span class="material-symbols-outlined">event</span>
+                    <template v-if="s.start_date">{{ formatDate(s.start_date) }} → </template>{{ formatDate(s.due_date) }}
                   </span>
+                  <span v-if="isSubtaskOverdue(s)" class="subtask-late-chip">{{ subtaskDelay(s) }}d late</span>
                   <span v-if="s.description" class="subtask-desc">{{ s.description }}</span>
                 </div>
               </div>
@@ -90,14 +92,15 @@
               ref="subtaskTitleRef"
             />
             <div class="subtask-add-row">
-              <input
-                v-model.number="newSubtask.duration_hours"
-                type="number"
-                min="0"
-                step="0.5"
-                placeholder="Hours"
-                class="subtask-input subtask-input-hours"
-              />
+              <label class="subtask-date-field">
+                <span class="subtask-date-label">Deadline</span>
+                <input
+                  v-model="newSubtask.due_date"
+                  type="date"
+                  :min="todayStr"
+                  class="subtask-input"
+                />
+              </label>
               <input
                 v-model="newSubtask.description"
                 type="text"
@@ -105,9 +108,12 @@
                 class="subtask-input"
               />
             </div>
+            <div class="subtask-add-hint">
+              Runs from today ({{ formatDate(todayStr) }}) to the deadline.
+            </div>
             <div class="subtask-add-actions">
               <button type="button" class="subtask-cancel" @click="cancelAddSubtask">Cancel</button>
-              <button type="button" class="subtask-save" :disabled="!newSubtask.title || subtaskSubmitting" @click="submitSubtask">
+              <button type="button" class="subtask-save" :disabled="!newSubtask.title || !newSubtask.due_date || subtaskSubmitting" @click="submitSubtask">
                 {{ subtaskSubmitting ? 'Saving…' : 'Save' }}
               </button>
             </div>
@@ -159,7 +165,7 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
 })
 
-defineEmits(['close', 'edit', 'delete', 'update-status'])
+const emit = defineEmits(['close', 'edit', 'delete', 'update-status', 'subtasks-changed'])
 
 const project = computed(() => props.task.project_id ? props.projectMap[props.task.project_id] : null)
 const assigneeName = computed(() => props.userMap[props.task.assigned_to]?.name || '')
@@ -180,7 +186,17 @@ const subtasksLoading = ref(false)
 const addingSubtask = ref(false)
 const subtaskSubmitting = ref(false)
 const subtaskTitleRef = ref(null)
-const newSubtask = ref({ title: '', description: '', duration_hours: null })
+const todayStr = new Date().toISOString().split('T')[0]
+const blankSubtask = () => ({ title: '', description: '', due_date: '' })
+const newSubtask = ref(blankSubtask())
+
+// Overdue is a subtask-only concept — the parent task's deadline never counts.
+function subtaskDelay(s) {
+  if (!s.due_date || s.status === 'completed') return 0
+  const diff = Math.round((new Date(todayStr) - new Date(s.due_date)) / 86400000)
+  return diff > 0 ? diff : 0
+}
+function isSubtaskOverdue(s) { return subtaskDelay(s) > 0 }
 
 async function loadSubtasks() {
   if (!props.task?.id) return
@@ -198,26 +214,29 @@ async function loadSubtasks() {
 watch(() => props.task?.id, loadSubtasks, { immediate: true })
 
 function startAddSubtask() {
-  newSubtask.value = { title: '', description: '', duration_hours: null }
+  newSubtask.value = blankSubtask()
   addingSubtask.value = true
   nextTick(() => subtaskTitleRef.value?.focus())
 }
 
 function cancelAddSubtask() {
   addingSubtask.value = false
-  newSubtask.value = { title: '', description: '', duration_hours: null }
+  newSubtask.value = blankSubtask()
 }
 
 async function submitSubtask() {
-  if (!newSubtask.value.title || subtaskSubmitting.value) return
+  if (!newSubtask.value.title || !newSubtask.value.due_date || subtaskSubmitting.value) return
   subtaskSubmitting.value = true
   try {
     const { data } = await subtasksAPI.create(props.task.id, {
       title: newSubtask.value.title.trim(),
       description: newSubtask.value.description?.trim() || null,
-      duration_hours: newSubtask.value.duration_hours || null,
+      // The window opens today — the day the subtask is actually assigned.
+      start_date: todayStr,
+      due_date: newSubtask.value.due_date,
     })
     subtasks.value.push(data)
+    emit('subtasks-changed')
     cancelAddSubtask()
   } catch (err) {
     // Could emit an error event; keeping silent for now
@@ -232,6 +251,7 @@ async function toggleSubtask(s) {
   s.status = next
   try {
     await subtasksAPI.patch(s.id, { status: next })
+    emit('subtasks-changed')
   } catch (err) {
     s.status = prev
   }
@@ -243,6 +263,7 @@ async function removeSubtask(s) {
   const removed = subtasks.value.splice(idx, 1)[0]
   try {
     await subtasksAPI.remove(s.id)
+    emit('subtasks-changed')
   } catch (err) {
     subtasks.value.splice(idx, 0, removed)
   }
@@ -515,13 +536,26 @@ async function removeSubtask(s) {
   margin-top: 3px;
   align-items: center;
 }
-.subtask-duration {
+.subtask-window {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   font-weight: 600;
+  white-space: nowrap;
 }
-.subtask-duration .material-symbols-outlined { font-size: 12px; }
+.subtask-window .material-symbols-outlined { font-size: 12px; }
+.subtask-window.late { color: #dc2626; }
+.subtask-late-chip {
+  background: #fee2e2;
+  color: #b91c1c;
+  font-weight: 700;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.subtask-item.overdue { background: rgba(220, 38, 38, 0.04); }
+.subtask-item.overdue.done { background: none; }
 .subtask-desc { line-height: 1.4; }
 
 .subtask-remove {
@@ -565,7 +599,24 @@ async function removeSubtask(s) {
   background: var(--color-surface);
 }
 .subtask-input:focus { border-color: var(--color-primary); }
-.subtask-input-hours { flex: 0 0 80px; }
+.subtask-date-field {
+  flex: 0 0 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.subtask-date-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-on-surface-variant);
+}
+.subtask-add-row { align-items: flex-end; }
+.subtask-add-hint {
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+}
 .subtask-add-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
 .subtask-cancel {
   background: none;
