@@ -605,22 +605,25 @@ watch(includeProjectAsSubject, (on) => {
   }
 })
 
-// Company's home state (Maharashtra, GSTIN prefix "27") — mirrors the backend's
-// determine_tax_type() fallback in app/routers/invoices.py exactly.
-const HOME_STATE_NAME = 'maharashtra'
+// Mirrors determine_tax_type() in app/routers/invoices.py exactly.
+// Registered client -> judged on their GSTIN state code ("27" = Maharashtra,
+// our home state). No GSTIN -> unregistered, billed against PAN, so the place
+// of supply is our own location: intra-state, always CGST+SGST, never IGST.
 const taxType = computed(() => {
   const gst = form.bill_to_gstin
   if (gst && gst.length >= 2) return gst.startsWith('27') ? 'CGST_SGST' : 'IGST'
-  // No GSTIN (individual clients, or an unregistered business): fall back to
-  // matching place_of_supply against the company's home state.
-  const pos = (form.place_of_supply || '').toLowerCase()
-  return pos.includes(HOME_STATE_NAME) ? 'CGST_SGST' : 'IGST'
+  return 'CGST_SGST'
 })
 
 const taxTypeIndicator = computed(() => {
-  if (!form.bill_to_gstin && !form.place_of_supply) return null
   if (taxType.value === 'CGST_SGST') {
-    return { text: 'Tax: CGST + SGST (split per item bracket)', class: 'indicator-teal' }
+    const viaPan = !form.bill_to_gstin
+    return {
+      text: viaPan
+        ? 'Tax: CGST + SGST (no GSTIN — billed against PAN)'
+        : 'Tax: CGST + SGST (split per item bracket)',
+      class: 'indicator-teal',
+    }
   }
   return { text: 'Tax: IGST (per item bracket)', class: 'indicator-amber' }
 })

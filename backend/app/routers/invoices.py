@@ -38,19 +38,24 @@ class InvoiceCreate(BaseModel):
     bank_account_id: Optional[int] = None
     items: List[InvoiceItemCreate]
 
-# The company's home state code (Maharashtra = "27"), used both when a GSTIN
-# is present (prefix match) and, for individuals / unregistered businesses
-# with no GSTIN, as a text fallback against place_of_supply.
-HOME_STATE_NAME = "maharashtra"
+# The company's home state code (Maharashtra), matched against a client's GSTIN
+# prefix to tell an intra-state supply from an inter-state one.
+HOME_STATE_CODE = "27"
 
 def determine_tax_type(gstin: Optional[str], place_of_supply: Optional[str] = None) -> str:
+    """CGST+SGST for intra-state supply, IGST for inter-state.
+
+    A registered client is judged on their GSTIN's state code. Without a GSTIN
+    the client is unregistered and billed against their PAN — the place of
+    supply then falls back to the supplier's own location, making it an
+    intra-state supply, so it is always CGST+SGST and never IGST.
+
+    ``place_of_supply`` is kept in the signature (callers still pass it, and it
+    is printed on the invoice) but no longer influences the tax type.
+    """
     if gstin:
-        return "CGST_SGST" if gstin[:2] == "27" else "IGST"
-    # No GSTIN (individual clients, or an unregistered business) — fall back
-    # to matching the place of supply against the company's home state.
-    if place_of_supply and HOME_STATE_NAME in place_of_supply.lower():
-        return "CGST_SGST"
-    return "IGST"
+        return "CGST_SGST" if gstin[:2] == HOME_STATE_CODE else "IGST"
+    return "CGST_SGST"
 
 def calculate_totals(items: list, tax_type: str) -> dict:
     """Groups line items by their per-item tax_rate bracket (8/12/18%) and
