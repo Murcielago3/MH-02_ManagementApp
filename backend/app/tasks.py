@@ -42,7 +42,8 @@ _TaskSession = async_sessionmaker(bind=_task_engine, class_=AsyncSession, expire
 
 
 def _rupees(value) -> str:
-    return f"₹{float(value or 0):,.0f}"
+    from app.utils.currency import rupees
+    return rupees(value)
 
 
 # ─────────────────────────── Monthly admin report ───────────────────────────

@@ -68,7 +68,7 @@
           </div>
           <div class="info-item">
             <label>Monthly Salary</label>
-            <span>{{ employee.salary_month ? `₹${Number(employee.salary_month).toLocaleString()}` : '—' }}</span>
+            <span>{{ employee.salary_month ? `₹${Number(employee.salary_month).toLocaleString('en-IN')}` : '—' }}</span>
           </div>
           <div class="info-item">
             <label>Hourly Rate</label>
@@ -197,6 +197,52 @@
                     {{ l.status }}
                   </span>
                 </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Reimbursements Tab -->
+      <div v-if="activeTab === 'reimbursements'" class="leaves-section">
+        <div class="ot-banner">
+          <span class="material-symbols-outlined">receipt_long</span>
+          <div>
+            <strong>{{ formatCurrency(reimbTotalAllTime) }}</strong> reimbursed all-time
+            <span class="ot-sub">· {{ reimbApprovedCount }} approved claim{{ reimbApprovedCount === 1 ? '' : 's' }}</span>
+          </div>
+        </div>
+        <div class="table-card">
+          <table class="proj-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Reason</th>
+                <th>Proof</th>
+                <th>Status</th>
+                <th>Payroll month</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="loadingReimb">
+                <td colspan="6" class="empty-cell">Loading reimbursements...</td>
+              </tr>
+              <tr v-else-if="reimbursements.length === 0">
+                <td colspan="6" class="empty-cell">No reimbursements.</td>
+              </tr>
+              <tr v-for="r in reimbursements" :key="r.id" class="proj-row">
+                <td class="mono">{{ formatDate(r.date) }}</td>
+                <td class="mono">{{ formatCurrency(r.amount) }}</td>
+                <td class="muted">{{ r.reason }}</td>
+                <td>
+                  <a v-if="r.proof_url" :href="resolveFileUrl(r.proof_url)" target="_blank" class="proof-link">View</a>
+                  <span v-else class="muted">—</span>
+                </td>
+                <td>
+                  <span class="status-badge" :class="`status-${r.status}`">{{ r.status }}</span>
+                </td>
+                <td class="mono">{{ r.status === 'approved' && r.month_added ? payrollLabel(r.month_added) : '—' }}</td>
               </tr>
             </tbody>
           </table>
@@ -351,6 +397,7 @@ import TimesheetDailyGrid from '../components/timesheet/TimesheetDailyGrid.vue'
 import { usersAPI } from '../api/users'
 import { weeklyTimesheetsAPI } from '../api/weekly_timesheets'
 import { leavesAPI } from '../api/leaves'
+import { reimbursementsAPI } from '../api/reimbursements'
 import { tasksAPI } from '../api/tasks'
 import { projectsAPI } from '../api/projects'
 import { useAuthStore } from '../stores/auth'
@@ -366,9 +413,17 @@ const leaves = ref([])
 const overtime = ref({ available: 0, credits: [] })
 const overtimeAvailable = computed(() => Number(overtime.value?.available || 0))
 const tasks = ref([])
+const reimbursements = ref([])
 const loadingTimesheets = ref(false)
 const loadingLeaves = ref(false)
+const loadingReimb = ref(false)
 const loadingTasks = ref(false)
+
+// All-time reimbursement total for this employee — only approved claims are
+// money actually paid, so that's the headline figure.
+const reimbApproved = computed(() => reimbursements.value.filter(r => r.status === 'approved'))
+const reimbTotalAllTime = computed(() => reimbApproved.value.reduce((s, r) => s + Number(r.amount || 0), 0))
+const reimbApprovedCount = computed(() => reimbApproved.value.length)
 const activeTab = ref('profile')
 
 const actionLoading = ref(null)
@@ -385,6 +440,7 @@ const tabs = computed(() => {
     { key: 'profile', label: 'Profile' },
     { key: 'timesheet', label: 'Timesheet' },
     { key: 'leaves', label: 'Leave Requests' },
+    { key: 'reimbursements', label: 'Reimbursements' },
     { key: 'tasks', label: 'Assigned Tasks' },
   ]
   // PAN/Aadhaar are sensitive — documents are admin-only.
@@ -547,11 +603,36 @@ async function fetchProjects() {
   }
 }
 
+async function fetchReimbursements() {
+  loadingReimb.value = true
+  try {
+    const res = await reimbursementsAPI.getReimbursements({ employee_id: employeeId })
+    reimbursements.value = Array.isArray(res.data)
+      ? res.data.slice().sort((a, b) => new Date(b.date) - new Date(a.date))
+      : []
+  } catch (e) {
+    console.error(e)
+  } finally {
+    loadingReimb.value = false
+  }
+}
+
+// ── Reimbursement display helpers ──
+const inrFmt = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })
+function formatCurrency(val) { return inrFmt.format(val || 0) }
+function resolveFileUrl(url) { return usersAPI.resolveFileUrl(url) }
+function payrollLabel(ym) {
+  if (!ym) return '—'
+  const [y, m] = ym.split('-')
+  return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+}
+
 onMounted(async () => {
   const jobs = [
     fetchEmployee(),
     fetchTimesheets(),
     fetchLeaves(),
+    fetchReimbursements(),
     fetchOvertime(),
     fetchTasks(),
     fetchProjects()
@@ -863,6 +944,8 @@ function isDueToday(task) {
   text-transform: uppercase; letter-spacing: 0.05em;
 }
 .status-badge.status-pending { background: #fef3c7; color: #92400e; }
+.proof-link { color: var(--color-primary); font-weight: 600; font-size: 12px; text-decoration: none; }
+.proof-link:hover { text-decoration: underline; }
 .status-badge.status-approved { background: #dcfce7; color: #166534; }
 .status-badge.status-rejected { background: #fee2e2; color: #991b1b; }
 .status-badge.status-completed { background: #dcfce7; color: #166534; }

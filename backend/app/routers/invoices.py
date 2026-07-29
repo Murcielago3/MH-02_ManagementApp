@@ -164,7 +164,7 @@ async def create_invoice(
         db.add(item)
 
     await log_audit(db, current_user, "invoice.created", "invoice", invoice.id,
-                    summary=f"Created {invoice.invoice_type} invoice {invoice.invoice_number or invoice.id} (₹{float(invoice.total):,.0f})")
+                    summary=f"Created {invoice.invoice_type} invoice {invoice.invoice_number or invoice.id} (₹{format_indian_currency(invoice.total)})")
     await db.commit()
     # Re-fetch with all relationships so bank_account / items / client are nested
     from sqlalchemy.orm import selectinload
@@ -419,27 +419,10 @@ def number_to_words(amount: float) -> str:
 
 
 def format_indian_currency(amount: float) -> str:
-    # Formats a number to the Indian system, e.g., 531000.00 -> "5,31,000.00"
-    s = f"{amount:.2f}"
-    parts = s.split('.')
-    integer_part = parts[0]
-    decimal_part = parts[1]
-    
-    if len(integer_part) <= 3:
-        return f"{integer_part}.{decimal_part}"
-    
-    last_three = integer_part[-3:]
-    remaining = integer_part[:-3]
-    
-    # Insert comma every two digits in remaining part
-    remaining_groups = []
-    while len(remaining) > 2:
-        remaining_groups.insert(0, remaining[-2:])
-        remaining = remaining[:-2]
-    if remaining:
-        remaining_groups.insert(0, remaining)
-        
-    return f"{','.join(remaining_groups)},{last_three}.{decimal_part}"
+    # Indian grouping with 2 decimals, e.g. 531000.00 -> "5,31,000.00".
+    # Delegates to the shared helper so grouping lives in one place.
+    from app.utils.currency import format_inr
+    return format_inr(amount, decimals=2)
 
 
 def clean_place_of_supply(val: Optional[str]) -> str:

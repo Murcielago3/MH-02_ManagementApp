@@ -23,6 +23,7 @@ from app.services.salary import (
 )
 from app.routers.settings import get_settings_snapshot
 from app.services.audit import log_audit
+from app.utils.currency import rupees
 
 router = APIRouter(prefix="/salary", tags=["salary"])
 
@@ -150,7 +151,7 @@ async def add_increment(
     await _rebuild_effective_to(db, user_id)
     await _sync_mirror(db, user)
     await log_audit(db, current_user, "salary.increment", "user", user_id,
-                    summary=f"Salary increment for {user.name} to ₹{data.monthly_salary:,.0f} effective {eff}")
+                    summary=f"Salary increment for {user.name} to {rupees(data.monthly_salary)} effective {eff}")
     await db.commit()
 
     # Re-freeze approved timesheet costs from the earliest affected date.

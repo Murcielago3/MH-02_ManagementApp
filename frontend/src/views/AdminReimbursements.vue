@@ -37,27 +37,19 @@
       </button>
     </div>
 
-    <!-- Month toggle: view bills by the month they belong to (expense date) -->
-    <div v-if="availableMonths.length" class="month-bar">
-      <div class="month-pills">
-        <button class="month-pill" :class="{ active: selectedMonth === '' }" @click="selectedMonth = ''">
-          All months
-        </button>
-        <button
-          v-for="m in availableMonths"
-          :key="m"
-          class="month-pill"
-          :class="{ active: selectedMonth === m }"
-          @click="selectedMonth = m"
-        >
-          {{ payrollLabel(m) }}
-        </button>
-      </div>
-      <div v-if="selectedMonth" class="month-summary">
+    <!-- Current-month focus. Totals below are always this month's; the toggle
+         only reveals older claims, it never changes the totals. -->
+    <div class="month-bar">
+      <div class="month-summary">
         <span class="material-symbols-outlined">payments</span>
-        {{ payrollLabel(selectedMonth) }} bills → paid in {{ payrollLabel(nextMonth(selectedMonth)) }}
-        · <strong>{{ formatCurrency(visibleTotal) }}</strong> across {{ totalCount }} claim{{ totalCount === 1 ? '' : 's' }}
+        <strong>{{ payrollLabel(currentMonth) }}</strong> · paid in {{ payrollLabel(nextMonth(currentMonth)) }}
+        · <strong>{{ formatCurrency(visibleTotal) }}</strong> across {{ currentClaimCount }} claim{{ currentClaimCount === 1 ? '' : 's' }}
       </div>
+      <label class="older-toggle">
+        <input type="checkbox" v-model="showOlder" />
+        <span class="material-symbols-outlined">history</span>
+        Show older entries
+      </label>
     </div>
 
     <!-- Grouped-by-employee card -->
@@ -80,7 +72,7 @@
             <span class="emp-count">{{ g.items.length }} claim{{ g.items.length === 1 ? '' : 's' }}</span>
             <span v-if="g.pendingCount" class="badge badge-pending">{{ g.pendingCount }} pending</span>
             <span class="emp-spacer"></span>
-            <span class="emp-total-label">Total</span>
+            <span class="emp-total-label">This month</span>
             <span class="emp-total">{{ formatCurrency(g.total) }}</span>
           </div>
 
@@ -99,8 +91,11 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="item in g.items" :key="item.id" class="data-row" :class="{ 'is-rejected': item.status === 'rejected' }">
-                  <td class="cell-mono">{{ formatDateShort(item.date) }}</td>
+                <tr v-for="item in g.items" :key="item.id" class="data-row" :class="{ 'is-rejected': item.status === 'rejected', 'is-older': isOlder(item) }">
+                  <td class="cell-mono">
+                    {{ formatDateShort(item.date) }}
+                    <span v-if="isOlder(item)" class="older-tag">{{ payrollLabel(itemMonth(item)) }}</span>
+                  </td>
                   <td class="col-right cell-mono amount-cell">{{ formatCurrency(item.amount) }}</td>
                   <td class="reason-cell" :title="item.reason">{{ item.reason }}</td>
                   <td>
@@ -138,8 +133,9 @@
                 <tr class="detail-total-row">
                   <td class="col-right" colspan="2">{{ formatCurrency(g.total) }}</td>
                   <td colspan="5" class="detail-total-note">
-                    Total across {{ g.items.length }} claim{{ g.items.length === 1 ? '' : 's' }}
-                    <template v-if="g.pendingCount"> · {{ formatCurrency(g.pendingTotal) }} still pending</template>
+                    {{ payrollLabel(currentMonth) }} total · {{ g.currentCount }} claim{{ g.currentCount === 1 ? '' : 's' }} this month
+                    <template v-if="showOlder && g.items.length > g.currentCount"> · {{ g.items.length - g.currentCount }} older shown (not included)</template>
+                    <template v-if="g.pendingCount"> · {{ formatCurrency(g.pendingTotal) }} pending</template>
                   </td>
                 </tr>
               </tfoot>
@@ -208,28 +204,30 @@ watch(filterStatus, () => {
   fetchReimbursements()
 })
 
-const hasActiveFilters = computed(() => employeeSearch.value || filterStatus.value || selectedMonth.value)
+const hasActiveFilters = computed(() => employeeSearch.value || filterStatus.value || showOlder.value)
 
 function clearFilters() {
   employeeSearch.value = ''
   filterStatus.value = ''
-  selectedMonth.value = ''
+  showOlder.value = false
   fetchReimbursements()
 }
 
-// ── Month-wise view ──
-// A claim belongs to the month of its expense date — the same month that decides
-// which salary slip it rolls into. The toggle filters to one month at a time.
+// ── Current-month focus ──
+// A claim belongs to the month of its expense date (the same month that decides
+// which salary slip it rolls into). The page is anchored to the current month:
+// every headline total is this month's. "Show older entries" reveals past claims
+// in each employee's detail but never changes those totals.
 function itemMonth(item) {
   const basis = item.date || item.created_at
   return basis ? String(basis).slice(0, 7) : ''
 }
-const selectedMonth = ref('')  // '' = all months
-const availableMonths = computed(() => {
-  const s = new Set()
-  for (const i of reimbursements.value) { const m = itemMonth(i); if (m) s.add(m) }
-  return [...s].sort().reverse()
+const currentMonth = computed(() => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 })
+const showOlder = ref(false)
+function isOlder(item) { return itemMonth(item) !== currentMonth.value }
 
 // ── Group by employee ──
 // One master row per employee; expand to see every claim + the running total.
@@ -242,20 +240,26 @@ const groups = computed(() => {
   for (const item of reimbursements.value) {
     // Hide claims of employees who have left (not in the roster).
     if (haveRoster && !rosterIds.value.has(item.employee_id)) continue
-    if (selectedMonth.value && itemMonth(item) !== selectedMonth.value) continue
     if (!byEmp.has(item.employee_id)) byEmp.set(item.employee_id, [])
     byEmp.get(item.employee_id).push(item)
   }
   const out = []
-  for (const [employee_id, items] of byEmp.entries()) {
-    items.sort((a, b) => new Date(b.date) - new Date(a.date))
-    const total = items.reduce((s, i) => s + Number(i.amount || 0), 0)
-    const pending = items.filter(i => i.status === 'pending')
+  for (const [employee_id, all] of byEmp.entries()) {
+    const current = all.filter(i => !isOlder(i))
+    // Default view is current month only; the toggle also reveals older claims.
+    // Either way the total below is always the current-month total.
+    const displayed = (showOlder.value ? all : current)
+      .slice()
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+    if (displayed.length === 0) continue
+    const monthTotal = current.reduce((s, i) => s + Number(i.amount || 0), 0)
+    const pending = displayed.filter(i => i.status === 'pending')
     out.push({
       employee_id,
       name: getUserName(employee_id),
-      items,
-      total,
+      items: displayed,
+      currentCount: current.length,
+      total: monthTotal,               // always current month, never overall
       pendingCount: pending.length,
       pendingTotal: pending.reduce((s, i) => s + Number(i.amount || 0), 0),
     })
@@ -265,8 +269,10 @@ const groups = computed(() => {
   return q ? out.filter(g => g.name.toLowerCase().includes(q)) : out
 })
 
-// Claims within the currently-visible (searched/month-filtered) employee groups.
+// Footer/summary counts. visibleTotal sums the current-month totals; the claim
+// count is current-month claims (older shown are contextual, not counted).
 const totalCount = computed(() => groups.value.reduce((s, g) => s + g.items.length, 0))
+const currentClaimCount = computed(() => groups.value.reduce((s, g) => s + g.currentCount, 0))
 const visibleTotal = computed(() => groups.value.reduce((s, g) => s + g.total, 0))
 
 // ── Expand / collapse ──
@@ -449,29 +455,42 @@ async function handleAction(id, status) {
 /* ── Month toggle ── */
 .month-bar {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 16px;
 }
-.month-pills { display: flex; flex-wrap: wrap; gap: 8px; }
-.month-pill {
+.older-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 7px 14px;
   background: var(--color-surface);
   border: 1px solid var(--color-outline);
   border-radius: var(--radius-full);
-  font-family: var(--font-body);
   font-size: 13px;
   font-weight: 600;
   color: var(--color-on-surface-variant);
   cursor: pointer;
-  transition: all var(--transition);
+  user-select: none;
 }
-.month-pill:hover { border-color: var(--color-primary); color: var(--color-primary); }
-.month-pill.active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: #fff;
+.older-toggle:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.older-toggle input { accent-color: var(--color-primary); cursor: pointer; }
+.older-toggle .material-symbols-outlined { font-size: 16px; }
+.older-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  background: var(--color-surface-dim);
+  border: 1px solid var(--color-outline);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  vertical-align: middle;
 }
+.data-row.is-older td:not(.col-actions) { opacity: 0.6; }
 .month-summary {
   display: inline-flex;
   align-items: center;

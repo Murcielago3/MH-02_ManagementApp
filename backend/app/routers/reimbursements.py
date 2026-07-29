@@ -10,6 +10,7 @@ from app.models.user import User
 from app.auth import get_current_user, require_admin, require_manager
 from app.services.slack import notify_event, lookup_user_id
 from app.services.audit import log_audit
+from app.utils.currency import rupees
 import os, uuid
 
 router = APIRouter(prefix="/reimbursements", tags=["reimbursements"])
@@ -80,7 +81,7 @@ async def create_reimbursement(
     db.add(entry)
     await db.flush()
     await log_audit(db, current_user, "reimbursement.submitted", "reimbursement", entry.id,
-                    summary=f"{current_user.name} submitted reimbursement of ₹{amount:,.0f} for {reason}")
+                    summary=f"{current_user.name} submitted reimbursement of {rupees(amount)} for {reason}")
     await db.commit()
     await db.refresh(entry)
 
@@ -91,7 +92,7 @@ async def create_reimbursement(
         notify_event(
             "reimbursement",
             f"💸 *Reimbursement submitted*\n"
-            f"{tag} — ₹{amount:,.0f} for _{reason}_ (dated {date})",
+            f"{tag} — {rupees(amount)} for _{reason}_ (dated {date})",
         )
     background_tasks.add_task(_notify_reimbursement_submitted, current_user, amount, reason, date)
     return entry
@@ -123,7 +124,7 @@ async def action_reimbursement(
 
     emp_name = (await db.execute(select(User.name).where(User.id == entry.employee_id))).scalar_one_or_none() or "employee"
     await log_audit(db, current_user, f"reimbursement.{data.status}", "reimbursement", entry.id,
-                    summary=f"{data.status.capitalize()} {emp_name}'s reimbursement of ₹{float(entry.amount):,.0f}")
+                    summary=f"{data.status.capitalize()} {emp_name}'s reimbursement of {rupees(entry.amount)}")
     await db.commit()
     await db.refresh(entry)
 
@@ -140,7 +141,7 @@ async def action_reimbursement(
         verb = "approved ✅" if status == "approved" else "rejected ❌"
         notify_event(
             "reimbursement_decision",
-            f"💰 Reimbursement *{verb}* — {tag}: ₹{float(entry.amount):,.0f} for _{entry.reason}_",
+            f"💰 Reimbursement *{verb}* — {tag}: {rupees(entry.amount)} for _{entry.reason}_",
         )
     background_tasks.add_task(_notify_reimbursement_decision, emp, entry, data.status)
     return entry
