@@ -14,6 +14,7 @@ from app.models.overtime_leave import OvertimeLeave
 from app.auth import get_current_user, require_admin, require_manager
 from app.services.audit import log_audit
 from app.services.email import admin_recipients, send_email, leave_applied_email
+from app.services.slack import notify_event, lookup_user_id
 
 router = APIRouter(prefix="/leaves", tags=["leaves"])
 
@@ -242,6 +243,29 @@ async def apply_leave(
     background_tasks.add_task(
         send_email, subject, body, recipients,
         reply_to=current_user.studio_email or current_user.personal_mail,
+    )
+
+    # Post to the management channel — admins approve leave, so it goes there
+    # and nowhere else. Fires after the response; a Slack outage never blocks
+    # an employee applying for leave.
+    def _notify_leave_applied(user, start, end, days, reason, balance):
+        uid = lookup_user_id(user.studio_email) or lookup_user_id(user.personal_mail)
+        tag = f"<@{uid}>" if uid else f"*{user.name}*"
+        span = str(start) if start == end else f"{start} → {end}"
+        msg = (
+            f"🌴 *Leave request* — {tag}\n"
+            f"{span} · {days} working day{'' if days == 1 else 's'}"
+        )
+        if reason:
+            msg += f"\nReason: _{reason}_"
+        # Balance before this request is consumed — lets the approver see at a
+        # glance whether these days will land as paid or unpaid.
+        msg += f"\nPaid-leave balance: {balance:g} day{'' if balance == 1 else 's'}"
+        notify_event("leave_applied", msg)
+
+    background_tasks.add_task(
+        _notify_leave_applied, current_user, data.start_date, data.end_date,
+        wd, data.reason, float(current_user.paid_leave_balance or 0),
     )
     return leave
 

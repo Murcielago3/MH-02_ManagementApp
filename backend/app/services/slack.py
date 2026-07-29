@@ -31,6 +31,7 @@ EVENT_CHANNELS = {
     "monthly_report": "management",         # 1st-of-month admin summary
     "reimbursement": "management",          # employee submitted a reimbursement
     "reimbursement_decision": "management", # admin approved/rejected a reimbursement
+    "leave_applied": "management",          # employee applied for leave (admins approve)
     "timesheet_reminder": "common",         # Sunday-noon nudge to submit timesheets
     "timesheet_uploaded": "common",         # employee submitted a weekly timesheet
     "timesheet_decision": "common",         # admin approved/rejected a timesheet
@@ -41,7 +42,7 @@ EVENT_CHANNELS = {
 # Everything else posts silently. `timesheet_reminder` is intentionally absent:
 # it tags the specific people who are behind (individual <@ID> mentions already
 # notify + email them), so a blanket @channel would be redundant noise.
-MENTION_EVENTS = {"monthly_report", "reimbursement"}
+MENTION_EVENTS = {"monthly_report", "reimbursement", "leave_applied"}
 
 
 def _resolve(channel_group: str):
