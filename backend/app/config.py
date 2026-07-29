@@ -19,6 +19,24 @@ class Settings(BaseSettings):
     SLACK_MENTION_MANAGEMENT: Optional[str] = None
     SLACK_MENTION_COMMON: Optional[str] = None
 
+    # ─── SMTP email notifications ───
+    # Leave applications and timesheet submissions email the approvers. Leave
+    # SMTP_HOST unset to disable email entirely — sends no-op with a logged
+    # warning, exactly like Slack, so the app runs fine without it.
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    # Envelope sender; defaults to SMTP_USER when unset.
+    SMTP_FROM: Optional[str] = None
+    SMTP_FROM_NAME: str = "Studio MH02"
+    # Port 587 -> STARTTLS (default). Port 465 -> set SMTP_USE_SSL=true instead.
+    SMTP_USE_TLS: bool = True
+    SMTP_USE_SSL: bool = False
+    # Comma-separated recipient override. When unset, notifications go to every
+    # active admin's studio email (the people who actually approve these).
+    MAIL_NOTIFY_TO: Optional[str] = None
+
     # Timezone for scheduled reminders (Celery Beat). Studio is India-based.
     TIMEZONE: str = "Asia/Kolkata"
 

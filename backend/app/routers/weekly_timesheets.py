@@ -11,6 +11,7 @@ from app.models.user import User
 from app.auth import get_current_user, require_admin, require_manager
 from app.services.slack import notify_event, lookup_user_id
 from app.services.audit import log_audit
+from app.services.email import admin_recipients, send_email, timesheet_submitted_email
 
 router = APIRouter(prefix="/weekly-timesheets", tags=["weekly-timesheets"])
 
@@ -191,6 +192,17 @@ async def submit_timesheet(
             f"{week_start} — {total_hours}h",
         )
     background_tasks.add_task(_notify_timesheet_uploaded, current_user, data.week_start, total_hours)
+
+    # Email the approvers too. Recipients resolved here (session still open);
+    # the send runs after the response and never blocks it.
+    recipients = await admin_recipients(db)
+    subject, body = timesheet_submitted_email(
+        current_user.name, data.week_start, data.week_end, total_hours
+    )
+    background_tasks.add_task(
+        send_email, subject, body, recipients,
+        reply_to=current_user.studio_email or current_user.personal_mail,
+    )
     return timesheet
 
 @router.get("/{timesheet_id}")

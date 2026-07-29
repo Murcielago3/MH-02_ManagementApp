@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -13,6 +13,7 @@ from app.models.user import User
 from app.models.overtime_leave import OvertimeLeave
 from app.auth import get_current_user, require_admin, require_manager
 from app.services.audit import log_audit
+from app.services.email import admin_recipients, send_email, leave_applied_email
 
 router = APIRouter(prefix="/leaves", tags=["leaves"])
 
@@ -211,6 +212,7 @@ async def my_leaves(
 @router.post("/", status_code=201)
 async def apply_leave(
     data: LeaveCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -230,6 +232,17 @@ async def apply_leave(
                     summary=f"Applied for leave {data.start_date} to {data.end_date} ({wd} working days)")
     await db.commit()
     await db.refresh(leave)
+
+    # Email the approvers. Recipients are resolved here (we still have the
+    # session); the send itself runs after the response and never blocks it.
+    recipients = await admin_recipients(db)
+    subject, body = leave_applied_email(
+        current_user.name, data.start_date, data.end_date, wd, data.reason
+    )
+    background_tasks.add_task(
+        send_email, subject, body, recipients,
+        reply_to=current_user.studio_email or current_user.personal_mail,
+    )
     return leave
 
 
