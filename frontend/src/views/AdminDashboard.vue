@@ -292,6 +292,12 @@ const PURPLE = '#a855f7'
 const CYAN   = '#06b6d4'
 const SLATE  = '#94a3b8'
 
+// Keys of the legacy `monthly_sales` map (full month names).
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
 const loading = ref(true)
 const currentYear = new Date().getFullYear()
 const currentMonthName = new Date().toLocaleString('default', { month: 'long' })
@@ -376,9 +382,12 @@ const monthlyChartData = computed(() => {
       revenue: Number(d.revenue) || 0,
     }))
   }
-  return monthLabels.map((m, i) => ({
-    month:  m,
-    revenue: Number((sales || {})[fullMonths[i]] || 0),
+  // Last resort: legacy map keyed by full month name, e.g. { January: 1200 }.
+  // Also the path taken when the stats fetch fails and `stats` is still empty —
+  // it must render an empty year, never throw.
+  return MONTH_NAMES.map((full) => ({
+    month:   full.slice(0, 3),
+    revenue: Number((sales || {})[full] || 0),
   }))
 })
 const hasMonthlyData = computed(() =>
