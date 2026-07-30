@@ -7,8 +7,9 @@ import csv
 import io
 import zipfile
 from datetime import date
+from decimal import Decimal, ROUND_HALF_UP
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -118,6 +119,109 @@ async def _build(entity: str, db: AsyncSession):
                     e.created_at.isoformat() if e.created_at else None] for e in rows]
 
     raise HTTPException(404, "Unknown export entity")
+
+
+# ─────────────────────── CA Salary Sheet (per month) ───────────────────────
+# A chartered-accountant-facing salary register for one salary month, matching
+# the layout the studio's CA uses: Salary, Bonus, TDS, Conveyance (= approved
+# reimbursements that month), then the amount to pay and its rounded value,
+# with column totals. Numbers are plain (no ₹) so they stay summable in Excel.
+
+_MONTHS = ["January", "February", "March", "April", "May", "June",
+           "July", "August", "September", "October", "November", "December"]
+
+
+def _pay_date_str(d) -> str:
+    """payout_date -> '7-Jul-26' (no leading zero, portable across platforms)."""
+    if not d:
+        return ""
+    return f"{d.day}-{d.strftime('%b')}-{d.strftime('%y')}"
+
+
+def _round_rupee(v) -> Decimal:
+    """Nearest whole rupee, half up — how payroll rounds the net."""
+    return Decimal(str(v or 0)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+
+
+def _num(v) -> str:
+    return f"{Decimal(str(v or 0)):.2f}"
+
+
+async def _build_ca_salary_sheet(month: str, db: AsyncSession):
+    """(title, csv_rows) for the CA salary register of one 'YYYY-MM' month."""
+    try:
+        y, m = (int(x) for x in month.split("-"))
+        _ = _MONTHS[m - 1]
+    except (ValueError, IndexError):
+        raise HTTPException(400, "month must be 'YYYY-MM'")
+
+    paid_m = m % 12 + 1
+    paid_y = y + (1 if m == 12 else 0)
+    title = f"Details of Salary ({_MONTHS[m - 1]} {y} paid in {_MONTHS[paid_m - 1]} {paid_y})"
+
+    slips = (await db.execute(
+        select(SalarySlip).where(SalarySlip.month == month)
+    )).scalars().all()
+    users = {u.id: u for u in (await db.execute(select(User))).scalars().all()}
+    slips.sort(key=lambda s: (users.get(s.employee_id).name if users.get(s.employee_id) else ""))
+
+    header = ["Sr. No.", "Name", "Date of Payment", "PAN", "Salary", "Bonus",
+              "TDS (10%)", "Conveyance", "Salary to be paid", "Salary paid after rounding off"]
+
+    body, tds_tot, conv_tot, pay_tot, round_tot = [], Decimal(0), Decimal(0), Decimal(0), Decimal(0)
+    for i, s in enumerate(slips, 1):
+        u = users.get(s.employee_id)
+        base = Decimal(str(s.base_salary or 0))
+        tds = Decimal(str(s.tds_amount or 0))
+        conv = Decimal(str(s.reimbursement_total or 0))
+        net = Decimal(str(s.net_total or 0))
+        rounded = _round_rupee(net)
+        tds_tot += tds; conv_tot += conv; pay_tot += net; round_tot += rounded
+        body.append([
+            i, u.name if u else f"#{s.employee_id}", _pay_date_str(s.payout_date),
+            (u.pan_number if u else "") or "",
+            _num(base), _num(0), _num(tds), _num(conv), _num(net), _num(rounded),
+        ])
+
+    rows = [[title], [], header]
+    rows.extend(body)
+    rows.append([])
+    rows.append(["TOTAL", "", "", "", "", "", _num(tds_tot), _num(conv_tot), _num(pay_tot), _num(round_tot)])
+    rows.append(["TOTAL SALARY", "", "", "", "", "", "", "", "", _num(round_tot)])
+    return title, rows
+
+
+def _csv_raw(rows) -> str:
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    for r in rows:
+        w.writerow(["" if v is None else v for v in r])
+    return buf.getvalue()
+
+
+@router.get("/ca-salary-sheet.csv")
+async def export_ca_salary_sheet(
+    month: str = Query(..., description="Salary month as YYYY-MM"),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    title, rows = await _build_ca_salary_sheet(month, db)
+    await log_audit(db, current_user, "export.ca_salary_sheet", "export", None,
+                    summary=f"Exported CA Salary Sheet for {month}")
+    await db.commit()
+    return Response(
+        content=_csv_raw(rows), media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="ca-salary-sheet-{month}.csv"'},
+    )
+
+
+@router.get("/salary-months")
+async def salary_months(db: AsyncSession = Depends(get_db), current_user=Depends(require_admin)):
+    """Distinct salary-slip months, newest first — drives the month picker."""
+    months = (await db.execute(
+        select(SalarySlip.month).distinct().order_by(SalarySlip.month.desc())
+    )).scalars().all()
+    return [m for m in months if m]
 
 
 @router.get("/bundle")

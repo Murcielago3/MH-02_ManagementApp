@@ -24,12 +24,37 @@
       </button>
     </div>
 
+    <!-- CA Salary Sheet — a per-month register in the studio CA's layout -->
+    <div class="ca-section">
+      <div class="ca-head">
+        <span class="material-symbols-outlined ca-icon">description</span>
+        <div>
+          <h2 class="ep-title">CA Salary Sheet</h2>
+          <p class="ep-note">A month's salary register in your CA's format (Salary, Bonus, TDS, Conveyance, rounded pay) with column totals.</p>
+        </div>
+      </div>
+      <div class="ca-controls">
+        <label class="ca-field">
+          <span class="ca-label">Month</span>
+          <select v-if="salaryMonths.length" v-model="caMonth" class="ca-select">
+            <option v-for="m in salaryMonths" :key="m" :value="m">{{ monthLabel(m) }}</option>
+          </select>
+          <input v-else v-model="caMonth" type="month" class="ca-select" />
+        </label>
+        <button type="button" class="btn-primary" :disabled="!caMonth || caExporting" @click="doCaExport">
+          <span v-if="caExporting" class="material-symbols-outlined spin-icon">progress_activity</span>
+          <span v-else class="material-symbols-outlined">download</span>
+          {{ caExporting ? 'Preparing…' : 'Export CA Salary Sheet' }}
+        </button>
+      </div>
+    </div>
+
     <ToastNotification v-if="toastMsg" :message="toastMsg" :type="toastType" @done="toastMsg = ''" />
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import ToastNotification from './ToastNotification.vue'
 import { exportsAPI, downloadBlob } from '../api/exports'
 
@@ -52,6 +77,47 @@ function toast(msg, type = 'success') { toastType.value = type; toastMsg.value =
 
 function toggleAll() {
   selected.value = selected.value.length === entities.length ? [] : entities.map(e => e.key)
+}
+
+// ── CA Salary Sheet ──
+const salaryMonths = ref([])
+const caMonth = ref('')
+const caExporting = ref(false)
+
+function monthLabel(ym) {
+  if (!ym) return ''
+  const [y, m] = ym.split('-')
+  return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+}
+
+onMounted(async () => {
+  try {
+    const res = await exportsAPI.salaryMonths()
+    salaryMonths.value = res.data || []
+    if (salaryMonths.value.length) {
+      caMonth.value = salaryMonths.value[0]
+    } else {
+      // No slips yet — default the native picker to last month.
+      const d = new Date(); d.setMonth(d.getMonth() - 1)
+      caMonth.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    }
+  } catch (e) {
+    // Non-fatal — the native month input still works.
+  }
+})
+
+async function doCaExport() {
+  if (!caMonth.value) return
+  caExporting.value = true
+  try {
+    const res = await exportsAPI.caSalarySheet(caMonth.value)
+    downloadBlob(res, `ca-salary-sheet-${caMonth.value}.csv`)
+    toast('CA Salary Sheet downloaded.')
+  } catch (e) {
+    toast('Export failed. Please try again.', 'error')
+  } finally {
+    caExporting.value = false
+  }
 }
 
 async function doExport() {
@@ -108,6 +174,27 @@ async function doExport() {
 .btn-ghost:hover { background: var(--color-surface-dim); }
 .spin-icon { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── CA Salary Sheet ── */
+.ca-section {
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid var(--color-outline);
+}
+.ca-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 16px; }
+.ca-icon { font-size: 22px; color: var(--color-primary); }
+.ca-controls { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.ca-field { display: flex; flex-direction: column; gap: 5px; }
+.ca-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--color-on-surface-variant);
+}
+.ca-select {
+  padding: 9px 12px; min-width: 200px;
+  border: 1px solid var(--color-outline); border-radius: var(--radius-lg);
+  font-size: 13px; color: var(--color-on-surface); background: var(--color-surface); outline: none;
+}
+.ca-select:focus { border-color: var(--color-primary); }
 
 @media (max-width: 768px) {
   .export-panel { padding: 18px 16px; }
