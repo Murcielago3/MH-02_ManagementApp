@@ -129,13 +129,24 @@
                   <label>Address</label>
                   <textarea v-model="form.bill_to_address" rows="3" placeholder="Full address…"></textarea>
                 </div>
-                <div v-if="form.customer_type !== 'individual'" class="form-group">
+                <div class="form-group">
+                  <label>Bill against</label>
+                  <div class="idtype-toggle" role="group" aria-label="Bill against GSTIN or PAN">
+                    <button type="button" :class="{ active: billIdType === 'gstin' }" @click="setBillIdType('gstin')">GSTIN</button>
+                    <button type="button" :class="{ active: billIdType === 'pan' }" @click="setBillIdType('pan')">PAN</button>
+                  </div>
+                </div>
+                <div v-if="billIdType === 'gstin'" class="form-group">
                   <label>GSTIN</label>
                   <TaxIdField v-model="form.bill_to_gstin" kind="gstin" placeholder="e.g. 27XXXXX…" />
                 </div>
                 <div v-else class="form-group">
                   <label>PAN</label>
                   <TaxIdField v-model="form.bill_to_pan" kind="pan" placeholder="e.g. AAAAA9999A" />
+                  <p class="idtype-hint">
+                    <span class="material-symbols-outlined">info</span>
+                    No GSTIN — taxed as CGST + SGST, never IGST.
+                  </p>
                 </div>
               </div>
               <div>
@@ -419,6 +430,7 @@ function populateFormFromData(data) {
   form.bill_to_gstin = data.bill_to_gstin || ''
   form.bill_to_pan = data.bill_to_pan || ''
   form.customer_type = data.customer_type || null
+  syncBillIdType()
   form.ship_to_name = data.ship_to_name || ''
   form.ship_to_address = data.ship_to_address || ''
   form.ship_to_gstin = data.ship_to_gstin || ''
@@ -586,6 +598,7 @@ const onProjectSelect = () => {
       form.bill_to_pan = proj.client.pan || ''
       // Individual clients never carry a GSTIN.
       form.bill_to_gstin = form.customer_type === 'individual' ? '' : (proj.client.gstin || '')
+      syncBillIdType()
     } else {
       selectedClient.value = null
       form.client_id = null
@@ -605,11 +618,28 @@ watch(includeProjectAsSubject, (on) => {
   }
 })
 
-// Mirrors determine_tax_type() in app/routers/invoices.py exactly.
-// Registered client -> judged on their GSTIN state code ("27" = Maharashtra,
-// our home state). No GSTIN -> unregistered, billed against PAN, so the place
-// of supply is our own location: intra-state, always CGST+SGST, never IGST.
+// Explicit choice of what the client is billed against. 'pan' always means
+// CGST+SGST (no GSTIN => intra-state, never IGST); 'gstin' is judged on the
+// GSTIN's state code ("27" = Maharashtra, our home state). This is a deliberate
+// toggle rather than an inference, so a business without GST registration can
+// be billed on PAN without IGST ever creeping in.
+const billIdType = ref('gstin')  // 'gstin' | 'pan'
+
+function setBillIdType(t) {
+  billIdType.value = t
+  // In PAN mode there is no GSTIN — clear it so nothing can trigger IGST,
+  // on this form or in the backend (which keys tax off GSTIN presence).
+  if (t === 'pan') form.bill_to_gstin = ''
+}
+
+// Pick the sensible default whenever a client/invoice loads: PAN when there's
+// no GSTIN to bill against, GSTIN otherwise.
+function syncBillIdType() {
+  billIdType.value = form.bill_to_gstin ? 'gstin' : 'pan'
+}
+
 const taxType = computed(() => {
+  if (billIdType.value === 'pan') return 'CGST_SGST'
   const gst = form.bill_to_gstin
   if (gst && gst.length >= 2) return gst.startsWith('27') ? 'CGST_SGST' : 'IGST'
   return 'CGST_SGST'
@@ -617,10 +647,9 @@ const taxType = computed(() => {
 
 const taxTypeIndicator = computed(() => {
   if (taxType.value === 'CGST_SGST') {
-    const viaPan = !form.bill_to_gstin
     return {
-      text: viaPan
-        ? 'Tax: CGST + SGST (no GSTIN — billed against PAN)'
+      text: billIdType.value === 'pan'
+        ? 'Tax: CGST + SGST (billed against PAN — no IGST)'
         : 'Tax: CGST + SGST (split per item bracket)',
       class: 'indicator-teal',
     }
@@ -879,6 +908,20 @@ const submitInvoice = async () => {
   margin-bottom: 14px;
 }
 .form-group:last-child { margin-bottom: 0; }
+
+/* GSTIN / PAN segmented toggle */
+.idtype-toggle { display: inline-flex; border: 1px solid var(--color-outline); border-radius: var(--radius-md); overflow: hidden; width: fit-content; }
+.idtype-toggle button {
+  padding: 7px 18px; border: none; background: var(--color-surface); cursor: pointer;
+  font-size: 12px; font-weight: 700; color: var(--color-on-surface-variant); transition: background .15s, color .15s;
+}
+.idtype-toggle button + button { border-left: 1px solid var(--color-outline); }
+.idtype-toggle button.active { background: var(--color-primary); color: #fff; }
+.idtype-hint {
+  display: flex; align-items: center; gap: 5px; margin: 4px 0 0;
+  font-size: 11px; color: #059669;
+}
+.idtype-hint .material-symbols-outlined { font-size: 14px; }
 
 .form-group label {
   font-size: 11px;
