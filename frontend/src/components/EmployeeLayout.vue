@@ -184,6 +184,9 @@ const navItems = computed(() => {
     { path: '/employee/salary', icon: 'payments', label: 'Salary' },
     { path: '/employee/reimbursements', icon: 'receipt_long', label: 'Reimbursements' },
     { path: '/employee/projects', icon: 'architecture', label: 'Projects' },
+    // Also in the footer dropdown, but that is hard to reach on a phone —
+    // keep a first-class nav entry so the profile is always one tap away.
+    { path: '/employee/profile', icon: 'person', label: 'My Profile' },
   ]
 
   if (authStore.role === 'admin') {

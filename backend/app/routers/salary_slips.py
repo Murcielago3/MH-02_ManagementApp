@@ -802,11 +802,15 @@ def render_salary_slip_html(slip, employee, settings, reimb_total) -> str:
     </tr>
     <tr>
       <td class="lbl">Emp DOJ:</td><td class="val">{doj}</td>
-      <td class="lbl">Gender:</td><td class="val">{employee.gender or ''}</td>
+      <td class="lbl">IFSC:</td><td class="val">{employee.bank_ifsc_code or ''}</td>
     </tr>
     <tr>
       <td class="lbl">Location:</td><td class="val">{employee.location or ''}</td>
+      <td class="lbl">Gender:</td><td class="val">{employee.gender or ''}</td>
+    </tr>
+    <tr>
       <td class="lbl">Emp PAN:</td><td class="val">{employee.pan_number or ''}</td>
+      <td class="lbl"></td><td class="val"></td>
     </tr>
   </table>
 

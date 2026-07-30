@@ -226,18 +226,27 @@ async def update_user(
     update_data.pop("salary_month", None)
     update_data.pop("salary_hour", None)
 
+    # Bank details: anyone may maintain their OWN (they're paid into that
+    # account and it prints on their salary slip); otherwise admin-only, so a
+    # project manager can never edit someone else's. Note bank_ifsc_code was
+    # previously guarded by neither list — it was editable by anyone.
+    BANK_FIELDS = ("bank_name", "bank_account_number", "bank_ifsc_code")
+    if not (is_self or is_admin):
+        for field in BANK_FIELDS:
+            update_data.pop(field, None)
+    bank_changed = [f for f in BANK_FIELDS if f in update_data]
+
     # Employees (non-managers) cannot edit any HR/profile-sensitive fields.
     if not is_manager:
         for field in (
             "role", "joining_date", "end_date", "leaves_allowed", "paid_leave_balance",
             "manager_id", "is_active", "pan_number", "aadhar_number",
-            "bank_name", "bank_account_number",
         ):
             update_data.pop(field, None)
 
-    # Identity + bank details are strictly admin-only (not project_manager).
+    # Identity documents are strictly admin-only (not project_manager).
     if not is_admin:
-        for field in ("pan_number", "aadhar_number", "bank_name", "bank_account_number"):
+        for field in ("pan_number", "aadhar_number"):
             update_data.pop(field, None)
 
     for field, value in update_data.items():
@@ -245,6 +254,14 @@ async def update_user(
             setattr(user, "hashed_password", hash_password(value))
         else:
             setattr(user, field, value)
+
+    # Bank details decide where salary actually lands, so record who changed
+    # them. The account number itself is not logged.
+    if bank_changed:
+        await log_audit(
+            db, current_user, "user.bank_details_updated", "user", user.id,
+            summary=f"Updated bank details for {user.name} ({', '.join(bank_changed)})",
+        )
 
     await db.commit()
     await db.refresh(user)

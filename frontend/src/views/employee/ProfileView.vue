@@ -81,6 +81,27 @@
                 <span class="detail-label">Leaves Allowed</span>
                 <span class="detail-value">{{ Number(user.paid_leave_balance || 0) }} days available</span>
               </div>
+              <div class="detail-item">
+                <span class="detail-label">Bank Name</span>
+                <span class="detail-value">{{ user.bank_name || '—' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Account Number</span>
+                <span class="detail-value">{{ user.bank_account_number || '—' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">IFSC Code</span>
+                <span class="detail-value">{{ user.bank_ifsc_code || '—' }}</span>
+              </div>
+            </div>
+
+            <!-- Bank details drive where salary is actually paid, so prompt if missing. -->
+            <div v-if="bankIncomplete" class="bank-warn">
+              <span class="material-symbols-outlined">account_balance</span>
+              <div>
+                <strong>Add your bank details</strong> — they appear on your salary
+                slip and are where your salary is paid. Use <em>Edit Profile</em> above.
+              </div>
             </div>
           </div>
         </div>
@@ -245,6 +266,30 @@
               <input v-model="editForm.aadhar_number" type="text" readonly class="field-input readonly-input" />
             </div>
           </div>
+
+          <!-- Bank details — self-service; printed on the salary slip. -->
+          <div class="form-section-label">
+            <span class="material-symbols-outlined">account_balance</span>
+            Bank details
+            <span class="readonly-note">— shown on your salary slip</span>
+          </div>
+          <div class="form-group">
+            <label>Bank Name</label>
+            <input v-model="editForm.bank_name" type="text" placeholder="e.g. HDFC Bank" class="field-input" />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Account Number</label>
+              <input v-model="editForm.bank_account_number" type="text" inputmode="numeric"
+                     placeholder="e.g. 50100123456789" class="field-input" />
+            </div>
+            <div class="form-group">
+              <label>IFSC Code</label>
+              <input v-model="editForm.bank_ifsc_code" type="text" placeholder="e.g. HDFC0001234"
+                     class="field-input ifsc-input" maxlength="11" />
+            </div>
+          </div>
+          <p v-if="ifscError" class="field-error">{{ ifscError }}</p>
           <div class="modal-actions">
             <button type="button" class="btn-ghost" @click="showEditModal = false">Cancel</button>
             <button type="submit" class="btn-primary" :disabled="updating">
@@ -350,7 +395,10 @@ const fetchUserData = async () => {
       emergency_contact_number: res.data.emergency_contact_number || '',
       emergency_contact_relationship: res.data.emergency_contact_relationship || '',
       pan_number: res.data.pan_number || '',
-      aadhar_number: res.data.aadhar_number || ''
+      aadhar_number: res.data.aadhar_number || '',
+      bank_name: res.data.bank_name || '',
+      bank_account_number: res.data.bank_account_number || '',
+      bank_ifsc_code: res.data.bank_ifsc_code || '',
     }
   } catch (err) {
     console.error('Failed to load user', err)
@@ -392,15 +440,41 @@ const handlePhotoChange = async (e) => {
     console.error(err)
   }
 }
+// Bank details are only useful if complete — a slip with a name but no account
+// number is no help to whoever runs payroll.
+const bankIncomplete = computed(() => {
+  const u = user.value
+  if (!u) return false
+  return !u.bank_name || !u.bank_account_number || !u.bank_ifsc_code
+})
+
+// RBI IFSC format: 4 letters, then 0, then 6 alphanumerics.
+const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/
+const ifscError = computed(() => {
+  const v = (editForm.value.bank_ifsc_code || '').trim().toUpperCase()
+  if (!v) return ''
+  return IFSC_RE.test(v) ? '' : 'IFSC should look like HDFC0001234 (4 letters, 0, then 6 characters).'
+})
+
 const handleUpdateProfile = async () => {
+  if (ifscError.value) return
   updating.value = true
   try {
-    const res = await usersAPI.updateUser(user.value.id, editForm.value)
+    // Normalise before saving: IFSC is conventionally upper-case, and stray
+    // spaces in an account number break payment files.
+    const payload = {
+      ...editForm.value,
+      bank_ifsc_code: (editForm.value.bank_ifsc_code || '').trim().toUpperCase(),
+      bank_account_number: (editForm.value.bank_account_number || '').replace(/\s/g, ''),
+      bank_name: (editForm.value.bank_name || '').trim(),
+    }
+    const res = await usersAPI.updateUser(user.value.id, payload)
     user.value = res.data
     showEditModal.value = false
     notifySuccess('Profile updated.')
   } catch (err) {
     console.error(err)
+    alert(err.response?.data?.detail || 'Could not save your profile.')
   } finally {
     updating.value = false
   }
@@ -879,6 +953,38 @@ const formatCurrency = (val) => {
 
 @keyframes spin { 100% { transform: rotate(360deg); } }
 
+.form-section-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-outline);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-on-surface-variant);
+}
+.form-section-label .material-symbols-outlined { font-size: 16px; color: var(--color-primary); }
+.ifsc-input { text-transform: uppercase; }
+.field-error { margin: 0; font-size: 11px; color: var(--color-error); }
+
+.bank-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  line-height: 1.5;
+  color: #92400e;
+}
+.bank-warn .material-symbols-outlined { font-size: 18px; flex-shrink: 0; }
+
 @media (max-width: 768px) {
   .profile-layout { flex-direction: column; }
   .profile-sidebar { width: 100%; }
@@ -887,5 +993,10 @@ const formatCurrency = (val) => {
   .doc-grid { grid-template-columns: 1fr; }
   .modal { max-width: 100%; width: 100%; }
   .modal-backdrop { padding: 8px; }
+  /* Two-up field rows are unusable at phone widths — stack them. */
+  .form-row { grid-template-columns: 1fr; }
+  .modal-card { max-width: 100%; border-radius: var(--radius-lg); }
+  .details-grid { grid-template-columns: 1fr; }
+  .detail-item:nth-child(odd) { border-right: none; }
 }
 </style>
