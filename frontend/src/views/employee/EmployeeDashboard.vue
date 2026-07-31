@@ -113,6 +113,7 @@ import { leavesAPI } from '../../api/leaves'
 import { projectsAPI } from '../../api/projects'
 import { holidaysAPI } from '../../api/holidays'
 import { stagesAPI } from '../../api/stages'
+import { toLocalDateStr } from '../../utils/date'
 import { useTimesheetStore } from '../../stores/timesheet'
 
 const router = useRouter()
@@ -146,7 +147,7 @@ function showToast(msg, type = 'success') {
 
 // Date logic
 const today = new Date()
-const todayStr = today.toISOString().split('T')[0]
+const todayStr = toLocalDateStr(today)
 const formattedToday = today.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
 
 onMounted(async () => {

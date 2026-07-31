@@ -99,6 +99,7 @@ import CurrencyInput from '../../components/CurrencyInput.vue'
 import { notifySuccess } from '../../stores/notifier'
 import { reimbursementsAPI } from '../../api/reimbursements'
 import { usersAPI } from '../../api/users'
+import { toLocalDateStr } from '../../utils/date'
 
 const history = ref([])
 const loadingHistory = ref(true)
@@ -106,7 +107,7 @@ const submitting = ref(false)
 const fileInput = ref(null)
 const selectedFile = ref(null)
 
-const todayDate = new Date().toISOString().split('T')[0]
+const todayDate = toLocalDateStr()
 
 const form = reactive({
   amount: '',

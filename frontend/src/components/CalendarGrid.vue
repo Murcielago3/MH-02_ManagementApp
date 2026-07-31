@@ -190,7 +190,8 @@ function deadlinesOn(dateStr) { return deadlinesByDate.value[dateStr] || [] }
 const viewMode = ref('week')
 const anchorDate = ref(new Date())
 
-const todayStr = new Date().toISOString().split('T')[0]
+// Local date, for the same reason as toStr() below (function is hoisted).
+const todayStr = toStr(new Date())
 
 // ── Delay detection ──
 // Driven by subtask deadlines only. A parent task running past its own end date
@@ -523,7 +524,17 @@ onUnmounted(() => {
 })
 
 // ── Helpers ──
-function toStr(d) { return d.toISOString().split('T')[0] }
+// Local calendar date as YYYY-MM-DD. Must NOT use toISOString(): the grid
+// builds Date objects at LOCAL midnight, and in any timezone ahead of UTC
+// (IST is +5:30) toISOString() rolls back to the previous day — which shifted
+// every cell key by one, so "today", holidays, leaves, ribbons and subtask
+// deadlines all landed on the wrong date.
+function toStr(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 function daysBetween(a, b) {
   return Math.round((new Date(b) - new Date(a)) / (1000 * 60 * 60 * 24))
 }

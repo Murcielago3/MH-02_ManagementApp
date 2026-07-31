@@ -156,6 +156,7 @@
 <script setup>
 import { computed, ref, watch, nextTick } from 'vue'
 import { subtasksAPI } from '../api/subtasks'
+import { toLocalDateStr } from '../utils/date'
 
 const props = defineProps({
   task: { type: Object, required: true },
@@ -186,7 +187,7 @@ const subtasksLoading = ref(false)
 const addingSubtask = ref(false)
 const subtaskSubmitting = ref(false)
 const subtaskTitleRef = ref(null)
-const todayStr = new Date().toISOString().split('T')[0]
+const todayStr = toLocalDateStr()
 const blankSubtask = () => ({ title: '', description: '', due_date: '' })
 const newSubtask = ref(blankSubtask())
 

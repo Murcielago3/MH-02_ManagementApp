@@ -99,6 +99,7 @@
 <script setup>
 import { reactive, ref, computed, onMounted } from 'vue'
 import { tasksAPI } from '../api/tasks'
+import { toLocalDateStr } from '../utils/date'
 
 const props = defineProps({
   project: { type: Object, required: true },
@@ -138,7 +139,7 @@ function formatDate(ds) {
 }
 
 const form = reactive({
-  date: new Date().toISOString().split('T')[0],
+  date: toLocalDateStr(),
   end_date: '',
   priority: 'medium',
   duration_hours: null,

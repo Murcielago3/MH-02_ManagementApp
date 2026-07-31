@@ -170,6 +170,7 @@ import { countWorkingDays } from '../../stores/estimate'
 import { usersAPI } from '../../api/users'
 import { leavesAPI } from '../../api/leaves'
 import { notifySuccess } from '../../stores/notifier'
+import { toLocalDateStr } from '../../utils/date'
 
 const currentUser = ref(null)
 const leaveHistory = ref([])
@@ -177,7 +178,7 @@ const loadingHistory = ref(true)
 const submitting = ref(false)
 const overtime = ref({ available: 0, credits: [] })
 
-const todayDate = new Date().toISOString().split('T')[0]
+const todayDate = toLocalDateStr()
 
 // Employees can backdate leaves to the start of the current calendar month —
 // for emergencies or forgotten applications, and to stay aligned with the
