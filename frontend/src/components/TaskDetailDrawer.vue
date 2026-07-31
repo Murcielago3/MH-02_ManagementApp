@@ -60,6 +60,9 @@
             Assign this task to a project to link it to a stage.
           </div>
           <div v-else-if="stagesLoading" class="subtasks-empty">Loading stages…</div>
+          <div v-else-if="stagesError" class="subtasks-empty error">
+            Couldn't load this project's stages. {{ stagesError }}
+          </div>
           <div v-else-if="!stages.length" class="subtasks-empty">
             This project has no stages yet.
           </div>
@@ -67,16 +70,21 @@
             <select
               v-model="selectedStageId"
               class="stage-select"
-              :disabled="!canEditStageLink || savingStage"
-              @change="saveStage"
+              :disabled="savingStage"
+              @change="onStageChange"
             >
-              <option :value="null">— No stage —</option>
+              <option :value="null">— Select a stage —</option>
               <option v-for="st in stages" :key="st.id" :value="st.id">
                 {{ st.name }} · {{ st.completion_percent }}% complete
               </option>
             </select>
 
-            <!-- Subtasks of the linked stage -->
+            <p v-if="!canEditStageLink" class="stage-hint">
+              Only an admin can attach a stage to this task band — your choice here
+              just picks which stage's subtasks you're working on.
+            </p>
+
+            <!-- Subtasks of the selected stage -->
             <div v-if="selectedStage" class="stage-subs">
               <div class="subtasks-header">
                 <h4>
@@ -204,6 +212,7 @@ const formatStatus = (s) => {
 // stages, so a task band links to a stage and shows that stage's subtasks.
 const stages = ref([])
 const stagesLoading = ref(false)
+const stagesError = ref('')
 const savingStage = ref(false)
 const selectedStageId = ref(props.task.stage_id ?? null)
 const addingSubtask = ref(false)
@@ -223,6 +232,7 @@ const selectedStage = computed(() =>
 
 async function loadStages() {
   stages.value = []
+  stagesError.value = ''
   if (!props.task?.project_id) return
   stagesLoading.value = true
   try {
@@ -230,6 +240,7 @@ async function loadStages() {
     stages.value = data.stages || []
   } catch (err) {
     stages.value = []
+    stagesError.value = err?.response?.data?.detail || 'Please try again.'
   } finally {
     stagesLoading.value = false
   }
@@ -240,7 +251,10 @@ watch(() => props.task?.id, () => {
   loadStages()
 }, { immediate: true })
 
-async function saveStage() {
+// Admins persist the stage onto the task band. A PM's selection is local only:
+// it decides which stage's subtasks they're managing, without re-linking the task.
+async function onStageChange() {
+  if (!canEditStageLink.value) return
   savingStage.value = true
   try {
     await tasksAPI.patchTask(props.task.id, { stage_id: selectedStageId.value })
@@ -601,6 +615,8 @@ async function removeSubtask(s) {
 .subtask-remove:hover { background: #fee2e2; color: var(--color-error); }
 .subtask-remove .material-symbols-outlined { font-size: 16px; }
 
+.subtasks-empty.error { color: var(--color-error, #dc2626); font-style: normal; }
+.stage-hint { font-size: 11px; color: var(--color-on-surface-variant); margin: 6px 0 0; line-height: 1.5; }
 .subtasks-empty {
   font-size: 12px;
   color: var(--color-on-surface-variant);

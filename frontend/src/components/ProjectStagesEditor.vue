@@ -117,7 +117,15 @@
               >
                 <span v-if="t.status === 'completed'" class="material-symbols-outlined">check</span>
               </button>
-              <div class="sub-body">
+              <!-- Inline edit: title + deadline -->
+              <div v-if="editingSubId === t.id" class="sub-edit">
+                <input v-model="editSubTitle" class="inp" placeholder="Subtask title"
+                       @keyup.enter="saveSubEdit(t)" />
+                <input v-model="editSubDue" type="date" class="inp inp-date" />
+                <button class="btn-mini primary" :disabled="!editSubTitle.trim()" @click="saveSubEdit(t)">Save</button>
+                <button class="btn-mini" @click="editingSubId = null">Cancel</button>
+              </div>
+              <div v-else class="sub-body">
                 <div class="sub-title">{{ t.title }}</div>
                 <div class="sub-meta">
                   <span v-if="t.due_date" :class="{ late: t.is_overdue }">
@@ -138,6 +146,10 @@
                   </span>
                 </div>
               </div>
+              <button v-if="canEditSubtasks && editingSubId !== t.id" class="icon-btn sm"
+                      title="Edit subtask" @click="startEditSub(t)">
+                <span class="material-symbols-outlined">edit</span>
+              </button>
               <button v-if="canEditSubtasks" class="icon-btn danger sm" title="Delete" @click="removeSub(t)">
                 <span class="material-symbols-outlined">close</span>
               </button>
@@ -197,6 +209,9 @@ const editPct = ref(null)
 const addingFor = ref(null)
 const newSub = ref({ title: '', due_date: '' })
 const newStage = ref({ name: '', percentage: null })
+const editingSubId = ref(null)
+const editSubTitle = ref('')
+const editSubDue = ref('')
 const errorMsg = ref('')
 
 const allocatedPct = computed(() => Number(props.data.allocated_percent) || 0)
@@ -313,6 +328,22 @@ async function submitSub(stageId) {
     emit('changed')
   } catch (e) { fail(e, 'Could not add the subtask.') }
 }
+function startEditSub(t) {
+  editingSubId.value = t.id
+  editSubTitle.value = t.title
+  editSubDue.value = t.due_date || ''
+}
+
+async function saveSubEdit(t) {
+  const title = editSubTitle.value.trim()
+  if (!title) return
+  try {
+    await stagesAPI.updateSubtask(t.id, { title, due_date: editSubDue.value || null })
+    editingSubId.value = null
+    emit('changed')
+  } catch (e) { fail(e, 'Could not save the subtask.') }
+}
+
 async function toggleSub(t) {
   try {
     await stagesAPI.updateSubtask(t.id, { status: t.status === 'completed' ? 'pending' : 'completed' })
@@ -413,6 +444,7 @@ async function removeSub(t) {
 .sub-check:disabled { cursor: not-allowed; opacity: .6; }
 .sub-check .material-symbols-outlined { font-size: 11px; color: #fff; }
 .sub-body { flex: 1; min-width: 0; }
+.sub-edit { flex: 1; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .sub-title { font-size: 13px; font-weight: 600; color: var(--color-on-surface); }
 .sub-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 2px; font-size: 11px; color: var(--color-on-surface-variant); }
 .sub-meta .material-symbols-outlined { font-size: 12px; vertical-align: -2px; }
