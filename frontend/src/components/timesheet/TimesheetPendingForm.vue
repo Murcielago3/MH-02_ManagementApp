@@ -47,8 +47,10 @@
 
                 <template v-if="row.project_id && stagesFor(row.project_id).length">
                   <span class="ec-arrow material-symbols-outlined">chevron_right</span>
-                  <select v-model="row.stage_id" class="ec-select ec-stage" @change="row.subtask_id = null">
-                    <option :value="null">Stage (optional)</option>
+                  <select v-model="row.stage_id" required class="ec-select ec-stage"
+                          :class="{ missing: rowTotal(ri) > 0 && !row.stage_id }"
+                          @change="row.subtask_id = null">
+                    <option :value="null" disabled>Select stage…</option>
                     <option v-for="s in stagesFor(row.project_id)" :key="s.id" :value="s.id">
                       {{ s.name }} · {{ s.completion_percent }}%
                     </option>
@@ -370,6 +372,14 @@ const missingItems = computed(() => {
   if (rows.value.some(r => !r.project_id && rowTotalForRow(r) > 0)) {
     out.push('Select a project for every row that has hours logged.')
   }
+  // A stage is required once the project defines any — hours must be
+  // attributable to a stage so stage progress and spend stay meaningful.
+  if (rows.value.some(r =>
+    r.project_id && rowTotalForRow(r) > 0 &&
+    stagesFor(r.project_id).length > 0 && !r.stage_id
+  )) {
+    out.push('Select a stage for every row logged against a project that uses stages.')
+  }
   if (active.length === 0) {
     out.push('Log hours for at least one project.')
   }
@@ -609,6 +619,8 @@ label {
 .ec-select:focus { border-color: var(--color-primary); }
 .ec-project { font-weight: 700; min-width: 160px; }
 .ec-stage, .ec-sub { font-size: 12px; background: var(--color-surface-container-lowest, #f8fafc); }
+/* A staged project with hours but no stage picked — flag it before submit. */
+.ec-select.missing { border-color: #dc2626; background: #fef2f2; }
 .ec-arrow { font-size: 16px; color: var(--color-outline); flex-shrink: 0; }
 
 .ec-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }

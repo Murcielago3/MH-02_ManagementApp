@@ -195,6 +195,29 @@ async def submit_timesheet(
     def _entry_hours(e):
         return round(sum(float(h or 0) for h in e.daily_hours), 2)
 
+    # A stage is mandatory once its project defines any — otherwise hours can't
+    # be attributed to stage progress or spend. Projects without stages are
+    # unaffected, as are rows with no hours.
+    from app.models.project_stage import ProjectStage
+    worked_projects = {
+        e.project_id for e in data.entries if e.project_id and _entry_hours(e) > 0
+    }
+    if worked_projects:
+        staged = set((await db.execute(
+            select(ProjectStage.project_id)
+            .where(ProjectStage.project_id.in_(worked_projects))
+            .distinct()
+        )).scalars().all())
+        missing = [
+            e.project_id for e in data.entries
+            if e.project_id in staged and _entry_hours(e) > 0 and not e.stage_id
+        ]
+        if missing:
+            raise HTTPException(
+                400,
+                "This project uses stages — pick the stage each row's hours belong to.",
+            )
+
     total_hours = round(sum(_entry_hours(e) for e in data.entries), 2)
 
     timesheet = WeeklyTimesheet(

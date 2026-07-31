@@ -99,7 +99,18 @@
       <div v-if="modalOpen" class="modal-backdrop">
         <div class="modal modal-wide">
           <div class="modal-header">
-            <h3 class="modal-title">{{ isEditing ? 'Edit Project' : 'Add New Project' }}</h3>
+            <div class="modal-title-wrap">
+              <h3 class="modal-title">{{ isEditing ? 'Edit Project' : 'Add New Project' }}</h3>
+              <div class="wiz-steps">
+                <button v-for="st in wizardSteps" :key="st.n" type="button" class="wiz-pill"
+                        :class="{ active: wizardStep === st.n, done: wizardStep > st.n, locked: st.n > 1 && !editingId }"
+                        :disabled="st.n > 1 && !editingId"
+                        :title="st.n > 1 && !editingId ? 'Save the details first' : ''"
+                        @click="goToStep(st.n)">
+                  <span class="wiz-num">{{ wizardStep > st.n ? '✓' : st.n }}</span>{{ st.label }}
+                </button>
+              </div>
+            </div>
             <button class="modal-close" @click="closeModal">
               <span class="material-symbols-outlined">close</span>
             </button>
@@ -114,6 +125,8 @@
               <button type="button" class="draft-discard-btn" @click="discardProjectDraft">Discard</button>
             </div>
 
+            <!-- ── Step 1: details ── -->
+            <div v-show="wizardStep === 1" class="wiz-step">
             <div class="form-grid">
               <!-- Project Number -->
               <div class="form-field">
@@ -199,26 +212,95 @@
                 </div>
               </div>
 
-              <!-- Total Assigned Hours -->
-              <div class="form-field span-2">
-                <label>Total Assigned Hours</label>
-                <input v-model.number="form.total_assigned_hours" type="number" step="0.5" placeholder="e.g. 500" />
+            </div>
+            </div><!-- /step 1 -->
+
+            <!-- ── Step 2: timeline, money, stages ── -->
+            <div v-show="wizardStep === 2" class="wiz-step">
+              <div class="form-grid">
+                <div class="form-field">
+                  <label>Start Date</label>
+                  <input v-model="form.start_date" type="date" />
+                </div>
+                <div class="form-field">
+                  <label>End Date</label>
+                  <input v-model="form.end_date" type="date" />
+                </div>
+                <div class="form-field span-2 timeline-calc" v-if="form.start_date && form.end_date">
+                  <div class="tc-item">
+                    <span class="tc-label">Working days (Mon–Fri)</span>
+                    <span class="tc-value">{{ timelineWorkingDays }}</span>
+                  </div>
+                  <div class="tc-item">
+                    <span class="tc-label">Calendar days</span>
+                    <span class="tc-value">{{ timelineCalendarDays }}</span>
+                  </div>
+                  <div class="tc-item" v-if="timelineInvalid">
+                    <span class="tc-warn">
+                      <span class="material-symbols-outlined">warning</span> End date is before the start date.
+                    </span>
+                  </div>
+                </div>
+
+                <div class="form-field">
+                  <label>Total Assigned Hours</label>
+                  <input v-model.number="form.total_assigned_hours" type="number" step="0.5" placeholder="e.g. 500" />
+                  <small v-if="suggestedHours" class="field-hint">
+                    Suggested from timeline: {{ suggestedHours }}h ({{ timelineWorkingDays }} days × 8)
+                    <button type="button" class="link-btn" @click="form.total_assigned_hours = suggestedHours">use</button>
+                  </small>
+                </div>
+                <div class="form-field">
+                  <label>Total Project Cost (₹)</label>
+                  <CurrencyInput v-model="form.project_remuneration" placeholder="₹ 0.00" />
+                </div>
+                <div class="form-field">
+                  <label>Advance Received (₹)</label>
+                  <CurrencyInput v-model="form.advance_amount" placeholder="₹ 0.00" />
+                  <small class="field-hint">Included in the total cost; stages divide what remains.</small>
+                </div>
+                <div class="form-field">
+                  <label>Employee Remuneration (₹)</label>
+                  <CurrencyInput v-model="form.employee_remuneration" placeholder="₹ 0.00" />
+                </div>
+                <div class="form-field span-2">
+                  <label>Partner Remuneration (₹)</label>
+                  <CurrencyInput v-model="form.partner_remuneration" placeholder="₹ 0.00" />
+                </div>
               </div>
 
-              <!-- Remuneration Fields -->
-              <div class="form-field">
-                <label>Total Project Cost (₹)</label>
-                <CurrencyInput v-model="form.project_remuneration" placeholder="₹ 0.00" />
+              <div class="wiz-divider"><span>Project stages</span></div>
+              <div v-if="!editingId" class="wiz-note">
+                Save the details first — stages attach to the saved project.
               </div>
-              <div class="form-field">
-                <label>Employee Remuneration (₹)</label>
-                <CurrencyInput v-model="form.employee_remuneration" placeholder="₹ 0.00" />
-              </div>
-              <div class="form-field span-2">
-                <label>Partner Remuneration (₹)</label>
-                <CurrencyInput v-model="form.partner_remuneration" placeholder="₹ 0.00" />
-              </div>
+              <div v-else-if="stagesLoading" class="wiz-note">Loading stages…</div>
+              <ProjectStagesEditor
+                v-else-if="stageData"
+                :data="stageData"
+                :can-edit-stages="true"
+                :can-edit-subtasks="true"
+                @changed="loadStages"
+              />
+            </div>
 
+            <!-- ── Step 3: subtasks (skippable) ── -->
+            <div v-show="wizardStep === 3" class="wiz-step">
+              <p class="wiz-intro">
+                Add subtasks to each stage. These become the studio-wide todo list —
+                employees pick them on their timesheets and their deadlines show on calendars.
+                <strong>This step is optional.</strong>
+              </p>
+              <div v-if="stagesLoading" class="wiz-note">Loading…</div>
+              <ProjectStagesEditor
+                v-else-if="stageData && stageData.stages.length"
+                :data="stageData"
+                :can-edit-stages="true"
+                :can-edit-subtasks="true"
+                @changed="loadStages"
+              />
+              <div v-else class="wiz-note">
+                No stages defined — go back to step 2 to add some, or finish without subtasks.
+              </div>
             </div>
 
             <div v-if="formError" class="form-error">
@@ -228,8 +310,18 @@
 
             <div class="modal-footer">
               <button type="button" class="btn-cancel" @click="closeModal">Cancel</button>
-              <button type="submit" class="btn-submit" :disabled="submitting">
-                {{ submitting ? 'Saving…' : (isEditing ? 'Save Changes' : 'Add Project') }}
+              <span class="footer-spacer"></span>
+              <button v-if="wizardStep > 1" type="button" class="btn-cancel" @click="wizardStep--">
+                <span class="material-symbols-outlined">arrow_back</span> Back
+              </button>
+              <button v-if="wizardStep === 3" type="button" class="btn-cancel" @click="finishWizard">
+                Skip &amp; finish
+              </button>
+              <button v-if="wizardStep < 3" type="submit" class="btn-submit" :disabled="submitting">
+                {{ submitting ? 'Saving…' : (wizardStep === 1 ? 'Save &amp; continue' : 'Continue') }}
+              </button>
+              <button v-else type="button" class="btn-submit" @click="finishWizard">
+                Done
               </button>
             </div>
           </form>
@@ -284,6 +376,9 @@ import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 import EmployeeLayout from '../components/EmployeeLayout.vue'
 import CurrencyInput from '../components/CurrencyInput.vue'
+import ProjectStagesEditor from '../components/ProjectStagesEditor.vue'
+import { stagesAPI } from '../api/stages'
+import { countWorkingDays, countCalendarDays } from '../stores/estimate'
 import ToastNotification from '../components/ToastNotification.vue'
 import AssignProjectModal from '../components/AssignProjectModal.vue'
 import { useAuthStore } from '../stores/auth'
@@ -319,6 +414,52 @@ const filterClient = ref('')
 
 const modalOpen = ref(false)
 const isEditing = ref(false)
+
+// ── Creation wizard ──
+// Step 1 saves the project (stages need a real project_id), so steps 2-3
+// operate on the saved record. Editing an existing project starts on step 1
+// with every step already unlocked.
+const wizardStep = ref(1)
+const wizardSteps = [
+  { n: 1, label: 'Details' },
+  { n: 2, label: 'Timeline & Stages' },
+  { n: 3, label: 'Subtasks' },
+]
+const stageData = ref(null)
+const stagesLoading = ref(false)
+
+// Working days between the project dates — same Mon-Fri rule as estimates.
+const timelineWorkingDays = computed(() => countWorkingDays(form.start_date, form.end_date))
+const timelineCalendarDays = computed(() => countCalendarDays(form.start_date, form.end_date))
+const timelineInvalid = computed(() =>
+  !!form.start_date && !!form.end_date && new Date(form.end_date) < new Date(form.start_date))
+const suggestedHours = computed(() =>
+  timelineWorkingDays.value > 0 ? timelineWorkingDays.value * 8 : 0)
+
+function goToStep(n) {
+  if (n > 1 && !editingId.value) return
+  wizardStep.value = n
+  if (n > 1) loadStages()
+}
+
+async function loadStages() {
+  if (!editingId.value) { stageData.value = null; return }
+  stagesLoading.value = true
+  try {
+    const { data } = await stagesAPI.list(editingId.value)
+    stageData.value = data
+  } catch (e) {
+    stageData.value = null
+  } finally {
+    stagesLoading.value = false
+  }
+}
+
+function finishWizard() {
+  closeModal()
+  toast('Project saved.')
+  fetchAll()
+}
 const editingId = ref(null)
 const submitting = ref(false)
 const formError = ref('')
@@ -351,6 +492,9 @@ const form = reactive({
   is_billed: 'unbilled',
   client_id: null,
   total_assigned_hours: null,
+  start_date: '',
+  end_date: '',
+  advance_amount: null,
   project_remuneration: null,
   employee_remuneration: null,
   partner_remuneration: null,
@@ -561,6 +705,9 @@ function resetForm() {
   form.is_billed = 'unbilled'
   form.client_id = null
   form.total_assigned_hours = null
+  form.start_date = ''
+  form.end_date = ''
+  form.advance_amount = null
   form.project_remuneration = null
   form.employee_remuneration = null
   form.partner_remuneration = null
@@ -572,6 +719,8 @@ async function openAddModal() {
   resetForm()
   isEditing.value = false
   editingId.value = null
+  wizardStep.value = 1
+  stageData.value = null
   modalOpen.value = true
 
   try {
@@ -607,12 +756,21 @@ function openEditModal(p) {
   form.project_remuneration = p.project_remuneration ? Number(p.project_remuneration) : null
   form.employee_remuneration = p.employee_remuneration ? Number(p.employee_remuneration) : null
   form.partner_remuneration = p.partner_remuneration ? Number(p.partner_remuneration) : null
+  form.start_date = p.start_date || ''
+  form.end_date = p.end_date || ''
+  form.advance_amount = p.advance_amount ? Number(p.advance_amount) : null
   form.color = p.color || '#B5EAD7'
   formError.value = ''
+  wizardStep.value = 1
   modalOpen.value = true
+  loadStages()
 }
 
-function closeModal() { modalOpen.value = false }
+function closeModal() {
+  modalOpen.value = false
+  wizardStep.value = 1
+  stageData.value = null
+}
 
 function goToSummary(p) {
   router.push(`/admin/projects/summary/${p.id}`)
@@ -643,20 +801,32 @@ async function handleSubmit() {
       is_billed: form.is_billed,
       client_id: form.client_id || null,
       total_assigned_hours: form.total_assigned_hours,
+      start_date: form.start_date || null,
+      end_date: form.end_date || null,
+      advance_amount: form.advance_amount,
       project_remuneration: form.project_remuneration,
       employee_remuneration: form.employee_remuneration,
       partner_remuneration: form.partner_remuneration,
       color: form.color,
     }
-    if (isEditing.value) {
+    if (editingId.value) {
       await projectsAPI.updateProject(editingId.value, payload)
     } else {
-      await projectsAPI.createProject(payload)
+      const res = await projectsAPI.createProject(payload)
+      // Keep the modal open and switch to editing the freshly-created project,
+      // so steps 2-3 have a real project_id to attach stages to.
+      editingId.value = res.data.id
+      clearProjectDraft()
     }
-    if (!isEditing.value) clearProjectDraft()
-    closeModal()
-    toast(isEditing.value ? 'Project updated.' : 'Project created.')
     await fetchAll()
+    // Advance through the wizard rather than closing.
+    if (wizardStep.value < 3) {
+      wizardStep.value += 1
+      await loadStages()
+    } else {
+      closeModal()
+      toast('Project saved.')
+    }
   } catch (err) {
     formError.value = err.response?.data?.detail || 'Operation failed. Please try again.'
     toast(formError.value, 'error')
@@ -705,6 +875,53 @@ function getClientName(clientId) {
 </script>
 
 <style scoped>
+/* ── Creation wizard ── */
+.modal-title-wrap { display: flex; flex-direction: column; gap: 10px; }
+.wiz-steps { display: flex; gap: 6px; flex-wrap: wrap; }
+.wiz-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px 5px 6px; border-radius: 999px;
+  border: 1px solid var(--color-outline); background: var(--color-surface);
+  font-size: 12px; font-weight: 700; color: var(--color-on-surface-variant); cursor: pointer;
+}
+.wiz-pill.active { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-light, #e6f0f0); }
+.wiz-pill.done { color: #059669; border-color: #bbf7d0; background: #f0fdf4; }
+.wiz-pill.locked { opacity: .45; cursor: not-allowed; }
+.wiz-num {
+  width: 20px; height: 20px; border-radius: 50%; display: inline-flex;
+  align-items: center; justify-content: center; font-size: 11px;
+  background: var(--color-surface-container); color: inherit;
+}
+.wiz-pill.active .wiz-num { background: var(--color-primary); color: #fff; }
+.wiz-pill.done .wiz-num { background: #059669; color: #fff; }
+
+.wiz-step { display: flex; flex-direction: column; }
+.wiz-intro { font-size: 13px; color: var(--color-on-surface-variant); line-height: 1.6; margin: 0 0 12px; }
+.wiz-note {
+  font-size: 13px; color: var(--color-on-surface-variant); font-style: italic;
+  padding: 16px; background: var(--color-surface-dim, #f8fafc); border-radius: var(--radius-lg);
+}
+.wiz-divider {
+  display: flex; align-items: center; gap: 10px; margin: 20px 0 14px;
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--color-on-surface-variant);
+}
+.wiz-divider::after { content: ''; flex: 1; height: 1px; background: var(--color-outline); }
+
+.timeline-calc {
+  display: flex !important; flex-direction: row !important; gap: 24px; align-items: center;
+  padding: 12px 16px; background: var(--color-primary-light, #e6f0f0); border-radius: var(--radius-lg);
+}
+.tc-item { display: flex; flex-direction: column; gap: 1px; }
+.tc-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--color-primary); }
+.tc-value { font-size: 20px; font-weight: 800; color: var(--color-on-surface); font-variant-numeric: tabular-nums; }
+.tc-warn { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: #dc2626; }
+.tc-warn .material-symbols-outlined { font-size: 15px; }
+
+.field-hint { font-size: 11px; color: var(--color-on-surface-variant); margin-top: 3px; display: block; }
+.link-btn { background: none; border: none; padding: 0 0 0 4px; color: var(--color-primary); font-weight: 700; font-size: 11px; cursor: pointer; text-decoration: underline; }
+.footer-spacer { flex: 1; }
+
 /* ─── Material Symbols ─── */
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
