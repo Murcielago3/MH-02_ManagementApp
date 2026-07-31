@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 import logging
 import os
 from sqlalchemy import select as sa_select
-from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips, holidays, subtasks, salary as salary_router, audit as audit_router, exports as exports_router, drafts, reports as reports_router, stages as stages_router
+from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips, holidays, salary as salary_router, audit as audit_router, exports as exports_router, drafts, reports as reports_router, stages as stages_router
 
 
 security = HTTPBearer()
@@ -50,8 +50,6 @@ app.include_router(settings_router.router)
 app.include_router(estimates.router)
 app.include_router(salary_slips.router)
 app.include_router(holidays.router)
-app.include_router(subtasks.router)
-app.include_router(subtasks.single_router)
 app.include_router(salary_router.router)
 app.include_router(audit_router.router)
 app.include_router(exports_router.router)
@@ -565,6 +563,16 @@ async def run_migrations():
             ))
     except Exception:
         logging.exception("project_stages / stage_subtasks creation failed (non-fatal)")
+
+    # Task bands can belong to a project stage.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text(
+                "ALTER TABLE tasks ADD COLUMN stage_id INTEGER"
+                " REFERENCES project_stages(id) ON DELETE SET NULL"
+            ))
+    except Exception:
+        pass
 
     # Timesheet entries can point at the stage + subtask the hours went to.
     for col_name, col_def in [

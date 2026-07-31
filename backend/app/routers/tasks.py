@@ -5,33 +5,38 @@ from typing import Optional, List
 from datetime import date as date_type
 from pydantic import BaseModel
 from app.database import get_db
-from app.models import Task, User, Subtask
+from app.models import Task, User
+from app.models.project_stage import StageSubtask
 from app.auth import get_current_user, require_manager
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
-async def subtask_overdue_map(db: AsyncSession, task_ids: list) -> dict:
-    """{task_id: {"overdue_subtasks": n, "subtask_delay_days": worst}} for the
-    given tasks. Overdue = an unfinished subtask whose deadline has passed.
-    Parent-task deadlines are deliberately not considered here."""
-    if not task_ids:
+async def subtask_overdue_map(db: AsyncSession, tasks: list) -> dict:
+    """{task_id: {"overdue_subtasks": n, "subtask_delay_days": worst}}.
+
+    Driven by STAGE subtasks now: a task band inherits the overdue state of the
+    stage it belongs to. Tasks with no stage are never flagged. Parent-task
+    deadlines are deliberately not considered.
+    """
+    stage_ids = {t.stage_id for t in tasks if t.stage_id}
+    if not stage_ids:
         return {}
     today = date_type.today()
     rows = (await db.execute(
-        select(Subtask.task_id, Subtask.due_date).where(
-            Subtask.task_id.in_(task_ids),
-            Subtask.due_date.isnot(None),
-            Subtask.due_date < today,
-            Subtask.status != "completed",
+        select(StageSubtask.stage_id, StageSubtask.due_date).where(
+            StageSubtask.stage_id.in_(stage_ids),
+            StageSubtask.due_date.isnot(None),
+            StageSubtask.due_date < today,
+            StageSubtask.status != "completed",
         )
     )).all()
-    out = {}
-    for task_id, due in rows:
-        entry = out.setdefault(task_id, {"overdue_subtasks": 0, "subtask_delay_days": 0})
-        entry["overdue_subtasks"] += 1
-        entry["subtask_delay_days"] = max(entry["subtask_delay_days"], (today - due).days)
-    return out
+    by_stage: dict = {}
+    for stage_id, due in rows:
+        e = by_stage.setdefault(stage_id, {"overdue_subtasks": 0, "subtask_delay_days": 0})
+        e["overdue_subtasks"] += 1
+        e["subtask_delay_days"] = max(e["subtask_delay_days"], (today - due).days)
+    return {t.id: by_stage[t.stage_id] for t in tasks if t.stage_id in by_stage}
 
 
 def with_subtask_delay(task: Task, overdue: dict) -> dict:
@@ -46,6 +51,7 @@ def with_subtask_delay(task: Task, overdue: dict) -> dict:
         "priority": task.priority,
         "status": task.status,
         "project_id": task.project_id,
+        "stage_id": task.stage_id,
         "assigned_to": task.assigned_to,
         "assigned_by": task.assigned_by,
         "overdue_subtasks": info["overdue_subtasks"] if info else 0,
@@ -60,6 +66,7 @@ class TaskCreate(BaseModel):
     priority: str = "medium"
     assigned_to: int
     project_id: Optional[int] = None
+    stage_id: Optional[int] = None
     end_date: Optional[date_type] = None
 
 class TaskUpdate(BaseModel):
@@ -70,6 +77,7 @@ class TaskUpdate(BaseModel):
     priority: Optional[str] = None
     status: Optional[str] = None
     project_id: Optional[int] = None
+    stage_id: Optional[int] = None
     end_date: Optional[date_type] = None
     assigned_to: Optional[int] = None
 
@@ -91,7 +99,7 @@ async def list_tasks(
 
     result = await db.execute(query)
     tasks = result.scalars().all()
-    overdue = await subtask_overdue_map(db, [t.id for t in tasks])
+    overdue = await subtask_overdue_map(db, tasks)
     return [with_subtask_delay(t, overdue) for t in tasks]
 
 @router.get("/my")
@@ -102,7 +110,7 @@ async def my_tasks(
     query = select(Task).where(Task.assigned_to == current_user.id)
     result = await db.execute(query)
     tasks = result.scalars().all()
-    overdue = await subtask_overdue_map(db, [t.id for t in tasks])
+    overdue = await subtask_overdue_map(db, tasks)
     return [with_subtask_delay(t, overdue) for t in tasks]
 
 @router.get("/calendar")
@@ -146,7 +154,7 @@ async def calendar_tasks(
     result = await db.execute(query)
     tasks = result.scalars().all()
 
-    overdue = await subtask_overdue_map(db, [t.id for t in tasks])
+    overdue = await subtask_overdue_map(db, tasks)
     return [with_subtask_delay(t, overdue) for t in tasks]
 
 @router.post("/", status_code=201)
@@ -163,6 +171,7 @@ async def create_task(
         duration_hours=data.duration_hours,
         priority=data.priority,
         project_id=data.project_id,
+        stage_id=data.stage_id,
         assigned_to=data.assigned_to,
         assigned_by=current_user.id
     )

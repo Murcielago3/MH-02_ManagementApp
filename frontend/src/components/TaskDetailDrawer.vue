@@ -46,78 +46,95 @@
           </div>
         </div>
 
-        <!-- Subtasks -->
+        <!-- Stage + its subtasks. The old task-scoped subtask list is gone;
+             subtasks now live on project stages and are shared studio-wide. -->
         <div class="subtasks-section">
           <div class="subtasks-header">
             <h4>
-              <span class="material-symbols-outlined">checklist</span>
-              Subtasks <span class="subtasks-count" v-if="subtasks.length">{{ subtasks.length }}</span>
+              <span class="material-symbols-outlined">flag</span>
+              Project stage
             </h4>
-            <button v-if="!addingSubtask" type="button" class="add-subtask-btn" @click="startAddSubtask">
-              <span class="material-symbols-outlined">add</span> Add
-            </button>
           </div>
 
-          <ul v-if="subtasks.length" class="subtasks-list">
-            <li v-for="s in subtasks" :key="s.id" class="subtask-item" :class="{ done: s.status === 'completed', overdue: isSubtaskOverdue(s) }">
-              <button class="subtask-check" :class="{ checked: s.status === 'completed' }" @click="toggleSubtask(s)" :title="s.status === 'completed' ? 'Mark as pending' : 'Mark as complete'">
-                <span v-if="s.status === 'completed'" class="material-symbols-outlined">check</span>
-              </button>
-              <div class="subtask-body">
-                <div class="subtask-title">{{ s.title }}</div>
-                <div class="subtask-meta">
-                  <span v-if="s.due_date" class="subtask-window" :class="{ late: isSubtaskOverdue(s) }">
-                    <span class="material-symbols-outlined">event</span>
-                    <template v-if="s.start_date">{{ formatDate(s.start_date) }} → </template>{{ formatDate(s.due_date) }}
+          <div v-if="!task.project_id" class="subtasks-empty">
+            Assign this task to a project to link it to a stage.
+          </div>
+          <div v-else-if="stagesLoading" class="subtasks-empty">Loading stages…</div>
+          <div v-else-if="!stages.length" class="subtasks-empty">
+            This project has no stages yet.
+          </div>
+          <template v-else>
+            <select
+              v-model="selectedStageId"
+              class="stage-select"
+              :disabled="!canEditStageLink || savingStage"
+              @change="saveStage"
+            >
+              <option :value="null">— No stage —</option>
+              <option v-for="st in stages" :key="st.id" :value="st.id">
+                {{ st.name }} · {{ st.completion_percent }}% complete
+              </option>
+            </select>
+
+            <!-- Subtasks of the linked stage -->
+            <div v-if="selectedStage" class="stage-subs">
+              <div class="subtasks-header">
+                <h4>
+                  <span class="material-symbols-outlined">checklist</span>
+                  Subtasks
+                  <span class="subtasks-count" v-if="selectedStage.subtask_total">
+                    {{ selectedStage.subtask_completed }}/{{ selectedStage.subtask_total }}
                   </span>
-                  <span v-if="isSubtaskOverdue(s)" class="subtask-late-chip">{{ subtaskDelay(s) }}d late</span>
-                  <span v-if="s.description" class="subtask-desc">{{ s.description }}</span>
+                </h4>
+                <button v-if="canManageSubtasks && !addingSubtask" type="button"
+                        class="add-subtask-btn" @click="startAddSubtask">
+                  <span class="material-symbols-outlined">add</span> Add
+                </button>
+              </div>
+
+              <ul v-if="selectedStage.subtasks.length" class="subtasks-list">
+                <li v-for="s in selectedStage.subtasks" :key="s.id" class="subtask-item"
+                    :class="{ done: s.status === 'completed', overdue: s.is_overdue }">
+                  <button class="subtask-check" :class="{ checked: s.status === 'completed' }"
+                          :disabled="!canManageSubtasks" @click="toggleSubtask(s)"
+                          :title="canManageSubtasks ? 'Toggle complete' : 'Only an admin or PM can complete this'">
+                    <span v-if="s.status === 'completed'" class="material-symbols-outlined">check</span>
+                  </button>
+                  <div class="subtask-body">
+                    <div class="subtask-title">{{ s.title }}</div>
+                    <div class="subtask-meta">
+                      <span v-if="s.due_date" class="subtask-window" :class="{ late: s.is_overdue }">
+                        <span class="material-symbols-outlined">event</span>{{ formatDate(s.due_date) }}
+                      </span>
+                      <span v-if="s.is_overdue" class="subtask-late-chip">{{ s.days_overdue }}d late</span>
+                    </div>
+                  </div>
+                  <button v-if="canManageSubtasks" class="subtask-remove" @click="removeSubtask(s)" title="Delete">
+                    <span class="material-symbols-outlined">close</span>
+                  </button>
+                </li>
+              </ul>
+              <div v-else-if="!addingSubtask" class="subtasks-empty">No subtasks in this stage.</div>
+
+              <div v-if="addingSubtask" class="subtask-add-form">
+                <input v-model="newSubtask.title" type="text" placeholder="Subtask title"
+                       class="subtask-input" @keyup.enter="submitSubtask" ref="subtaskTitleRef" />
+                <div class="subtask-add-row">
+                  <label class="subtask-date-field">
+                    <span class="subtask-date-label">Deadline</span>
+                    <input v-model="newSubtask.due_date" type="date" class="subtask-input" />
+                  </label>
+                </div>
+                <div class="subtask-add-actions">
+                  <button type="button" class="subtask-cancel" @click="cancelAddSubtask">Cancel</button>
+                  <button type="button" class="subtask-save"
+                          :disabled="!newSubtask.title || subtaskSubmitting" @click="submitSubtask">
+                    {{ subtaskSubmitting ? 'Saving…' : 'Save' }}
+                  </button>
                 </div>
               </div>
-              <button class="subtask-remove" @click="removeSubtask(s)" title="Delete">
-                <span class="material-symbols-outlined">close</span>
-              </button>
-            </li>
-          </ul>
-          <div v-else-if="!addingSubtask && !subtasksLoading" class="subtasks-empty">No subtasks yet.</div>
-          <div v-if="subtasksLoading" class="subtasks-empty">Loading…</div>
-
-          <div v-if="addingSubtask" class="subtask-add-form">
-            <input
-              v-model="newSubtask.title"
-              type="text"
-              placeholder="Subtask title"
-              class="subtask-input"
-              @keyup.enter="submitSubtask"
-              ref="subtaskTitleRef"
-            />
-            <div class="subtask-add-row">
-              <label class="subtask-date-field">
-                <span class="subtask-date-label">Deadline</span>
-                <input
-                  v-model="newSubtask.due_date"
-                  type="date"
-                  :min="todayStr"
-                  class="subtask-input"
-                />
-              </label>
-              <input
-                v-model="newSubtask.description"
-                type="text"
-                placeholder="Description (optional)"
-                class="subtask-input"
-              />
             </div>
-            <div class="subtask-add-hint">
-              Runs from today ({{ formatDate(todayStr) }}) to the deadline.
-            </div>
-            <div class="subtask-add-actions">
-              <button type="button" class="subtask-cancel" @click="cancelAddSubtask">Cancel</button>
-              <button type="button" class="subtask-save" :disabled="!newSubtask.title || !newSubtask.due_date || subtaskSubmitting" @click="submitSubtask">
-                {{ subtaskSubmitting ? 'Saving…' : 'Save' }}
-              </button>
-            </div>
-          </div>
+          </template>
         </div>
 
         <!-- Admin: Edit / Delete -->
@@ -155,8 +172,9 @@
 
 <script setup>
 import { computed, ref, watch, nextTick } from 'vue'
-import { subtasksAPI } from '../api/subtasks'
-import { toLocalDateStr } from '../utils/date'
+import { stagesAPI } from '../api/stages'
+import { tasksAPI } from '../api/tasks'
+import { useAuthStore } from '../stores/auth'
 
 const props = defineProps({
   task: { type: Object, required: true },
@@ -181,93 +199,103 @@ const formatStatus = (s) => {
   return s.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
 }
 
-// ── Subtasks ──
-const subtasks = ref([])
-const subtasksLoading = ref(false)
+// ── Project stage + its subtasks ──
+// The task-scoped subtask feature was removed; subtasks now belong to project
+// stages, so a task band links to a stage and shows that stage's subtasks.
+const stages = ref([])
+const stagesLoading = ref(false)
+const savingStage = ref(false)
+const selectedStageId = ref(props.task.stage_id ?? null)
 const addingSubtask = ref(false)
 const subtaskSubmitting = ref(false)
 const subtaskTitleRef = ref(null)
-const todayStr = toLocalDateStr()
-const blankSubtask = () => ({ title: '', description: '', due_date: '' })
-const newSubtask = ref(blankSubtask())
+const newSubtask = ref({ title: '', due_date: '' })
 
-// Overdue is a subtask-only concept — the parent task's deadline never counts.
-function subtaskDelay(s) {
-  if (!s.due_date || s.status === 'completed') return 0
-  const diff = Math.round((new Date(todayStr) - new Date(s.due_date)) / 86400000)
-  return diff > 0 ? diff : 0
-}
-function isSubtaskOverdue(s) { return subtaskDelay(s) > 0 }
+const authStore = useAuthStore()
+// Only an admin may re-link a task band to a different stage.
+const canEditStageLink = computed(() => authStore.role === 'admin')
+// Admins and PMs may add/complete/delete stage subtasks.
+const canManageSubtasks = computed(() =>
+  authStore.role === 'admin' || authStore.role === 'project_manager')
 
-async function loadSubtasks() {
-  if (!props.task?.id) return
-  subtasksLoading.value = true
+const selectedStage = computed(() =>
+  stages.value.find(st => st.id === selectedStageId.value) || null)
+
+async function loadStages() {
+  stages.value = []
+  if (!props.task?.project_id) return
+  stagesLoading.value = true
   try {
-    const { data } = await subtasksAPI.list(props.task.id)
-    subtasks.value = data || []
+    const { data } = await stagesAPI.list(props.task.project_id)
+    stages.value = data.stages || []
   } catch (err) {
-    // silently — surface a toast outside this component if needed
+    stages.value = []
   } finally {
-    subtasksLoading.value = false
+    stagesLoading.value = false
   }
 }
 
-watch(() => props.task?.id, loadSubtasks, { immediate: true })
+watch(() => props.task?.id, () => {
+  selectedStageId.value = props.task.stage_id ?? null
+  loadStages()
+}, { immediate: true })
+
+async function saveStage() {
+  savingStage.value = true
+  try {
+    await tasksAPI.patchTask(props.task.id, { stage_id: selectedStageId.value })
+    emit('subtasks-changed')
+  } catch (err) {
+    selectedStageId.value = props.task.stage_id ?? null
+  } finally {
+    savingStage.value = false
+  }
+}
 
 function startAddSubtask() {
-  newSubtask.value = blankSubtask()
+  newSubtask.value = { title: '', due_date: '' }
   addingSubtask.value = true
   nextTick(() => subtaskTitleRef.value?.focus())
 }
-
 function cancelAddSubtask() {
   addingSubtask.value = false
-  newSubtask.value = blankSubtask()
+  newSubtask.value = { title: '', due_date: '' }
 }
 
 async function submitSubtask() {
-  if (!newSubtask.value.title || !newSubtask.value.due_date || subtaskSubmitting.value) return
+  if (!newSubtask.value.title || !selectedStageId.value || subtaskSubmitting.value) return
   subtaskSubmitting.value = true
   try {
-    const { data } = await subtasksAPI.create(props.task.id, {
+    await stagesAPI.createSubtask(selectedStageId.value, {
       title: newSubtask.value.title.trim(),
-      description: newSubtask.value.description?.trim() || null,
-      // The window opens today — the day the subtask is actually assigned.
-      start_date: todayStr,
-      due_date: newSubtask.value.due_date,
+      due_date: newSubtask.value.due_date || null,
     })
-    subtasks.value.push(data)
-    emit('subtasks-changed')
+    await loadStages()
     cancelAddSubtask()
+    emit('subtasks-changed')
   } catch (err) {
-    // Could emit an error event; keeping silent for now
+    // surfaced by the parent's toast if needed
   } finally {
     subtaskSubmitting.value = false
   }
 }
 
 async function toggleSubtask(s) {
-  const next = s.status === 'completed' ? 'pending' : 'completed'
-  const prev = s.status
-  s.status = next
   try {
-    await subtasksAPI.patch(s.id, { status: next })
+    await stagesAPI.updateSubtask(s.id, {
+      status: s.status === 'completed' ? 'pending' : 'completed',
+    })
+    await loadStages()
     emit('subtasks-changed')
-  } catch (err) {
-    s.status = prev
-  }
+  } catch (err) { /* no-op */ }
 }
 
 async function removeSubtask(s) {
-  const idx = subtasks.value.findIndex(x => x.id === s.id)
-  if (idx === -1) return
-  const removed = subtasks.value.splice(idx, 1)[0]
   try {
-    await subtasksAPI.remove(s.id)
+    await stagesAPI.removeSubtask(s.id)
+    await loadStages()
     emit('subtasks-changed')
-  } catch (err) {
-    subtasks.value.splice(idx, 0, removed)
-  }
+  } catch (err) { /* no-op */ }
 }
 </script>
 
@@ -590,6 +618,15 @@ async function removeSubtask(s) {
   gap: 8px;
 }
 .subtask-add-row { display: flex; gap: 8px; }
+.stage-select {
+  width: 100%; padding: 9px 11px; border: 1px solid var(--color-outline);
+  border-radius: 4px; font-size: 13px; font-weight: 600;
+  background: var(--color-surface); color: var(--color-on-surface); outline: none;
+}
+.stage-select:focus { border-color: var(--color-primary); }
+.stage-select:disabled { background: var(--color-surface-dim, #f8fafc); cursor: not-allowed; }
+.stage-subs { margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--color-outline-variant); }
+.subtask-check:disabled { cursor: not-allowed; opacity: .6; }
 .subtask-input {
   flex: 1;
   padding: 7px 10px;

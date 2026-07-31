@@ -18,6 +18,9 @@ class Task(Base):
     completed_at = Column(DateTime, nullable=True)
 
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
+    # Which stage of the project this task band belongs to. Lets an admin create
+    # stage subtasks straight from the tasks calendar.
+    stage_id = Column(Integer, ForeignKey("project_stages.id", ondelete="SET NULL"), nullable=True)
     assigned_to = Column(Integer, ForeignKey("users.id"), nullable=False)
     assigned_by = Column(Integer, ForeignKey("users.id"), nullable=False)
 

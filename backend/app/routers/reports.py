@@ -27,7 +27,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import require_manager
 from app.database import get_db
-from app.models import Subtask, Task, User
+from app.models import Task, User
+from app.models.project_stage import StageSubtask
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -119,11 +120,13 @@ async def quarterly_report(
 
     # ── Subtasks: deadline is due_date; owner is the parent task's assignee ──
     sub_rows = (await db.execute(
-        select(Subtask.due_date, Subtask.status, Subtask.completed_at,
-               Subtask.started_at, Task.assigned_to)
-        .join(Task, Task.id == Subtask.task_id)
-        .where(Subtask.due_date.isnot(None),
-               Subtask.due_date >= start, Subtask.due_date <= end)
+        select(StageSubtask.due_date, StageSubtask.status, StageSubtask.completed_at,
+               StageSubtask.started_at, Task.assigned_to)
+        # Owner is whoever the stage's task band is assigned to; stage subtasks
+        # with no task band report against no employee and are org-level only.
+        .outerjoin(Task, Task.stage_id == StageSubtask.stage_id)
+        .where(StageSubtask.due_date.isnot(None),
+               StageSubtask.due_date >= start, StageSubtask.due_date <= end)
     )).all()
 
     # ── Tasks: deadline is end_date, falling back to the single-day date ──
@@ -187,7 +190,7 @@ async def available_quarters(
 ):
     """Quarters that actually contain data, newest first — drives the picker so
     it never offers an empty quarter."""
-    bounds = (await db.execute(select(Subtask.due_date).where(Subtask.due_date.isnot(None)))).scalars().all()
+    bounds = (await db.execute(select(StageSubtask.due_date).where(StageSubtask.due_date.isnot(None)))).scalars().all()
     task_ends = (await db.execute(select(Task.end_date))).scalars().all()
     task_starts = (await db.execute(select(Task.date))).scalars().all()
     all_dates = [d for d in list(bounds) + list(task_ends) + list(task_starts) if d]
