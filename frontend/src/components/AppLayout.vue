@@ -1,8 +1,18 @@
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'sb-collapsed': sidebarCollapsed }">
 
     <!-- ── Sidebar ── -->
     <aside class="sidebar" :class="{ open: sidebarOpen }">
+      <!-- Collapse to an icon rail; remembered across sessions. -->
+      <button
+        type="button"
+        class="sb-toggle"
+        :title="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+        :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+        @click="toggleCollapse"
+      >
+        <span class="material-symbols-outlined">chevron_left</span>
+      </button>
       <div class="sidebar-brand">
         <div class="brand-logo">
           <img :src="logoUrl" alt="Studio MH02" class="brand-logo-img" />
@@ -272,9 +282,37 @@ function toggleProjects()  { projectsExpanded.value = !projectsExpanded.value }
 }
 
 /* ── Sidebar ── */
+.app-shell { --sb-w: 248px; }
+.app-shell.sb-collapsed { --sb-w: 64px; }
+/* Collapsed rail: icons only. */
+.sb-collapsed .nav-label,
+.sb-collapsed .sidebar-user-info,
+.sb-collapsed .sidebar-user-icon,
+.sb-collapsed .brand-text,
+.sb-collapsed .nav-badge,
+.sb-collapsed .group-label,
+.sb-collapsed .group-chevron { display: none; }
+.sb-collapsed .nav-item,
+.sb-collapsed .sidebar-user { justify-content: center; padding-left: 0; padding-right: 0; }
+.sb-collapsed .sidebar-brand { justify-content: center; padding-left: 0; padding-right: 0; }
+
+.sb-toggle {
+  position: absolute; top: 14px; right: -12px; z-index: 32;
+  width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--color-surface); border: 1px solid var(--color-outline);
+  color: var(--color-on-surface-variant); cursor: pointer; padding: 0;
+  box-shadow: 0 1px 4px rgba(0,0,0,.12);
+}
+.sb-toggle:hover { color: var(--color-primary); border-color: var(--color-primary); }
+.sb-toggle .material-symbols-outlined { font-size: 16px; transition: transform .18s ease; }
+.sb-collapsed .sb-toggle .material-symbols-outlined { transform: rotate(180deg); }
+@media (max-width: 900px) { .sb-toggle { display: none; } }
+
 .sidebar {
-  width: 248px;
-  min-width: 248px;
+  width: var(--sb-w);
+  min-width: var(--sb-w);
+  transition: width .18s ease, min-width .18s ease;
   height: 100vh;
   position: fixed;
   left: 0; top: 0;
@@ -435,20 +473,22 @@ function toggleProjects()  { projectsExpanded.value = !projectsExpanded.value }
 /* ── Main area ── */
 .main-area {
   flex: 1;
-  margin-left: 248px;
+  margin-left: var(--sb-w);
+  transition: margin-left .18s ease, width .18s ease, max-width .18s ease;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   min-width: 0;
-  width: calc(100% - 248px);
-  max-width: calc(100% - 248px);
+  width: calc(100% - var(--sb-w));
+  max-width: calc(100% - var(--sb-w));
 }
 
 /* ── Top bar ── */
 .top-bar {
   height: 56px;
   position: fixed;
-  top: 0; right: 0; left: 248px;
+  top: 0; right: 0; left: var(--sb-w);
+  transition: left .18s ease;
   z-index: 20;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-outline);

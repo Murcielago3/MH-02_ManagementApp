@@ -56,34 +56,36 @@
         </span>
       </div>
 
-      <!-- Financials | Stages -->
-      <div class="summary-tabs">
-        <button type="button" class="summary-tab" :class="{ active: activeTab === 'financials' }"
-                @click="activeTab = 'financials'">
-          <span class="material-symbols-outlined">payments</span> Financials
-        </button>
-        <button type="button" class="summary-tab" :class="{ active: activeTab === 'stages' }"
-                @click="activeTab = 'stages'">
-          <span class="material-symbols-outlined">flag</span> Stages
-          <span v-if="stageData && stageData.stages.length" class="tab-count">{{ stageData.stages.length }}</span>
-        </button>
+      <!-- Financials | Stages side by side with a draggable divider.
+           Narrow screens fall back to tabs, where a split is unusable. -->
+      <div class="split-toolbar">
+        <div v-if="isNarrow" class="summary-tabs">
+          <button type="button" class="summary-tab" :class="{ active: activeTab === 'financials' }"
+                  @click="activeTab = 'financials'">
+            <span class="material-symbols-outlined">payments</span> Financials
+          </button>
+          <button type="button" class="summary-tab" :class="{ active: activeTab === 'stages' }"
+                  @click="activeTab = 'stages'">
+            <span class="material-symbols-outlined">flag</span> Stages
+            <span v-if="stageData && stageData.stages.length" class="tab-count">{{ stageData.stages.length }}</span>
+          </button>
+        </div>
+        <template v-else>
+          <span class="split-hint">
+            <span class="material-symbols-outlined">drag_indicator</span>
+            Drag the divider to resize · double-click to reset
+          </span>
+          <button type="button" class="split-reset" @click="resetSplit">Reset</button>
+        </template>
       </div>
 
-      <!-- ── Stages tab ── -->
-      <div v-show="activeTab === 'stages'" class="section-block">
-        <div v-if="stagesLoading" class="stages-msg">Loading stages…</div>
-        <ProjectStagesEditor
-          v-else-if="stageData"
-          :data="stageData"
-          :can-edit-stages="isAdmin"
-          :can-edit-subtasks="isAdmin || isPM"
-          @changed="loadStages"
-          @view-worker="onViewWorker"
-        />
-        <div v-else class="stages-msg">Could not load stages.</div>
-      </div>
-
-      <div v-show="activeTab === 'financials'">
+      <div
+        class="split-wrap"
+        :class="{ stacked: isNarrow, dragging: splitDragging }"
+        :style="!isNarrow ? { gridTemplateColumns: splitPct + '% 12px 1fr' } : null"
+      >
+        <!-- Left pane: financials -->
+        <div v-show="!isNarrow || activeTab === 'financials'" class="split-pane">
             <!-- Section: Project Financials -->
             <div class="section-block">
               <div class="section-header">
@@ -352,7 +354,36 @@
                 <p>No tasks scheduled for this project yet.</p>
               </div>
             </div>
-      </div><!-- /financials tab -->
+        </div><!-- /left pane -->
+
+        <div
+          v-if="!isNarrow"
+          class="split-divider"
+          role="separator"
+          aria-orientation="vertical"
+          title="Drag to resize · double-click to reset"
+          @mousedown="startSplitDrag"
+          @dblclick="resetSplit"
+        ><span class="grip"></span></div>
+
+        <!-- Right pane: stages -->
+        <div v-show="!isNarrow || activeTab === 'stages'" class="split-pane">
+          <div class="pane-title">
+            <span class="material-symbols-outlined">flag</span> Stages
+            <span v-if="stageData && stageData.stages.length" class="tab-count">{{ stageData.stages.length }}</span>
+          </div>
+          <div v-if="stagesLoading" class="stages-msg">Loading stages…</div>
+          <ProjectStagesEditor
+            v-else-if="stageData"
+            :data="stageData"
+            :can-edit-stages="isAdmin"
+            :can-edit-subtasks="isAdmin || isPM"
+            @changed="loadStages"
+            @view-worker="onViewWorker"
+          />
+          <div v-else class="stages-msg">Could not load stages.</div>
+        </div>
+      </div><!-- /split -->
 
     </div>
 
@@ -439,6 +470,41 @@ const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.role === 'admin')
 const isPM = computed(() => authStore.role === 'project_manager')
 const activeTab = ref('financials')
+
+// ── Resizable split (Financials | Stages) ──
+// Percentage width of the left pane, clamped so neither side can be squeezed
+// out. Remembered across sessions; below 1100px we fall back to tabs.
+const SPLIT_KEY = 'proj_summary_split'
+const SPLIT_DEFAULT = 58
+const splitPct = ref(Number(localStorage.getItem(SPLIT_KEY)) || SPLIT_DEFAULT)
+const splitDragging = ref(false)
+const isNarrow = ref(window.innerWidth < 1100)
+
+function onResize() { isNarrow.value = window.innerWidth < 1100 }
+
+function startSplitDrag(e) {
+  e.preventDefault()
+  const wrap = e.currentTarget.parentElement
+  splitDragging.value = true
+  const move = (ev) => {
+    const r = wrap.getBoundingClientRect()
+    const pct = ((ev.clientX - r.left) / r.width) * 100
+    splitPct.value = Math.min(80, Math.max(25, Math.round(pct)))
+  }
+  const up = () => {
+    splitDragging.value = false
+    localStorage.setItem(SPLIT_KEY, String(splitPct.value))
+    window.removeEventListener('mousemove', move)
+    window.removeEventListener('mouseup', up)
+  }
+  window.addEventListener('mousemove', move)
+  window.addEventListener('mouseup', up)
+}
+
+function resetSplit() {
+  splitPct.value = SPLIT_DEFAULT
+  localStorage.setItem(SPLIT_KEY, String(SPLIT_DEFAULT))
+}
 const stageData = ref(null)
 const stagesLoading = ref(false)
 
@@ -854,6 +920,9 @@ async function loadAllForProject(id) {
   }
 }
 
+onMounted(() => window.addEventListener('resize', onResize))
+onBeforeUnmount(() => window.removeEventListener('resize', onResize))
+
 onMounted(() => {
   const id = route.params.id
   if (id) {
@@ -1028,6 +1097,52 @@ async function savePartnerRate() {
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
 /* ── Detail content wrapper ───────────────────────────────────────────────── */
+/* ── Resizable split ── */
+.split-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.split-hint {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--color-on-surface-variant);
+}
+.split-hint .material-symbols-outlined { font-size: 15px; }
+.split-reset {
+  margin-left: auto; padding: 5px 12px; border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md); background: var(--color-surface);
+  font-size: 12px; font-weight: 600; color: var(--color-on-surface-variant); cursor: pointer;
+}
+.split-reset:hover { border-color: var(--color-primary); color: var(--color-primary); }
+
+.split-wrap { display: grid; align-items: start; }
+.split-wrap.stacked { display: block; }
+.split-wrap.dragging { user-select: none; cursor: col-resize; }
+.split-pane { min-width: 0; overflow-x: auto; }
+/* Each pane scrolls independently so a long financials table never drags the
+   stages list off-screen. */
+@media (min-width: 1100px) {
+  .split-pane { max-height: calc(100vh - 230px); overflow-y: auto; padding-right: 4px; }
+}
+.pane-title {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 12px;
+  font-size: 13px; font-weight: 800; color: var(--color-on-surface);
+}
+.pane-title .material-symbols-outlined { font-size: 17px; color: var(--color-primary); }
+
+.split-divider {
+  position: relative; cursor: col-resize; align-self: stretch;
+  display: flex; align-items: center; justify-content: center;
+}
+.split-divider::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 50%;
+  width: 1px; background: var(--color-outline); transform: translateX(-50%);
+}
+.split-divider:hover::before, .split-wrap.dragging .split-divider::before {
+  background: var(--color-primary); width: 2px;
+}
+.grip {
+  position: relative; width: 4px; height: 34px; border-radius: 999px;
+  background: var(--color-outline); transition: background .15s;
+}
+.split-divider:hover .grip, .split-wrap.dragging .grip { background: var(--color-primary); }
+
 /* ── Financials | Stages tabs ── */
 .summary-tabs {
   display: flex; gap: 4px; margin-bottom: 18px;
