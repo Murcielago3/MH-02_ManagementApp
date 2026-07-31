@@ -16,6 +16,7 @@ from app.models.estimate import Estimate, EstimateEmployee
 from app.models.salary_slip import SalarySlip
 from app.models.holiday import Holiday
 from app.models.subtask import Subtask
+from app.models.project_stage import ProjectStage, StageSubtask
 from app.models.salary_history import SalaryHistory
 from app.models.overtime_leave import OvertimeLeave
 from app.models.audit_log import AuditLog

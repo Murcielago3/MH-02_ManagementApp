@@ -17,6 +17,10 @@ router = APIRouter(prefix="/weekly-timesheets", tags=["weekly-timesheets"])
 
 class TimesheetEntryCreate(BaseModel):
     project_id: Optional[int] = None
+    # What the hours went to, for projects that use stages. Both optional —
+    # projects without stages simply leave them unset.
+    stage_id: Optional[int] = None
+    subtask_id: Optional[int] = None
     hours: float
     description: str
     daily_hours: Optional[List[float]] = None
@@ -171,6 +175,8 @@ async def submit_timesheet(
         entry = WeeklyTimesheetEntry(
             timesheet_id=timesheet.id,
             project_id=entry_data.project_id,
+            stage_id=entry_data.stage_id,
+            subtask_id=entry_data.subtask_id,
             hours=_entry_hours(entry_data),
             description=entry_data.description,
             daily_hours=entry_data.daily_hours

@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 import logging
 import os
 from sqlalchemy import select as sa_select
-from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips, holidays, subtasks, salary as salary_router, audit as audit_router, exports as exports_router, drafts, reports as reports_router
+from app.routers import auth, users, clients, projects, dashboard, expenses, leaves, tasks, timesheets, uploads, reimbursements, weekly_timesheets, bank_accounts, invoices, teams, settings as settings_router, estimates, salary_slips, holidays, subtasks, salary as salary_router, audit as audit_router, exports as exports_router, drafts, reports as reports_router, stages as stages_router
 
 
 security = HTTPBearer()
@@ -57,6 +57,7 @@ app.include_router(audit_router.router)
 app.include_router(exports_router.router)
 app.include_router(drafts.router)
 app.include_router(reports_router.router)
+app.include_router(stages_router.router)
 
 
 @app.get("/health")
@@ -520,4 +521,61 @@ async def run_migrations():
                 _invalidate_reserve()
     except Exception:
         logging.exception("PM-stage status re-derivation failed (non-fatal)")
+
+    # ── Project stages + their subtasks ──
+    # Stage money/hours are derived from the project at read time, so only the
+    # percentage is stored here.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS project_stages (
+                    id SERIAL PRIMARY KEY,
+                    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                    name VARCHAR NOT NULL,
+                    sequence INTEGER NOT NULL DEFAULT 0,
+                    percentage NUMERIC(6, 2) NOT NULL DEFAULT 0,
+                    status VARCHAR NOT NULL DEFAULT 'active',
+                    completed_at TIMESTAMP,
+                    completed_by INTEGER REFERENCES users(id),
+                    created_by INTEGER REFERENCES users(id),
+                    created_by_role VARCHAR,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS stage_subtasks (
+                    id SERIAL PRIMARY KEY,
+                    stage_id INTEGER NOT NULL REFERENCES project_stages(id) ON DELETE CASCADE,
+                    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                    title VARCHAR NOT NULL,
+                    description VARCHAR,
+                    due_date DATE,
+                    status VARCHAR NOT NULL DEFAULT 'pending',
+                    started_at TIMESTAMP,
+                    completed_at TIMESTAMP,
+                    completed_by INTEGER REFERENCES users(id),
+                    created_by INTEGER REFERENCES users(id),
+                    created_by_role VARCHAR,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            await conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_stage_subtasks_project_due"
+                " ON stage_subtasks (project_id, due_date)"
+            ))
+    except Exception:
+        logging.exception("project_stages / stage_subtasks creation failed (non-fatal)")
+
+    # Timesheet entries can point at the stage + subtask the hours went to.
+    for col_name, col_def in [
+        ("stage_id", "INTEGER REFERENCES project_stages(id) ON DELETE SET NULL"),
+        ("subtask_id", "INTEGER REFERENCES stage_subtasks(id) ON DELETE SET NULL"),
+    ]:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(
+                    f"ALTER TABLE weekly_timesheet_entries ADD COLUMN {col_name} {col_def}"
+                ))
+        except Exception:
+            pass
 

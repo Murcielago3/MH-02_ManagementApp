@@ -39,6 +39,10 @@ class WeeklyTimesheetEntry(Base):
     id = Column(Integer, primary_key=True)
     timesheet_id = Column(Integer, ForeignKey("weekly_timesheets.id", ondelete="CASCADE"), nullable=False)
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+    # What the hours were spent on, when the project uses stages. Both optional:
+    # projects without stages (and every pre-existing entry) leave them NULL.
+    stage_id = Column(Integer, ForeignKey("project_stages.id", ondelete="SET NULL"), nullable=True)
+    subtask_id = Column(Integer, ForeignKey("stage_subtasks.id", ondelete="SET NULL"), nullable=True)
     hours = Column(Numeric(5, 2), nullable=False)
     description = Column(String, nullable=True)
     # Per-day breakdown for the week, Mon..Sun, e.g. [8, 8, 8, 8, 8, 0, 0].
