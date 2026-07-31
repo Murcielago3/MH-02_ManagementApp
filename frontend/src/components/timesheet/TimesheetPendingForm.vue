@@ -34,106 +34,71 @@
           </button>
         </div>
 
-        <div class="grid-table-wrapper">
-          <table class="grid-table">
-            <thead>
-              <tr>
-                <th class="col-project">Project</th>
-                <th v-for="(d, di) in weekDays" :key="di" class="col-day" :class="{ 'is-weekend': di >= 5 }">
-                  <div class="day-header">
-                    <span class="day-name">{{ d.short }}</span>
-                    <span class="day-date">{{ d.dateLabel }}</span>
-                  </div>
-                </th>
-                <th class="col-total">Total</th>
-                <th class="col-action"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(row, ri) in rows" :key="ri">
-                <td class="work-cell">
-                  <select v-model="row.project_id" required class="form-select"
-                          @change="onProjectChange(row)">
-                    <option :value="null" disabled>Select Project</option>
-                    <option v-for="p in projects" :key="p.id" :value="p.id">
-                      {{ p.name }}
+        <!-- One card per work item: project -> stage -> subtask, then the week -->
+        <div class="entry-cards">
+          <div v-for="(row, ri) in rows" :key="ri" class="entry-card" :class="{ filled: rowTotal(ri) > 0 }">
+            <div class="ec-head">
+              <div class="ec-selects">
+                <select v-model="row.project_id" required class="ec-select ec-project"
+                        @change="onProjectChange(row)">
+                  <option :value="null" disabled>Select project…</option>
+                  <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+                </select>
+
+                <template v-if="row.project_id && stagesFor(row.project_id).length">
+                  <span class="ec-arrow material-symbols-outlined">chevron_right</span>
+                  <select v-model="row.stage_id" class="ec-select ec-stage" @change="row.subtask_id = null">
+                    <option :value="null">Stage (optional)</option>
+                    <option v-for="s in stagesFor(row.project_id)" :key="s.id" :value="s.id">
+                      {{ s.name }} · {{ s.completion_percent }}%
                     </option>
                   </select>
 
-                  <!-- Stage + subtask, only for projects that use stages -->
-                  <template v-if="row.project_id && stagesFor(row.project_id).length">
-                    <select v-model="row.stage_id" class="form-select sub-select"
-                            @change="row.subtask_id = null">
-                      <option :value="null">— Stage (optional) —</option>
-                      <option v-for="s in stagesFor(row.project_id)" :key="s.id" :value="s.id">
-                        {{ s.name }} · {{ s.completion_percent }}%
-                      </option>
-                    </select>
-                    <select v-if="row.stage_id" v-model="row.subtask_id" class="form-select sub-select">
-                      <option :value="null">— Subtask (optional) —</option>
+                  <template v-if="row.stage_id">
+                    <span class="ec-arrow material-symbols-outlined">chevron_right</span>
+                    <select v-model="row.subtask_id" class="ec-select ec-sub">
+                      <option :value="null">Subtask (optional)</option>
                       <option v-for="t in subtasksFor(row.project_id, row.stage_id)" :key="t.id" :value="t.id">
                         {{ t.status === 'completed' ? '✓ ' : '' }}{{ t.title }}
                       </option>
                     </select>
                   </template>
-                </td>
-                <td v-for="(d, di) in weekDays" :key="di" class="day-cell" :class="{ 'is-weekend': di >= 5 }">
-                  <input
-                    v-model.number="row.daily[di]"
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    max="24"
-                    class="day-input"
-                    placeholder="0"
-                  />
-                </td>
-                <td class="row-total" :class="{ 'has-hours': rowTotal(ri) > 0 }">
-                  {{ rowTotal(ri) }}h
-                </td>
-                <td>
-                  <button
-                    type="button"
-                    class="btn-remove"
-                    @click="removeRow(ri)"
-                    :disabled="rows.length === 1"
-                  >
-                    <span class="material-symbols-outlined">delete</span>
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-            <tfoot>
-              <tr>
-                <td class="total-label">Daily Total</td>
-                <td v-for="(d, di) in weekDays" :key="di" class="day-total" :class="{ 'over-8': dayTotal(di) > 8, 'is-weekend': di >= 5 }">
-                  {{ dayTotal(di) }}h
-                </td>
-                <td class="grand-total" :class="{ 'text-success': grandTotal > 0 }">
-                  {{ grandTotal }}h
-                </td>
-                <td></td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
+                </template>
+              </div>
 
-      <!-- Description per project row -->
-      <div class="form-section">
-        <label>Task Descriptions</label>
-        <p class="section-desc">Briefly describe what you worked on for each project this week.</p>
-        <div class="desc-rows">
-          <div v-for="(row, ri) in rows" :key="ri" class="desc-row" v-show="row.project_id">
-            <span class="desc-project-name">{{ getProjectName(row.project_id) }}</span>
-            <input
-              v-model="row.description"
-              type="text"
-              placeholder="What did you work on?"
-              class="form-input"
-              required
-            />
+              <div class="ec-right">
+                <span class="ec-total" :class="{ on: rowTotal(ri) > 0 }">{{ rowTotal(ri) }}h</span>
+                <button type="button" class="ec-remove" @click="removeRow(ri)" :disabled="rows.length === 1"
+                        title="Remove this row">
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="ec-days">
+              <label v-for="(d, di) in weekDays" :key="di" class="ec-day" :class="{ weekend: di >= 5 }">
+                <span class="ec-day-name">{{ d.short }}</span>
+                <span class="ec-day-date">{{ d.dateLabel }}</span>
+                <input v-model.number="row.daily[di]" type="number" step="0.5" min="0" max="24"
+                       class="ec-day-input" placeholder="0" />
+              </label>
+            </div>
+
+            <input v-model="row.description" type="text" class="ec-desc"
+                   placeholder="What did you work on?" :required="rowTotal(ri) > 0" />
           </div>
+        </div>
+
+        <!-- Week totals -->
+        <div class="week-totals">
+          <span class="wt-label">Daily total</span>
+          <div class="wt-days">
+            <span v-for="(d, di) in weekDays" :key="di" class="wt-day"
+                  :class="{ 'over-8': dayTotal(di) > 8, weekend: di >= 5, zero: dayTotal(di) === 0 }">
+              <small>{{ d.short }}</small>{{ dayTotal(di) }}h
+            </span>
+          </div>
+          <span class="wt-grand" :class="{ on: grandTotal > 0 }">{{ grandTotal }}h</span>
         </div>
       </div>
 
@@ -626,16 +591,92 @@ label {
   padding-left: 8px;
 }
 
-/* Project / stage / subtask stack in one cell */
-.work-cell { min-width: 210px; }
-.work-cell .sub-select {
-  margin-top: 5px;
-  font-size: 12px;
-  padding-left: 18px;
-  position: relative;
-  background-color: var(--color-surface-container-lowest, #f8fafc);
+/* ── Entry cards (replaces the wide grid table) ── */
+.entry-cards { display: flex; flex-direction: column; gap: 12px; }
+.entry-card {
+  border: 1px solid var(--color-outline); border-radius: var(--radius-xl);
+  padding: 14px; background: var(--color-surface); transition: border-color .15s, box-shadow .15s;
 }
-.work-cell .sub-select::before { content: '↳'; }
+.entry-card.filled { border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(40,116,117,.06); }
+
+.ec-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.ec-selects { display: flex; align-items: center; gap: 4px; flex: 1; flex-wrap: wrap; min-width: 0; }
+.ec-select {
+  padding: 8px 10px; border: 1px solid var(--color-outline); border-radius: var(--radius-md);
+  font-size: 13px; background: var(--color-surface); color: var(--color-on-surface);
+  outline: none; max-width: 100%;
+}
+.ec-select:focus { border-color: var(--color-primary); }
+.ec-project { font-weight: 700; min-width: 160px; }
+.ec-stage, .ec-sub { font-size: 12px; background: var(--color-surface-container-lowest, #f8fafc); }
+.ec-arrow { font-size: 16px; color: var(--color-outline); flex-shrink: 0; }
+
+.ec-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.ec-total {
+  font-variant-numeric: tabular-nums; font-weight: 800; font-size: 15px;
+  color: var(--color-on-surface-variant); min-width: 46px; text-align: right;
+}
+.ec-total.on { color: var(--color-primary); }
+.ec-remove {
+  width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid transparent; border-radius: var(--radius-md); background: none; cursor: pointer;
+  color: var(--color-on-surface-variant);
+}
+.ec-remove:hover:not(:disabled) { background: #fee2e2; color: #dc2626; }
+.ec-remove:disabled { opacity: .3; cursor: not-allowed; }
+.ec-remove .material-symbols-outlined { font-size: 17px; }
+
+.ec-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.ec-day {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 7px 4px; border-radius: var(--radius-md);
+  background: var(--color-surface-container-lowest, #f8fafc); cursor: text;
+}
+.ec-day.weekend { background: #fef9f3; }
+.ec-day-name { font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--color-on-surface-variant); }
+.ec-day-date { font-size: 9px; color: var(--color-on-surface-variant); opacity: .75; }
+.ec-day-input {
+  width: 100%; margin-top: 3px; padding: 5px 2px; text-align: center;
+  border: 1px solid var(--color-outline); border-radius: 5px;
+  font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+  background: var(--color-surface); color: var(--color-on-surface); outline: none;
+  -moz-appearance: textfield;
+}
+.ec-day-input::-webkit-outer-spin-button,
+.ec-day-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.ec-day-input:focus { border-color: var(--color-primary); }
+
+.ec-desc {
+  width: 100%; margin-top: 10px; padding: 8px 10px;
+  border: 1px solid var(--color-outline); border-radius: var(--radius-md);
+  font-size: 13px; background: var(--color-surface); color: var(--color-on-surface); outline: none;
+}
+.ec-desc:focus { border-color: var(--color-primary); }
+
+/* Week totals strip */
+.week-totals {
+  display: flex; align-items: center; gap: 12px; margin-top: 12px;
+  padding: 10px 14px; border-radius: var(--radius-lg);
+  background: var(--color-surface-container-lowest, #f8fafc); border: 1px solid var(--color-outline);
+}
+.wt-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--color-on-surface-variant); }
+.wt-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; flex: 1; }
+.wt-day {
+  display: flex; flex-direction: column; align-items: center;
+  font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--color-on-surface);
+}
+.wt-day small { font-size: 9px; font-weight: 700; text-transform: uppercase; color: var(--color-on-surface-variant); }
+.wt-day.zero { color: var(--color-on-surface-variant); font-weight: 500; }
+.wt-day.over-8 { color: #b45309; }
+.wt-day.weekend small { color: #c2820a; }
+.wt-grand { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--color-on-surface-variant); }
+.wt-grand.on { color: var(--color-primary); }
+
+@media (max-width: 720px) {
+  .ec-days { grid-template-columns: repeat(4, 1fr); }
+  .wt-days { grid-template-columns: repeat(4, 1fr); }
+  .ec-project { min-width: 100%; }
+}
 
 .form-select {
   width: 100%;

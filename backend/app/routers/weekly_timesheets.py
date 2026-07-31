@@ -34,6 +34,45 @@ class WeeklyTimesheetCreate(BaseModel):
 class RejectBody(BaseModel):
     rejection_reason: Optional[str] = None
 
+async def _decorate_entries(db: AsyncSession, timesheets):
+    """Attach stage_name / subtask_title to each entry so the read-only views
+    can show what the hours went to without extra round-trips. Returns plain
+    dicts (the ORM objects are otherwise serialised as-is)."""
+    from app.models.project_stage import ProjectStage, StageSubtask
+
+    stage_ids, sub_ids = set(), set()
+    for t in timesheets:
+        for e in (t.entries or []):
+            if e.stage_id:
+                stage_ids.add(e.stage_id)
+            if e.subtask_id:
+                sub_ids.add(e.subtask_id)
+    if not stage_ids and not sub_ids:
+        return timesheets
+
+    stage_names, sub_titles = {}, {}
+    if stage_ids:
+        stage_names = dict((await db.execute(
+            select(ProjectStage.id, ProjectStage.name).where(ProjectStage.id.in_(stage_ids))
+        )).all())
+    if sub_ids:
+        sub_titles = dict((await db.execute(
+            select(StageSubtask.id, StageSubtask.title).where(StageSubtask.id.in_(sub_ids))
+        )).all())
+
+    out = []
+    for t in timesheets:
+        d = {c.name: getattr(t, c.name) for c in t.__table__.columns}
+        d["entries"] = []
+        for e in (t.entries or []):
+            ed = {c.name: getattr(e, c.name) for c in e.__table__.columns}
+            ed["stage_name"] = stage_names.get(e.stage_id)
+            ed["subtask_title"] = sub_titles.get(e.subtask_id)
+            d["entries"].append(ed)
+        out.append(d)
+    return out
+
+
 @router.get("/")
 async def list_timesheets(
     employee_id: Optional[int] = None,
@@ -54,7 +93,7 @@ async def list_timesheets(
 
     result = await db.execute(query)
     timesheets = result.scalars().all()
-    return timesheets
+    return await _decorate_entries(db, timesheets)
 
 @router.get("/my")
 async def my_timesheets(
@@ -67,7 +106,7 @@ async def my_timesheets(
         .where(WeeklyTimesheet.employee_id == current_user.id)
         .order_by(WeeklyTimesheet.week_start.desc())
     )
-    return result.scalars().all()
+    return await _decorate_entries(db, result.scalars().all())
 
 @router.get("/pending-weeks")
 async def get_pending_weeks(

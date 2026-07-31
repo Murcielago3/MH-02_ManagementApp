@@ -62,6 +62,21 @@
             <span class="day-number">{{ day.num }}</span>
             <span v-if="isHolidayDay(day.dateStr)" class="holiday-chip">{{ holidayName(day.dateStr) }}</span>
             <span v-else-if="isLeaveDay(day.dateStr)" class="leave-chip">On Leave</span>
+
+            <!-- Stage subtask deadlines falling on this day -->
+            <button
+              v-for="d in deadlinesOn(day.dateStr)"
+              :key="'dl-' + d.id"
+              type="button"
+              class="deadline-chip"
+              :class="{ late: d.is_overdue, done: d.status === 'completed' }"
+              :title="`${d.project_name} · ${d.stage_name} — ${d.title}`"
+              @click.stop="$emit('subtask-deadline-click', d)"
+              @mousedown.stop
+            >
+              <span class="material-symbols-outlined">flag</span>
+              <span class="dl-text">{{ d.title }}</span>
+            </button>
           </div>
 
           <!-- Ribbon layer for this week -->
@@ -138,6 +153,8 @@ const props = defineProps({
   userMap: { type: Object, default: () => ({}) },
   leaves: { type: Array, default: () => [] },
   holidays: { type: Array, default: () => [] },
+  // Stage subtask deadlines from /my/stage-subtask-deadlines
+  subtaskDeadlines: { type: Array, default: () => [] },
   isAdmin: { type: Boolean, default: false },
   timesheetWeeks: { type: Array, default: () => [] } // { week_start, status }
 })
@@ -150,7 +167,18 @@ const holidayMap = computed(() => {
 function isHolidayDay(dateStr) { return dateStr in holidayMap.value }
 function holidayName(dateStr) { return holidayMap.value[dateStr] || '' }
 
-const emit = defineEmits(['ribbon-click', 'cell-drag-create', 'ribbon-drag-extend', 'timesheet-click'])
+const emit = defineEmits(['ribbon-click', 'cell-drag-create', 'ribbon-drag-extend', 'timesheet-click', 'subtask-deadline-click'])
+
+// Subtask deadlines bucketed by due date, so each day cell is an O(1) lookup.
+const deadlinesByDate = computed(() => {
+  const m = {}
+  for (const d of props.subtaskDeadlines || []) {
+    if (!d.due_date) continue
+    ;(m[d.due_date] ||= []).push(d)
+  }
+  return m
+})
+function deadlinesOn(dateStr) { return deadlinesByDate.value[dateStr] || [] }
 
 const viewMode = ref('week')
 const anchorDate = ref(new Date())
@@ -615,6 +643,21 @@ defineExpose({ viewMode, anchorDate })
   color: var(--color-on-surface);
   font-variant-numeric: tabular-nums;
 }
+
+/* Stage subtask deadline markers */
+.deadline-chip {
+  display: flex; align-items: center; gap: 3px;
+  width: calc(100% - 6px); margin: 2px 3px 0;
+  padding: 2px 5px; border: none; border-radius: 3px;
+  background: #ede9fe; color: #5b21b6;
+  font-size: 9px; font-weight: 700; text-align: left;
+  cursor: pointer; overflow: hidden; z-index: 6; position: relative;
+}
+.deadline-chip:hover { filter: brightness(0.95); }
+.deadline-chip .material-symbols-outlined { font-size: 10px; flex-shrink: 0; }
+.dl-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deadline-chip.late { background: #fee2e2; color: #991b1b; }
+.deadline-chip.done { background: #dcfce7; color: #166534; text-decoration: line-through; }
 
 .leave-chip {
   display: block;

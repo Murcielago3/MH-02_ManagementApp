@@ -35,9 +35,44 @@
           :holidays="holidays"
           :isAdmin="false"
           :timesheetWeeks="combinedTimesheetWeeks"
+          :subtaskDeadlines="subtaskDeadlines"
           @ribbon-click="openTaskDrawer"
           @timesheet-click="onTimesheetClick"
+          @subtask-deadline-click="openDeadline"
         />
+      </div>
+
+      <!-- Subtask deadline detail -->
+      <div v-if="selectedDeadline" class="dl-overlay" @click.self="selectedDeadline = null">
+        <div class="dl-card">
+          <div class="dl-head">
+            <span class="dl-badge" :class="{ late: selectedDeadline.is_overdue, done: selectedDeadline.status === 'completed' }">
+              {{ selectedDeadline.status === 'completed' ? 'Completed'
+                 : selectedDeadline.is_overdue ? 'Overdue' : 'Subtask deadline' }}
+            </span>
+            <button class="dl-close" @click="selectedDeadline = null">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <h3 class="dl-title">{{ selectedDeadline.title }}</h3>
+          <div class="dl-rows">
+            <div class="dl-row">
+              <span class="material-symbols-outlined">architecture</span>
+              <span><strong>{{ selectedDeadline.project_name }}</strong></span>
+            </div>
+            <div class="dl-row">
+              <span class="material-symbols-outlined">flag</span>
+              <span>Stage: {{ selectedDeadline.stage_name }}</span>
+            </div>
+            <div class="dl-row">
+              <span class="material-symbols-outlined">event</span>
+              <span>Due {{ formatDeadlineDate(selectedDeadline.due_date) }}</span>
+            </div>
+          </div>
+          <button class="dl-cta" @click="goToTimesheet">
+            <span class="material-symbols-outlined">schedule</span> Log hours in my timesheet
+          </button>
+        </div>
       </div>
 
       <!-- Task Detail Drawer -->
@@ -77,6 +112,7 @@ import { tasksAPI } from '../../api/tasks'
 import { leavesAPI } from '../../api/leaves'
 import { projectsAPI } from '../../api/projects'
 import { holidaysAPI } from '../../api/holidays'
+import { stagesAPI } from '../../api/stages'
 import { useTimesheetStore } from '../../stores/timesheet'
 
 const router = useRouter()
@@ -85,6 +121,17 @@ const user = ref(null)
 const leaves = ref([])
 const allTasks = ref([])
 const projectsList = ref([])
+const subtaskDeadlines = ref([])
+const selectedDeadline = ref(null)
+
+function openDeadline(d) { selectedDeadline.value = d }
+function formatDeadlineDate(d) {
+  return d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+}
+function goToTimesheet() {
+  selectedDeadline.value = null
+  router.push('/employee/timesheet')
+}
 const statusUpdating = ref(null)
 const selectedTask = ref(null)
 
@@ -112,12 +159,13 @@ async function fetchDashboardData() {
     timesheetStore.fetchPendingWeeks()
     timesheetStore.fetchMyTimesheets()
 
-    const [uRes, lRes, tRes, pRes, hRes] = await Promise.all([
+    const [uRes, lRes, tRes, pRes, hRes, dRes] = await Promise.all([
       usersAPI.getMe(),
       leavesAPI.getMyLeaves(),
       tasksAPI.getMyTasks(),
       projectsAPI.getProjects().catch(() => ({ data: [] })), // may fail for employee role
       holidaysAPI.getHolidays().catch(() => ({ data: [] })),
+      stagesAPI.myDeadlines().catch(() => ({ data: [] })),
     ])
 
     user.value = uRes.data
@@ -125,6 +173,7 @@ async function fetchDashboardData() {
     allTasks.value = tRes.data
     projectsList.value = pRes.data || []
     holidays.value = hRes.data || []
+    subtaskDeadlines.value = dRes.data || []
   } catch (err) {
     console.error('Failed to load dashboard data', err)
   }
@@ -193,6 +242,34 @@ async function updateTaskStatus(taskId, status) {
 </script>
 
 <style scoped>
+/* ── Subtask deadline detail ── */
+.dl-overlay {
+  position: fixed; inset: 0; background: rgba(15,23,42,.5);
+  display: flex; align-items: center; justify-content: center; z-index: 1200; padding: 16px;
+}
+.dl-card {
+  background: var(--color-surface); border-radius: var(--radius-xl);
+  width: 100%; max-width: 380px; padding: 20px; box-shadow: 0 20px 50px rgba(0,0,0,.25);
+}
+.dl-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.dl-badge {
+  font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+  background: #ede9fe; color: #5b21b6; padding: 3px 10px; border-radius: 999px;
+}
+.dl-badge.late { background: #fee2e2; color: #991b1b; }
+.dl-badge.done { background: #dcfce7; color: #166534; }
+.dl-close { background: none; border: none; cursor: pointer; color: var(--color-on-surface-variant); padding: 2px; }
+.dl-title { font-size: 17px; font-weight: 800; margin: 0 0 14px; color: var(--color-on-surface); }
+.dl-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.dl-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--color-on-surface); }
+.dl-row .material-symbols-outlined { font-size: 17px; color: var(--color-primary); }
+.dl-cta {
+  display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%;
+  padding: 11px; border: none; border-radius: var(--radius-lg);
+  background: var(--color-primary); color: #fff; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.dl-cta .material-symbols-outlined { font-size: 17px; }
+
 .dashboard-view {
   display: flex;
   flex-direction: column;

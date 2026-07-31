@@ -20,6 +20,10 @@
           <tr v-for="entry in entriesWithDaily" :key="entry.id">
             <td>
               <span class="project-tag">{{ getProjectName(entry.project_id) }}</span>
+              <span v-if="entry.stage_name" class="stage-tag">
+                <span class="material-symbols-outlined">flag</span>{{ entry.stage_name }}
+                <template v-if="entry.subtask_title"> · {{ entry.subtask_title }}</template>
+              </span>
             </td>
             <td v-for="(d, di) in weekDays" :key="di" class="day-cell" :class="{ 'is-weekend': di >= 5 }">
               <span class="day-val" :class="{ 'has-hours': Number(entry.daily_hours[di]) > 0, 'sat-hours': di === 5 && Number(entry.daily_hours[di]) > 0 }">
@@ -246,6 +250,12 @@ function getProjectName(id) {
 .day-total.over-8 { color: #dc2626; }
 .day-total.sat-total { color: #dc2626; }
 .grand-total { text-align: center; font-weight: 800; font-size: 15px; color: var(--color-primary); }
+
+.stage-tag {
+  display: inline-flex; align-items: center; gap: 3px; margin-top: 3px;
+  font-size: 10px; font-weight: 600; color: var(--color-on-surface-variant);
+}
+.stage-tag .material-symbols-outlined { font-size: 11px; color: var(--color-primary); }
 
 .project-tag {
   display: inline-block;
