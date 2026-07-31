@@ -348,13 +348,14 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 import EmployeeLayout from '../components/EmployeeLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import { usersAPI } from '../api/users'
 import CurrencyInput from '../components/CurrencyInput.vue'
 import { useDraftStorage } from '../composables/useDraftStorage'
+const route = useRoute()
 
 const getApiBaseUrl = () => {
   const envUrl = import.meta.env.VITE_API_URL
@@ -389,6 +390,10 @@ const employees = ref([])
 const managers = ref([])
 const loading = ref(true)
 const searchQuery = ref('')
+// Pre-fill the search box when arrived at via the global search.
+watch(() => route.query.q, (q) => { if (q !== undefined) searchQuery.value = String(q || '') }, { immediate: true })
+
+// Seeded by the global search bar: /admin/...?q=term
 
 // Modal state
 const modalOpen = ref(false)

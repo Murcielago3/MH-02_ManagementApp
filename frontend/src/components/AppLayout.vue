@@ -133,8 +133,7 @@
           <span class="material-symbols-outlined">menu</span>
         </button>
         <div class="top-bar-search">
-          <span class="material-symbols-outlined search-icon">search</span>
-          <input type="text" placeholder="Search anything…" class="search-field" />
+          <GlobalSearch />
         </div>
         <div class="top-bar-right">
           <button class="top-icon-btn" title="Notifications">
@@ -184,6 +183,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { usersAPI } from '../api/users'
 import { getBrandLogoUrl } from '../utils/logo'
+import GlobalSearch from './GlobalSearch.vue'
 
 const route     = useRoute()
 const router    = useRouter()
@@ -193,6 +193,12 @@ const currentUser     = ref(null)
 const showProfileMenu = ref(false)
 const projectsExpanded = ref(false)
 const sidebarOpen     = ref(false)
+// Desktop: collapse the sidebar to an icon rail. Remembered across sessions.
+const sidebarCollapsed = ref(localStorage.getItem('sidebar_collapsed') === '1')
+function toggleCollapse() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  localStorage.setItem('sidebar_collapsed', sidebarCollapsed.value ? '1' : '0')
+}
 
 const logoUrl = getBrandLogoUrl()
 
@@ -648,7 +654,7 @@ function toggleProjects()  { projectsExpanded.value = !projectsExpanded.value }
     max-width: 100%;
   }
   .top-bar { left: 0; padding: 0 12px; }
-  .top-bar-search { display: none; }   /* declutter; search is non-functional */
+  .top-bar-search { display: none; }   /* too cramped beside the hamburger */
   .hamburger { display: flex; }
   .page-content { padding: 16px 14px; gap: 16px; }
 }

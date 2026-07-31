@@ -236,6 +236,8 @@ import TaxIdField from '../components/TaxIdField.vue'
 import { clientsAPI } from '../api/clients'
 import { useDraftStorage } from '../composables/useDraftStorage'
 import { panFromGstin } from '../utils/taxIds'
+import { useRoute } from 'vue-router'
+const route = useRoute()
 
 const indianStates = [
   'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat',
@@ -250,6 +252,10 @@ const indianStates = [
 const clients = ref([])
 const loading = ref(true)
 const searchQuery = ref('')
+// Pre-fill the search box when arrived at via the global search.
+watch(() => route.query.q, (q) => { if (q !== undefined) searchQuery.value = String(q || '') }, { immediate: true })
+
+// Seeded by the global search bar: /admin/...?q=term
 
 const modalOpen = ref(false)
 const isEditing = ref(false)

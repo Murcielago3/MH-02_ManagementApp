@@ -189,14 +189,20 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import { expensesAPI } from '../api/expenses'
 import CurrencyInput from '../components/CurrencyInput.vue'
+import { useRoute } from 'vue-router'
+const route = useRoute()
 
 const expenses = ref([])
 const loading = ref(true)
 const searchQuery = ref('')
+// Pre-fill the search box when arrived at via the global search.
+watch(() => route.query.q, (q) => { if (q !== undefined) searchQuery.value = String(q || '') }, { immediate: true })
+
+// Seeded by the global search bar: /admin/...?q=term
 const filterCategory = ref('')
 
 const modalOpen = ref(false)

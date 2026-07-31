@@ -264,12 +264,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 import ToastNotification from '../components/ToastNotification.vue'
 import { invoicesAPI } from '../api/invoices'
 import { useInvoiceDrafts } from '../composables/useInvoiceDrafts'
+const route = useRoute()
 
 const router = useRouter()
 const { drafts, hasDrafts, deleteDraft, refresh: refreshDrafts } = useInvoiceDrafts()
@@ -280,6 +281,10 @@ const submitting = ref(false)
 const deleteTarget = ref(null)
 const typeFilter = ref('all')
 const searchQuery = ref('')
+// Pre-fill the search box when arrived at via the global search.
+watch(() => route.query.q, (q) => { if (q !== undefined) searchQuery.value = String(q || '') }, { immediate: true })
+
+// Seeded by the global search bar: /admin/...?q=term
 
 const filterOptions = [
   { value: 'all', label: 'All', icon: 'inbox' },

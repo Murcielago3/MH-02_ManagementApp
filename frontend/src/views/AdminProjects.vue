@@ -409,6 +409,10 @@ const reserveMap = ref({})
 const approvedTimesheets = ref([])
 const loading = ref(true)
 const searchQuery = ref('')
+// Pre-fill the search box when arrived at via the global search.
+watch(() => route.query.q, (q) => { if (q !== undefined) searchQuery.value = String(q || '') }, { immediate: true })
+
+// Seeded by the global search bar: /admin/...?q=term
 const filterYear = ref('')
 const filterClient = ref('')
 

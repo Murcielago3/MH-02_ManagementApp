@@ -156,17 +156,22 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 import { reimbursementsAPI } from '../api/reimbursements'
 import { usersAPI } from '../api/users'
+const route = useRoute()
 
 const router = useRouter()
 
 const reimbursements = ref([])
 const employees = ref([])
 const loading = ref(true)
-const employeeSearch = ref('')   // client-side name filter over the loaded groups
+const employeeSearch = ref('')
+// Pre-fill the search box when arrived at via the global search.
+watch(() => route.query.q, (q) => { if (q !== undefined) employeeSearch.value = String(q || '') }, { immediate: true })
+
+// Seeded by the global search bar: /admin/...?q=term   // client-side name filter over the loaded groups
 const filterStatus = ref('')
 const actionLoading = ref(null)
 
