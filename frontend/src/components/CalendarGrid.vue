@@ -63,20 +63,27 @@
             <span v-if="isHolidayDay(day.dateStr)" class="holiday-chip">{{ holidayName(day.dateStr) }}</span>
             <span v-else-if="isLeaveDay(day.dateStr)" class="leave-chip">On Leave</span>
 
-            <!-- Stage subtask deadlines falling on this day -->
-            <button
-              v-for="d in deadlinesOn(day.dateStr)"
-              :key="'dl-' + d.id"
-              type="button"
-              class="deadline-chip"
-              :class="{ late: d.is_overdue, done: d.status === 'completed' }"
-              :title="`${d.project_name} · ${d.stage_name} — ${d.title}`"
-              @click.stop="$emit('subtask-deadline-click', d)"
-              @mousedown.stop
+            <!-- Stage subtask deadlines. Offset below the absolutely-positioned
+                 ribbon lanes for this week so the two never overlap. -->
+            <div
+              v-if="deadlinesOn(day.dateStr).length"
+              class="deadline-stack"
+              :style="{ marginTop: ribbonSpace(wi) + 'px' }"
             >
-              <span class="material-symbols-outlined">flag</span>
-              <span class="dl-text">{{ d.title }}</span>
-            </button>
+              <button
+                v-for="d in deadlinesOn(day.dateStr)"
+                :key="'dl-' + d.id"
+                type="button"
+                class="deadline-chip"
+                :class="{ late: d.is_overdue, done: d.status === 'completed' }"
+                :title="`${d.project_name} · ${d.stage_name} — ${d.title}`"
+                @click.stop="$emit('subtask-deadline-click', d)"
+                @mousedown.stop
+              >
+                <span class="material-symbols-outlined">flag</span>
+                <span class="dl-text">{{ d.title }}</span>
+              </button>
+            </div>
           </div>
 
           <!-- Ribbon layer for this week -->
@@ -336,10 +343,22 @@ function weekRibbons(weekIndex) {
   return result
 }
 
-function weekMinHeight(weekIndex) {
+// Vertical space the ribbon lanes occupy in a week, so day-cell content can sit
+// below them instead of underneath.
+function ribbonSpace(weekIndex) {
   const ribbons = weekRibbons(weekIndex)
-  const maxLane = ribbons.length > 0 ? Math.max(...ribbons.map(r => r.lane)) : -1
-  return Math.max(80, 32 + (maxLane + 1) * 28)
+  if (!ribbons.length) return 0
+  const maxLane = Math.max(...ribbons.map(r => r.lane))
+  return (maxLane + 1) * 28
+}
+
+function weekMinHeight(weekIndex) {
+  const lanes = ribbonSpace(weekIndex)
+  // Also reserve room for the busiest day's deadline chips (16px each), or they
+  // would spill past the row.
+  const week = weeks.value[weekIndex] || []
+  const maxChips = week.reduce((m, d) => Math.max(m, deadlinesOn(d.dateStr).length), 0)
+  return Math.max(80, 32 + lanes + maxChips * 16)
 }
 
 function ribbonStyle(ribbon) {
@@ -651,7 +670,10 @@ defineExpose({ viewMode, anchorDate })
   padding: 2px 5px; border: none; border-radius: 3px;
   background: #ede9fe; color: #5b21b6;
   font-size: 9px; font-weight: 700; text-align: left;
-  cursor: pointer; overflow: hidden; z-index: 6; position: relative;
+  cursor: pointer; overflow: hidden;
+  /* Task ribbons sit at z-index 5 and the leave overlay at 6, both overlapping
+     this part of the cell — stay above them or the chip can't be clicked. */
+  position: relative; z-index: 7; pointer-events: auto;
 }
 .deadline-chip:hover { filter: brightness(0.95); }
 .deadline-chip .material-symbols-outlined { font-size: 10px; flex-shrink: 0; }

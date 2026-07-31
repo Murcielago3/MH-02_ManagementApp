@@ -443,21 +443,20 @@ async def my_subtask_deadlines(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Subtask deadlines for the calendar. Scoped to projects the employee is
-    assigned to; admins and PMs see them all."""
-    from app.models.project import ProjectAssignment
+    """Subtask deadlines for the calendar.
 
+    Stage subtasks are a studio-wide todo list: every employee can see what is
+    open on any project and pick it on their timesheet, so these are NOT scoped
+    to project assignment. (An earlier version filtered by ProjectAssignment,
+    which hid every deadline from employees — projects are staffed via teams,
+    so that table is largely empty.)
+    """
     q = (
         select(StageSubtask, ProjectStage.name, Project.name, Project.color)
         .join(ProjectStage, ProjectStage.id == StageSubtask.stage_id)
         .join(Project, Project.id == StageSubtask.project_id)
         .where(StageSubtask.due_date.isnot(None))
     )
-    if current_user.role == "employee":
-        assigned = select(ProjectAssignment.project_id).where(
-            ProjectAssignment.user_id == current_user.id
-        )
-        q = q.where(StageSubtask.project_id.in_(assigned))
     if start_date:
         q = q.where(StageSubtask.due_date >= start_date)
     if end_date:
