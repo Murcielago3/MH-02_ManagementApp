@@ -243,6 +243,7 @@ const navItemsBottom = [
 // own self-service pages.
 const pmNavItems = [
   { path: '/admin/timesheets', icon: 'pending_actions', label: 'Timesheets' },
+  { path: '/pm/projects', icon: 'architecture', label: 'Projects' },
   { path: '/employee/dashboard', icon: 'dashboard',     label: 'My Dashboard' },
   { path: '/employee/timesheet', icon: 'schedule',      label: 'My Timesheet' },
   { path: '/employee/leaves',    icon: 'event_busy',    label: 'My Leaves' },

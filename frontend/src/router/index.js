@@ -158,7 +158,7 @@ const routes = [
   {
     path: '/pm/projects',
     name: 'PMProjects',
-    component: () => import('../views/employee/EmployeeDashboard.vue'),
+    component: () => import('../views/pm/PMProjectsView.vue'),
     meta: { requiresAuth: true, roles: ['project_manager'] },
   },
 

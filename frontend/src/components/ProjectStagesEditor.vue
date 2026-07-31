@@ -177,7 +177,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { stagesAPI } from '../api/stages'
 
 const props = defineProps({
@@ -213,6 +213,22 @@ const previewHours = computed(() =>
   (Number(props.data.total_hours) || 0) * (Number(newStage.value.percentage) || 0) / 100)
 const canSubmitStage = computed(() =>
   !!newStage.value.name.trim() && (Number(newStage.value.percentage) || 0) > 0 && !overboard.value)
+
+// Someone who can manage subtasks but not stages (a PM) is here for the
+// subtasks — open every stage so they're actionable without extra clicks.
+const subtaskFocused = computed(() => props.canEditSubtasks && !props.canEditStages)
+watch(
+  () => props.data?.stages?.map(s => s.id).join(','),
+  () => {
+    if (!subtaskFocused.value) return
+    const next = { ...open.value }
+    for (const s of props.data?.stages || []) {
+      if (next[s.id] === undefined) next[s.id] = true
+    }
+    open.value = next
+  },
+  { immediate: true },
+)
 
 function segColor(s) {
   const i = props.data.stages.findIndex(x => x.id === s.id)
