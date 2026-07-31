@@ -116,7 +116,7 @@
                       <span v-if="myTeam.team_lead_id === m.user_id" class="lead-tag">LEAD</span>
                       <span v-if="m.user_id === currentUserId" class="me-tag">YOU</span>
                     </div>
-                    <div class="m-desig">{{ m.designation || '—' }}</div>
+                    <div class="m-desig">{{ m.designation || '-' }}</div>
                   </div>
                 </li>
               </ul>
@@ -148,7 +148,7 @@ const stageInfo = ref(null)
 const stagesLoading = ref(false)
 const openStages = ref({})
 
-// The active stage is the first not-yet-complete one — the work in flight.
+// The active stage is the first not-yet-complete one - the work in flight.
 const activeStage = computed(() => {
   const list = stageInfo.value?.stages || []
   return list.find(s => s.status !== 'completed') || null
@@ -198,7 +198,7 @@ async function loadStages(projectId) {
   try {
     const { data } = await stagesAPI.list(projectId)
     stageInfo.value = data
-    // Open the active stage by default — it's what the employee needs now.
+    // Open the active stage by default - it's what the employee needs now.
     if (activeStage.value) openStages.value = { [activeStage.value.id]: true }
   } catch (e) {
     stageInfo.value = null

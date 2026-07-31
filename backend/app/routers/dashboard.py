@@ -21,7 +21,7 @@ from app.utils.cache import TTLCache
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 # Dashboard is one of the most-loaded pages; everyone hits it on login.
-# Org-wide aggregations are expensive — cache for 30s, invalidate on the
+# Org-wide aggregations are expensive - cache for 30s, invalidate on the
 # usual mutation points (we piggyback on _invalidate_reserve from projects).
 _dashboard_cache = TTLCache(ttl_seconds=30)
 _DASH_KEY = "stats"
@@ -149,7 +149,7 @@ async def get_dashboard_stats(
     MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     _now = datetime.now()
-    # (year, month) from the same month one year ago through the current month —
+    # (year, month) from the same month one year ago through the current month -
     # e.g. Jun 2025 … Jun 2026 (13 buckets), matching a "1 year back from today" window.
     window = []
     _y, _m = _now.year, _now.month

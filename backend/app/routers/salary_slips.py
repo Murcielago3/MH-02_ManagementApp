@@ -220,7 +220,7 @@ async def ensure_slips(db: AsyncSession, only_month: Optional[str] = None) -> in
     Two modes:
     - Automatic (only_month=None): backfills every *eligible* completed month
       and skips employees who hadn't joined yet or have no pay that month.
-    - Explicit (only_month set): a deliberate admin run for one month — every
+    - Explicit (only_month set): a deliberate admin run for one month - every
       active employee gets a slip regardless of salary or joining date.
 
     Idempotent. Approved slips are never modified. Returns number created.
@@ -286,7 +286,7 @@ async def ensure_slips(db: AsyncSession, only_month: Optional[str] = None) -> in
             )
             # In automatic mode, skip months outside employment unless there's a
             # reimbursement/leave to settle. And for any out-of-window month, never
-            # pay base salary — settle only the claim (guards against e.g. a bad
+            # pay base salary - settle only the claim (guards against e.g. a bad
             # future joining date producing a full-salary slip).
             if out_of_window and not has_money and not explicit:
                 continue
@@ -325,9 +325,9 @@ async def ensure_slips(db: AsyncSession, only_month: Optional[str] = None) -> in
                 ))
                 created += 1
             elif slip.status == "pending":
-                # Refresh pending slip so newly-approved reimbursements / leaves —
+                # Refresh pending slip so newly-approved reimbursements / leaves -
                 # and any corrected point-in-time base salary (a raise, or a fixed
-                # joining date that moves the month back in-window) — flow in.
+                # joining date that moves the month back in-window) - flow in.
                 slip.base_salary = _q(base_sal)
                 tds_amount, net = _compute(base_sal, slip.tds_percent, reimb, leave_ded)
                 slip.reimbursement_total = reimb
@@ -677,7 +677,7 @@ def render_salary_slip_html(slip, employee, settings, reimb_total) -> str:
     def _days(v):
         return int(v) if float(v).is_integer() else v
     # Days actually employed this month (prorated for a mid-month join/leave),
-    # then less any unpaid leave — this is the basis the prorated Basic reflects.
+    # then less any unpaid leave - this is the basis the prorated Basic reflects.
     payable_days, _total_days = _employed_calendar_days(y, m, employee.joining_date, employee.end_date)
     total_pay_days = _days(payable_days - unpaid_leaves)
 

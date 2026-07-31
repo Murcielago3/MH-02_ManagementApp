@@ -98,20 +98,20 @@
                 <div class="partner-grid">
                   <div class="partner-metric">
                     <span class="metric-label">Total Project Cost</span>
-                    <div class="metric-value">{{ financialTotalCost > 0 ? formatInr(financialTotalCost, 0) : '—' }}</div>
+                    <div class="metric-value">{{ financialTotalCost > 0 ? formatInr(financialTotalCost, 0) : '-' }}</div>
                   </div>
                   <div class="partner-metric">
                     <span class="metric-label">Employee Remuneration</span>
-                    <div class="metric-value">{{ financialEmployeeAmount > 0 ? formatInr(financialEmployeeAmount, 0) : '—' }}</div>
+                    <div class="metric-value">{{ financialEmployeeAmount > 0 ? formatInr(financialEmployeeAmount, 0) : '-' }}</div>
                   </div>
                   <div class="partner-metric">
                     <span class="metric-label">Partner Remuneration</span>
-                    <div class="metric-value">{{ financialPartnerAmount > 0 ? formatInr(financialPartnerAmount, 0) : '—' }}</div>
+                    <div class="metric-value">{{ financialPartnerAmount > 0 ? formatInr(financialPartnerAmount, 0) : '-' }}</div>
                   </div>
                 </div>
                 <p v-if="financialsEstimated" class="financials-note">
                   <span class="material-symbols-outlined">info</span>
-                  Budgeted remuneration wasn't set for this project — showing calculated actuals (timesheet spend / partner rate × hours) instead.
+                  Budgeted remuneration wasn't set for this project - showing calculated actuals (timesheet spend / partner rate × hours) instead.
                 </p>
               </div>
 
@@ -165,7 +165,7 @@
                     </tr>
                     <tr v-for="row in shownRows" :key="`${row.employee_id}-${row.effective_from || 'x'}`">
                       <td class="cell-name">{{ row.name }}</td>
-                      <td class="cell-muted">{{ row.designation || '—' }}</td>
+                      <td class="cell-muted">{{ row.designation || '-' }}</td>
                       <td class="num tab">{{ formatInr(row.base_pay, 0) }}</td>
                       <td class="num tab">{{ formatInrPerHour(row.hourly_rate) }}</td>
                       <td class="num tab">{{ formatHours(row.hours_worked) }}</td>
@@ -175,8 +175,8 @@
                   <tfoot>
                     <tr class="total-row">
                       <td colspan="2"><strong>TOTAL</strong></td>
-                      <td class="num">—</td>
-                      <td class="num">—</td>
+                      <td class="num">-</td>
+                      <td class="num">-</td>
                       <td class="num tab"><strong>{{ formatHours(displayTotals.total_hours) }}</strong></td>
                       <td class="num tab cell-amount"><strong>{{ formatInr(displayTotals.total_spent, 0) }}</strong></td>
                     </tr>
@@ -198,7 +198,7 @@
                   <div class="partner-metric">
                     <span class="metric-label">Partner Rate</span>
                     <div v-if="!editingPartnerRate" class="metric-value rate-cell">
-                      {{ partnerRateSet ? formatInrPerHour(displayPartnerHourly) : '—' }}
+                      {{ partnerRateSet ? formatInrPerHour(displayPartnerHourly) : '-' }}
                       <button type="button" class="btn-edit-rate" @click="startEditPartnerRate" title="Edit partner rate">
                         <span class="material-symbols-outlined">edit</span>
                       </button>
@@ -225,7 +225,7 @@
 
                 <div v-if="!partnerRateSet && !editingPartnerRate" class="partner-warn">
                   <span class="material-symbols-outlined">warning</span>
-                  Partner rate not set — click the edit icon above to configure it.
+                  Partner rate not set - click the edit icon above to configure it.
                 </div>
               </div>
             </div>
@@ -605,7 +605,7 @@ const hoursFromTimesheets = computed(() => {
  */
 const employeeBaseRows = computed(() => {
   // Server returns one row per (employee × salary period) with the frozen,
-  // point-in-time cost already computed — trust it rather than re-deriving.
+  // point-in-time cost already computed - trust it rather than re-deriving.
   const apiRows = apiSummary.value.employee_rows || []
   return apiRows
     .filter((r) => (Number(r.hours_worked) || 0) > 0)
@@ -613,7 +613,7 @@ const employeeBaseRows = computed(() => {
       employee_id: r.employee_id,
       assignment_id: r.assignment_id ?? null,
       name: r.name,
-      designation: r.designation || '—',
+      designation: r.designation || '-',
       base_pay: Number(r.base_pay) || 0,
       hourly_rate: Number(r.hourly_rate) || 0,
       hours_worked: Number(r.hours_worked) || 0,
@@ -718,7 +718,7 @@ const hasProjectedChartData = computed(() => projectedChartData.value.length > 0
 // ── Chart rendering ───────────────────────────────────────────────────────
 // Chart.js draws tooltips directly onto the canvas's own pixel buffer, so a
 // long un-abbreviated currency string (from formatInr) can get hard-clipped
-// at the canvas edge — especially on the small fixed-size doughnut. Use a
+// at the canvas edge - especially on the small fixed-size doughnut. Use a
 // short abbreviated form for all chart tooltips instead.
 function formatCurrencyShort(val) {
   const n = Number(val) || 0
@@ -740,7 +740,7 @@ function destroyAllCharts() {
 }
 
 // Chart.js' built-in tooltip draws directly onto the canvas's own pixel
-// buffer, so it gets hard-clipped at the canvas edge — fine for short labels,
+// buffer, so it gets hard-clipped at the canvas edge - fine for short labels,
 // but "Employee Remuneration: ₹15.4L (23.0%)" doesn't fit on a small 190px
 // doughnut. An external HTML tooltip isn't bound by the canvas and can never
 // be clipped, regardless of label length or canvas size.
@@ -1626,7 +1626,7 @@ async function savePartnerRate() {
   flex-shrink: 0;
 }
 
-/* External chart tooltip — a real HTML element, never clipped by the
+/* External chart tooltip - a real HTML element, never clipped by the
    canvas's own pixel bounds (unlike Chart.js' built-in canvas tooltip). */
 .chart-tooltip-box {
   position: absolute;

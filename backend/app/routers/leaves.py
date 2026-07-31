@@ -217,7 +217,7 @@ async def apply_leave(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    # Leaves are never blocked — any days beyond the paid balance (or taken
+    # Leaves are never blocked - any days beyond the paid balance (or taken
     # during probation) simply become unpaid and are deducted from salary.
     wd = len(working_days(data.start_date, data.end_date))
     leave = LeaveRequest(
@@ -245,7 +245,7 @@ async def apply_leave(
         reply_to=current_user.studio_email or current_user.personal_mail,
     )
 
-    # Post to the management channel — admins approve leave, so it goes there
+    # Post to the management channel - admins approve leave, so it goes there
     # and nowhere else. Fires after the response; a Slack outage never blocks
     # an employee applying for leave.
     def _notify_leave_applied(user, start, end, days, reason, balance):
@@ -253,12 +253,12 @@ async def apply_leave(
         tag = f"<@{uid}>" if uid else f"*{user.name}*"
         span = str(start) if start == end else f"{start} → {end}"
         msg = (
-            f"🌴 *Leave request* — {tag}\n"
+            f"🌴 *Leave request* - {tag}\n"
             f"{span} · {days} working day{'' if days == 1 else 's'}"
         )
         if reason:
             msg += f"\nReason: _{reason}_"
-        # Balance before this request is consumed — lets the approver see at a
+        # Balance before this request is consumed - lets the approver see at a
         # glance whether these days will land as paid or unpaid.
         msg += f"\nPaid-leave balance: {balance:g} day{'' if balance == 1 else 's'}"
         notify_event("leave_applied", msg)

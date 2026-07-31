@@ -71,7 +71,7 @@ function formatStatus(status) {
   const labels = {
     pending: 'Pending',
     submitted: 'Awaiting Review',
-    // pm_approved is a legacy status — the PM stage no longer exists.
+    // pm_approved is a legacy status - the PM stage no longer exists.
     pm_approved: 'Awaiting Review',
     admin_approved: 'Awaiting 2nd Admin',
     approved: 'Approved',

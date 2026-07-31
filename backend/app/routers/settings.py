@@ -124,7 +124,7 @@ async def update_settings(
     await db.commit()
     await db.refresh(s)
     _settings_dict_cache.invalidate()  # cache busted on every mutation
-    # smpy/whpm changes flow into reserve calculation — drop that cache too
+    # smpy/whpm changes flow into reserve calculation - drop that cache too
     from app.routers.projects import _invalidate_reserve
     _invalidate_reserve()
     return settings_dict(s)

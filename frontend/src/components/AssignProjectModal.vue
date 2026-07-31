@@ -128,7 +128,7 @@ onMounted(async () => {
     }
     assignedMap.value = map
   } catch (err) {
-    // non-critical — just skip the indicators
+    // non-critical - just skip the indicators
   }
 })
 

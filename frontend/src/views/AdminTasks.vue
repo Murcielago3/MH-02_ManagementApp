@@ -216,7 +216,7 @@ function toIsoDate(d) {
   return `${y}-${m}-${day}`
 }
 
-// Current calendar range — fed by the ResourceCalendar `range-change` event
+// Current calendar range - fed by the ResourceCalendar `range-change` event
 // (infinite-scroll model). Falls back to ±90 days around today before first emit.
 const calRange = ref({
   startDate: toIsoDate(new Date(Date.now() - 90 * 86400000)),

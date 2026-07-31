@@ -1,4 +1,4 @@
-"""Salary increments — admin-only, effective-dated.
+"""Salary increments - admin-only, effective-dated.
 
 Salary is *only* changed here (never via the user profile). Each increment adds
 a SalaryHistory period, snapshots the hourly-rate inputs, re-derives the
@@ -128,7 +128,7 @@ async def add_increment(
 
     periods = await get_periods(db, user_id)
     if not periods:
-        # Seeding the very first period — allow back to the joining month.
+        # Seeding the very first period - allow back to the joining month.
         min_allowed = _month_start(user.joining_date) if user.joining_date else eff
     else:
         min_allowed = _prev_month_start(today)

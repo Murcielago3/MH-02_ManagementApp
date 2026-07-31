@@ -15,7 +15,7 @@ class User(Base):
     leaves_allowed = Column(Integer, default=12)
     # Running paid-leave balance (supports half-days); accrues 1.5/month.
     paid_leave_balance = Column(Numeric(6, 1), default=0)
-    # Last month (YYYY-MM) the monthly accrual was applied — for idempotent accrual.
+    # Last month (YYYY-MM) the monthly accrual was applied - for idempotent accrual.
     leave_accrued_through = Column(String, nullable=True)
     pan_number = Column(String, nullable=True)
     aadhar_number = Column(String, nullable=True)
@@ -44,7 +44,7 @@ class User(Base):
     manager = relationship("User", remote_side=[id])
     assignments = relationship("ProjectAssignment", back_populates="user")
     # weekly_timesheets now has multiple FKs to users (employee_id + the
-    # pm/admin/rejected approval slots) — the join must be pinned to employee_id
+    # pm/admin/rejected approval slots) - the join must be pinned to employee_id
     # or the User mapper fails to configure (which 500s every request).
     weekly_timesheets = relationship(
         "WeeklyTimesheet", back_populates="employee",

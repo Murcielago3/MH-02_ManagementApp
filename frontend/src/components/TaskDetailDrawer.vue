@@ -73,14 +73,14 @@
               :disabled="savingStage"
               @change="onStageChange"
             >
-              <option :value="null">— Select a stage —</option>
+              <option :value="null">Select a stage</option>
               <option v-for="st in stages" :key="st.id" :value="st.id">
                 {{ st.name }} · {{ st.completion_percent }}% complete
               </option>
             </select>
 
             <p v-if="!canEditStageLink" class="stage-hint">
-              Only an admin can attach a stage to this task band — your choice here
+              Only an admin can attach a stage to this task band - your choice here
               just picks which stage's subtasks you're working on.
             </p>
 

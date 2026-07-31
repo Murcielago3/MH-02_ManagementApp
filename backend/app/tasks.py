@@ -1,4 +1,4 @@
-"""Celery scheduled tasks — Slack reminders.
+"""Celery scheduled tasks - Slack reminders.
 
 Celery runs these tasks synchronously, but the app's DB layer is async. Each
 task opens its own short-lived event loop via ``asyncio.run()`` and uses a
@@ -107,9 +107,9 @@ async def _monthly_admin_report() -> bool:
         f"*Timesheets submitted:* {ts_count}\n"
         f"*Active headcount:* {headcount}"
     )
-    text = f"📊 Monthly report — {label}\n{summary}"
+    text = f"📊 Monthly report - {label}\n{summary}"
     blocks = [
-        {"type": "header", "text": {"type": "plain_text", "text": f"📊 Monthly report — {label}"}},
+        {"type": "header", "text": {"type": "plain_text", "text": f"📊 Monthly report - {label}"}},
         {"type": "section", "text": {"type": "mrkdwn", "text": summary}},
     ]
     return notify_event("monthly_report", text, blocks)
@@ -139,7 +139,7 @@ def _slack_tag(user) -> str:
 def _collect_offenders(employees, submitted, weeks):
     """(user, [missing week_starts]) for each employee behind on a tracked week.
 
-    Skips weeks before the employee joined. Pure function — no DB/network — so
+    Skips weeks before the employee joined. Pure function, no DB/network, so
     it's unit-testable.
     """
     offenders = []
@@ -160,9 +160,9 @@ def _format_reminder(offenders, last_monday, this_monday) -> str:
     def _which(missing_weeks):
         return " & ".join("last week" if wk == last_monday else "this week" for wk in missing_weeks)
 
-    lines = "\n".join(f"• {_slack_tag(u)} — {_which(mw)}" for u, mw in offenders)
+    lines = "\n".join(f"• {_slack_tag(u)} - {_which(mw)}" for u, mw in offenders)
     return (
-        f"⏰ *Timesheet reminder* — please submit your pending weekly timesheets "
+        f"⏰ *Timesheet reminder* - please submit your pending weekly timesheets "
         f"({span}):\n{lines}\n🙏"
     )
 
@@ -243,7 +243,7 @@ async def _daily_task_reminder() -> bool:
             .outerjoin(Project, Task.project_id == Project.id)
             .where(
                 Task.date <= today,
-                # end_date is nullable — single-day tasks have end_date = NULL,
+                # end_date is nullable - single-day tasks have end_date = NULL,
                 # so they count only on their `date`.
                 (Task.end_date >= today) | (Task.end_date.is_(None) & (Task.date == today)),
                 Task.status.in_(["pending", "in-progress"]),
@@ -289,9 +289,9 @@ async def _daily_task_reminder() -> bool:
         for t in tasks_list:
             lines.append(f"    • {t}")
 
-    text = f"📋 *Daily Task Briefing — {label}*\n{''.join(lines)}"
+    text = f"📋 *Daily Task Briefing - {label}*\n{''.join(lines)}"
     blocks = [
-        {"type": "header", "text": {"type": "plain_text", "text": f"📋 Daily Task Briefing — {label}"}},
+        {"type": "header", "text": {"type": "plain_text", "text": f"📋 Daily Task Briefing - {label}"}},
         {"type": "section", "text": {"type": "mrkdwn", "text": "\n".join(lines)}},
     ]
     return notify_event("daily_task_reminder", text, blocks)

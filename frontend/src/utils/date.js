@@ -3,7 +3,7 @@
  *
  * Never use `d.toISOString().split('T')[0]` for this. toISOString() converts to
  * UTC first, so in any timezone ahead of UTC (IST is +5:30) it returns the
- * PREVIOUS day — always for a Date built at local midnight, and between 00:00
+ * PREVIOUS day - always for a Date built at local midnight, and between 00:00
  * and 05:30 local for `new Date()`. That silently shifted calendar cells,
  * "today" highlights and deadline lookups by a day.
  */

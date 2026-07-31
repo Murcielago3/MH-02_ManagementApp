@@ -1,4 +1,4 @@
-// Global notification store — a tiny reactive queue so any code (an axios
+// Global notification store - a tiny reactive queue so any code (an axios
 // interceptor, a router guard, a component) can surface a toast without each
 // view having to wire up its own <ToastNotification>. The single
 // <GlobalNotifier> mounted in App.vue subscribes to this list.
@@ -33,7 +33,7 @@ export function notify(opts) {
   return toast.id
 }
 
-// Convenience helpers — easier to read at the call site.
+// Convenience helpers - easier to read at the call site.
 export const notifySuccess = (message, opts = {}) => notify({ ...opts, message, type: 'success' })
 export const notifyError = (message, opts = {}) => notify({ ...opts, message, type: 'error' })
 export const notifyWarning = (message, opts = {}) => notify({ ...opts, message, type: 'warning' })

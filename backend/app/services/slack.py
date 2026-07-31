@@ -9,7 +9,7 @@ nudge) are sent from Celery tasks. Both call the same synchronous sender:
     never blocked.
   * Celery workers are already synchronous, so they call it directly.
 
-Posting uses Slack's Web API ``chat.postMessage`` with a bot token — free on
+Posting uses Slack's Web API ``chat.postMessage`` with a bot token - free on
 Slack's plan. Failures never raise: a Slack outage must not break a user action
 or a scheduled task.
 
@@ -59,10 +59,10 @@ def send_slack_message(text: str, *, channel: str | None, blocks: list | None = 
     runs fine without Slack configured.
     """
     if not settings.SLACK_BOT_TOKEN:
-        logger.warning("SLACK_BOT_TOKEN not set — skipping Slack message.")
+        logger.warning("SLACK_BOT_TOKEN not set - skipping Slack message.")
         return False
     if not channel:
-        logger.warning("No Slack channel configured for this message — skipping.")
+        logger.warning("No Slack channel configured for this message - skipping.")
         return False
 
     payload: dict = {"channel": channel, "text": text}

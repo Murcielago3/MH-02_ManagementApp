@@ -25,22 +25,22 @@ celery_app.conf.imports = ("app.tasks",)
 # Requires the `beat` service to be running (see docker-compose*.yml). Run
 # exactly one beat instance, or messages get sent multiple times.
 celery_app.conf.beat_schedule = {
-    # Monthly report to the management channel — 1st of each month at 09:00.
+    # Monthly report to the management channel - 1st of each month at 09:00.
     "monthly-admin-report": {
         "task": "app.tasks.monthly_admin_report",
         "schedule": crontab(day_of_month="1", hour=9, minute=0),
     },
-    # Timesheet nudge to the common channel — every Sunday at 12:00 noon.
+    # Timesheet nudge to the common channel - every Sunday at 12:00 noon.
     "weekly-timesheet-reminder": {
         "task": "app.tasks.weekly_timesheet_reminder",
         "schedule": crontab(day_of_week="sun", hour=12, minute=0),
     },
-    # Promote future-dated salary raises into the current-salary mirror — daily.
+    # Promote future-dated salary raises into the current-salary mirror - daily.
     "promote-salary-periods": {
         "task": "app.tasks.promote_salary_periods",
         "schedule": crontab(hour=0, minute=5),
     },
-    # Daily task briefing to the common channel — every weekday at 09:00.
+    # Daily task briefing to the common channel - every weekday at 09:00.
     "daily-task-reminder": {
         "task": "app.tasks.daily_task_reminder",
         "schedule": crontab(day_of_week="mon-sat", hour=9, minute=0),

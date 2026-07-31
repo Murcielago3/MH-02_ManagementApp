@@ -26,7 +26,7 @@ export const projectsAPI = {
     return client.delete(`/projects/${projectId}`)
   },
 
-  /** Body: { user_id } — salary is pulled from the User profile by the backend */
+  /** Body: { user_id } - salary is pulled from the User profile by the backend */
   assignEmployee: (projectId, body) => {
     return client.post(`/projects/${projectId}/assign`, body)
   },
@@ -41,7 +41,7 @@ export const projectsAPI = {
 
   /**
    * Query: billed_amount, partner_hourly_rate (optional).
-   * Backend may require billed_amount on every call — callers should always pass current billed_amount.
+   * Backend may require billed_amount on every call - callers should always pass current billed_amount.
    */
   patchProjectBilling: (projectId, params) => {
     return client.patch(`/projects/${projectId}/billing`, null, { params })

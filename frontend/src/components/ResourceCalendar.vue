@@ -111,7 +111,7 @@
                   <span
                     v-if="isDelayed(rb.task)"
                     class="rb-delay"
-                    :title="`${overdueSubtasks(rb.task)} subtask(s) past deadline — worst is ${taskDelay(rb.task)}d late`"
+                    :title="`${overdueSubtasks(rb.task)} subtask(s) past deadline - worst is ${taskDelay(rb.task)}d late`"
                   >{{ overdueSubtasks(rb.task) }}× · {{ taskDelay(rb.task) }}d</span>
                   <div 
                     class="rb-handle rb-handle-end" 
@@ -232,8 +232,8 @@ const periodLabel = computed(() => {
 })
 
 // ───────── Scroll behaviour ─────────
-// Aligns `today` to the LEFT of the day area — flush against the sticky employee
-// column — so the calendar opens on today (and "Today" jumps it back there).
+// Aligns `today` to the LEFT of the day area - flush against the sticky employee
+// column - so the calendar opens on today (and "Today" jumps it back there).
 let initialCenterDone = false
 let centerObserver = null
 function computeCenterScrollLeft(c) {
@@ -261,7 +261,7 @@ function tryCenterToday() {
 }
 function scrollToToday() {
   if (tryCenterToday()) return
-  // Container not laid out yet — observe size changes and center the first time
+  // Container not laid out yet - observe size changes and center the first time
   // we get a real width. Cleaner than polling RAF for fixed N attempts.
   if (centerObserver) return
   centerObserver = new ResizeObserver(() => {
@@ -294,7 +294,7 @@ function onWheel(e) {
   // Pure horizontal trackpad swipes: let them through natively
   if (Math.abs(dx) > Math.abs(dy)) return
   if (dy === 0) return
-  // Always claim the event — calendar always has overflow, so vertical wheel = horizontal calendar scroll
+  // Always claim the event - calendar always has overflow, so vertical wheel = horizontal calendar scroll
   e.preventDefault()
   let delta = dy
   if (e.deltaMode === 1) delta = dy * 16
@@ -398,7 +398,7 @@ onUnmounted(() => {
   }
 })
 
-// Employees — alphabetical by name
+// Employees - alphabetical by name
 const displayEmployees = computed(() => {
   const list = props.filterEmployeeId
     ? props.employees.filter(e => e.id === props.filterEmployeeId)
@@ -426,7 +426,7 @@ watch([visibleDays, displayEmployees, selectedProjectId, () => props.tasks], () 
 })
 
 // id → { name }, used by the drag-preview label. (Was referenced in the template
-// but never defined — accessing userMap[empId] on a move/clone drag threw
+// but never defined - accessing userMap[empId] on a move/clone drag threw
 // "Cannot read properties of undefined", crashing the calendar render.)
 const userMap = computed(() => {
   const m = {}
@@ -458,7 +458,7 @@ function hrsClass(eid) { if (isOverloaded(eid)) return 'hrs-over'; const r = get
 // Ribbons
 const priorityColors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' }
 function rbColor(t) { if (t.project_id && props.projectMap[t.project_id]?.color) return props.projectMap[t.project_id].color; return priorityColors[t.priority] ?? '#287475' }
-// Delay comes from subtask deadlines only — a parent task past its own end date
+// Delay comes from subtask deadlines only - a parent task past its own end date
 // is not flagged.
 function taskDelay(t) { return t.status === 'completed' ? 0 : (t.subtask_delay_days || 0) }
 function overdueSubtasks(t) { return t.status === 'completed' ? 0 : (t.overdue_subtasks || 0) }

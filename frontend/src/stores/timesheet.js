@@ -175,7 +175,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
         week_start: selectedWeek.value.week_start,
         week_end: selectedWeek.value.week_end,
         description: form.value.description,
-        // Only submit rows actually worked on — a project left at 0h means the
+        // Only submit rows actually worked on - a project left at 0h means the
         // employee didn't work on it this week, so it's dropped rather than sent.
         entries: form.value.entries
           .filter(e => e.project_id && (Number(e.hours) || 0) > 0)

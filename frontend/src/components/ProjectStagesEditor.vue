@@ -33,7 +33,7 @@
         :key="'bar-' + s.id"
         class="bar-seg"
         :style="{ width: s.percentage + '%', background: segColor(s) }"
-        :title="`${s.name} — ${fmtPct(s.percentage)}%`"
+        :title="`${s.name} - ${fmtPct(s.percentage)}%`"
       ></div>
     </div>
 
@@ -140,7 +140,7 @@
                       v-for="w in t.workers"
                       :key="w.name"
                       class="worker-chip"
-                      :title="`${w.hours}h logged — view timesheets`"
+                      :title="`${w.hours}h logged - view timesheets`"
                       @click="$emit('view-worker', w)"
                     >{{ w.name }} · {{ w.hours }}h</button>
                   </span>
@@ -181,7 +181,7 @@
     <div v-if="overboard" class="pse-warn">
       <span class="material-symbols-outlined">warning</span>
       That would allocate <strong>{{ fmtPct(allocatedPct + (Number(newStage.percentage) || 0)) }}%</strong>
-      of the project — only <strong>{{ fmtPct(remainingPct) }}%</strong> ({{ inr(data.remaining_amount) }}) is left.
+      of the project - only <strong>{{ fmtPct(remainingPct) }}%</strong> ({{ inr(data.remaining_amount) }}) is left.
     </div>
 
     <p v-if="errorMsg" class="pse-error">{{ errorMsg }}</p>
@@ -230,7 +230,7 @@ const canSubmitStage = computed(() =>
   !!newStage.value.name.trim() && (Number(newStage.value.percentage) || 0) > 0 && !overboard.value)
 
 // Someone who can manage subtasks but not stages (a PM) is here for the
-// subtasks — open every stage so they're actionable without extra clicks.
+// subtasks - open every stage so they're actionable without extra clicks.
 const subtaskFocused = computed(() => props.canEditSubtasks && !props.canEditStages)
 watch(
   () => props.data?.stages?.map(s => s.id).join(','),

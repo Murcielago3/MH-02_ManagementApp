@@ -93,7 +93,7 @@ async def run_migrations():
                     text(f"ALTER TABLE projects ADD COLUMN {col_name} {col_def}")
                 )
         except Exception:
-            pass  # Column already exists in this DB — skip and continue
+            pass  # Column already exists in this DB - skip and continue
 
     # Create estimates tables if missing
     try:
@@ -131,7 +131,7 @@ async def run_migrations():
     except Exception:
         pass
 
-    # Create the settings table (singleton) if missing — covers both Postgres and SQLite.
+    # Create the settings table (singleton) if missing - covers both Postgres and SQLite.
     try:
         async with engine.begin() as conn:
             await conn.execute(text("""
@@ -246,7 +246,7 @@ async def run_migrations():
             pass
 
     # Transition stamps powering the quarterly task/subtask report. Left NULL on
-    # existing rows on purpose — the report shows those as "timing unknown"
+    # existing rows on purpose - the report shows those as "timing unknown"
     # rather than inventing an on-time completion.
     for table in ("subtasks", "tasks"):
         for col_name in ("started_at", "completed_at"):
@@ -353,7 +353,7 @@ async def run_migrations():
         except Exception:
             pass
 
-    # Per-item GST bracket (8/12/18%) — default 18 matches the historical
+    # Per-item GST bracket (8/12/18%) - default 18 matches the historical
     # hardcoded rate so existing invoices/items are unaffected.
     try:
         async with engine.begin() as conn:
@@ -437,7 +437,7 @@ async def run_migrations():
     except Exception:
         pass
 
-    # Reimbursement submission timestamp — the basis for which salary-slip month a
+    # Reimbursement submission timestamp - the basis for which salary-slip month a
     # claim rolls into (submission month -> that month's slip, paid next month).
     try:
         async with engine.begin() as conn:
@@ -486,7 +486,7 @@ async def run_migrations():
     # ── PM approval stage removed: re-derive timesheet status ──
     # Approval is admin-only now, so a sheet holding both admin slots is fully
     # approved regardless of the PM slot. Promotions must go through the ORM
-    # path so cost freezing and comp-off credits fire — a raw UPDATE would leave
+    # path so cost freezing and comp-off credits fire - a raw UPDATE would leave
     # entries uncosted and credits ungranted. Idempotent; no-ops once settled.
     try:
         from app.database import AsyncSessionLocal

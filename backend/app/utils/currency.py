@@ -1,4 +1,4 @@
-"""Indian-grouped rupee formatting — the single source of truth for how money
+"""Indian-grouped rupee formatting - the single source of truth for how money
 renders in backend-generated text (Slack messages, audit-log summaries, PDFs).
 
 Python's ``{:,}`` groups in thousands (1,000,000); India groups the last three

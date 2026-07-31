@@ -292,7 +292,7 @@ function getUserName(empId) {
   return emp ? emp.name : `Employee #${empId}`
 }
 
-// The salary-slip month a pending claim will roll into once approved — the month
+// The salary-slip month a pending claim will roll into once approved - the month
 // of its expense date. That slip pays out the following month.
 function projectedMonth(item) {
   return itemMonth(item) || null

@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     # ─── Slack notifications ───
     # Bot User OAuth token (xoxb-…) from your Slack app. Leave unset to disable
-    # all Slack notifications — they no-op with a logged warning, so the app and
+    # all Slack notifications - they no-op with a logged warning, so the app and
     # tasks keep working without Slack configured.
     SLACK_BOT_TOKEN: Optional[str] = None
     # Channel IDs (e.g. "C0123ABCDE") the bot has been invited to.
@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # ─── SMTP email notifications ───
     # Leave applications and timesheet submissions email the approvers. Leave
-    # SMTP_HOST unset to disable email entirely — sends no-op with a logged
+    # SMTP_HOST unset to disable email entirely - sends no-op with a logged
     # warning, exactly like Slack, so the app runs fine without it.
     SMTP_HOST: Optional[str] = None
     SMTP_PORT: int = 587

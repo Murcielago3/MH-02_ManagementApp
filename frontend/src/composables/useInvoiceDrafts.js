@@ -18,7 +18,7 @@ function buildLabel(formData) {
   const parts = []
   if (formData.bill_to_name) parts.push(formData.bill_to_name)
   if (formData.subject) parts.push(formData.subject)
-  if (parts.length) return parts.join(' — ')
+  if (parts.length) return parts.join(' - ')
   if (formData.invoice_number) return formData.invoice_number
   return 'Untitled Draft'
 }

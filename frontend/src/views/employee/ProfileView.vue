@@ -43,31 +43,31 @@
             <div class="details-grid">
               <div class="detail-item">
                 <span class="detail-label">Studio Email</span>
-                <span class="detail-value">{{ user.studio_email || '—' }}</span>
+                <span class="detail-value">{{ user.studio_email || '-' }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">Personal Email</span>
-                <span class="detail-value">{{ user.personal_mail || '—' }}</span>
+                <span class="detail-value">{{ user.personal_mail || '-' }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">Phone Number</span>
-                <span class="detail-value">{{ user.phone_number || '—' }}</span>
+                <span class="detail-value">{{ user.phone_number || '-' }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">Emergency Contact</span>
-                <span class="detail-value">{{ user.emergency_contact_number || '—' }} ({{ user.emergency_contact_relationship || '—' }})</span>
+                <span class="detail-value">{{ user.emergency_contact_number || '-' }} ({{ user.emergency_contact_relationship || '-' }})</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">PAN Number</span>
-                <span class="detail-value">{{ user.pan_number || '—' }}</span>
+                <span class="detail-value">{{ user.pan_number || '-' }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">Aadhar Number</span>
-                <span class="detail-value">{{ user.aadhar_number || '—' }}</span>
+                <span class="detail-value">{{ user.aadhar_number || '-' }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">Manager</span>
-                <span class="detail-value">{{ user.manager_id ? `Manager #${user.manager_id}` : '—' }}</span>
+                <span class="detail-value">{{ user.manager_id ? `Manager #${user.manager_id}` : '-' }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">Joining Date</span>
@@ -83,15 +83,15 @@
               </div>
               <div class="detail-item">
                 <span class="detail-label">Bank Name</span>
-                <span class="detail-value">{{ user.bank_name || '—' }}</span>
+                <span class="detail-value">{{ user.bank_name || '-' }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">Account Number</span>
-                <span class="detail-value">{{ user.bank_account_number || '—' }}</span>
+                <span class="detail-value">{{ user.bank_account_number || '-' }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">IFSC Code</span>
-                <span class="detail-value">{{ user.bank_ifsc_code || '—' }}</span>
+                <span class="detail-value">{{ user.bank_ifsc_code || '-' }}</span>
               </div>
             </div>
 
@@ -99,7 +99,7 @@
             <div v-if="bankIncomplete" class="bank-warn">
               <span class="material-symbols-outlined">account_balance</span>
               <div>
-                <strong>Add your bank details</strong> — they appear on your salary
+                <strong>Add your bank details</strong> - they appear on your salary
                 slip and are where your salary is paid. Use <em>Edit Profile</em> above.
               </div>
             </div>
@@ -196,7 +196,7 @@
                 <tbody>
                   <tr v-for="t in timesheets" :key="t.id">
                     <td class="mono">{{ formatDateShort(t.week_start) }}</td>
-                    <td class="desc-cell">{{ t.description || '—' }}</td>
+                    <td class="desc-cell">{{ t.description || '-' }}</td>
                     <td>
                       <span class="status-badge" :class="t.status">{{ t.status }}</span>
                     </td>
@@ -222,7 +222,7 @@
                 <tbody>
                   <tr v-for="l in leaves" :key="l.id">
                     <td class="mono">{{ formatDateShort(l.start_date) }} – {{ formatDateShort(l.end_date) }}</td>
-                    <td>{{ l.reason || '—' }}</td>
+                    <td>{{ l.reason || '-' }}</td>
                     <td><span class="status-badge" :class="l.status">{{ l.status }}</span></td>
                   </tr>
                 </tbody>
@@ -267,11 +267,11 @@
             </div>
           </div>
 
-          <!-- Bank details — self-service; printed on the salary slip. -->
+          <!-- Bank details - self-service; printed on the salary slip. -->
           <div class="form-section-label">
             <span class="material-symbols-outlined">account_balance</span>
             Bank details
-            <span class="readonly-note">— shown on your salary slip</span>
+            <span class="readonly-note">- shown on your salary slip</span>
           </div>
           <div class="form-group">
             <label>Bank Name</label>
@@ -440,7 +440,7 @@ const handlePhotoChange = async (e) => {
     console.error(err)
   }
 }
-// Bank details are only useful if complete — a slip with a name but no account
+// Bank details are only useful if complete - a slip with a name but no account
 // number is no help to whoever runs payroll.
 const bankIncomplete = computed(() => {
   const u = user.value
@@ -495,17 +495,17 @@ const formatRole = (role) => {
 }
 
 const formatDate = (d) => {
-  if (!d) return '—'
+  if (!d) return '-'
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
 }
 
 const formatDateShort = (d) => {
-  if (!d) return '—'
+  if (!d) return '-'
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 const formatCurrency = (val) => {
-  if (!val) return '—'
+  if (!val) return '-'
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val)
 }
 </script>
@@ -993,7 +993,7 @@ const formatCurrency = (val) => {
   .doc-grid { grid-template-columns: 1fr; }
   .modal { max-width: 100%; width: 100%; }
   .modal-backdrop { padding: 8px; }
-  /* Two-up field rows are unusable at phone widths — stack them. */
+  /* Two-up field rows are unusable at phone widths - stack them. */
   .form-row { grid-template-columns: 1fr; }
   .modal-card { max-width: 100%; border-radius: var(--radius-lg); }
   .details-grid { grid-template-columns: 1fr; }

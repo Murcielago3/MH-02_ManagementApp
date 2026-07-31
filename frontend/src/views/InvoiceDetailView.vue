@@ -110,7 +110,7 @@ const fetchInvoice = async () => {
   loading.value = true
   try {
     // Pull the invoice metadata (for buttons/header) and the rendered preview
-    // HTML in parallel — the HTML drives the iframe; the JSON drives controls.
+    // HTML in parallel - the HTML drives the iframe; the JSON drives controls.
     const [res, htmlRes] = await Promise.all([
       invoicesAPI.getInvoice(id),
       invoicesAPI.getPreviewHTML(id),

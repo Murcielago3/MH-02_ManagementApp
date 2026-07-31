@@ -76,7 +76,7 @@
                 type="button"
                 class="deadline-chip"
                 :class="{ late: d.is_overdue, done: d.status === 'completed' }"
-                :title="`${d.project_name} · ${d.stage_name} — ${d.title}`"
+                :title="`${d.project_name} · ${d.stage_name} - ${d.title}`"
                 @click.stop="$emit('subtask-deadline-click', d)"
                 @mousedown.stop
               >
@@ -106,7 +106,7 @@
               <span
                 v-if="isDelayed(ribbon.task)"
                 class="delay-badge"
-                :title="`${overdueSubtaskCount(ribbon.task)} subtask(s) past deadline — worst is ${getTaskDelay(ribbon.task)}d late`"
+                :title="`${overdueSubtaskCount(ribbon.task)} subtask(s) past deadline - worst is ${getTaskDelay(ribbon.task)}d late`"
               >
                 {{ overdueSubtaskCount(ribbon.task) }} subtask{{ overdueSubtaskCount(ribbon.task) > 1 ? 's' : '' }} · {{ getTaskDelay(ribbon.task) }}d late
               </span>
@@ -195,7 +195,7 @@ const todayStr = toStr(new Date())
 
 // ── Delay detection ──
 // Driven by subtask deadlines only. A parent task running past its own end date
-// is NOT flagged here — only an unfinished subtask past its deadline is.
+// is NOT flagged here - only an unfinished subtask past its deadline is.
 function getTaskDelay(task) {
   if (task.status === 'completed') return 0
   return task.subtask_delay_days || 0
@@ -526,7 +526,7 @@ onUnmounted(() => {
 // ── Helpers ──
 // Local calendar date as YYYY-MM-DD. Must NOT use toISOString(): the grid
 // builds Date objects at LOCAL midnight, and in any timezone ahead of UTC
-// (IST is +5:30) toISOString() rolls back to the previous day — which shifted
+// (IST is +5:30) toISOString() rolls back to the previous day - which shifted
 // every cell key by one, so "today", holidays, leaves, ribbons and subtask
 // deadlines all landed on the wrong date.
 function toStr(d) {
@@ -683,7 +683,7 @@ defineExpose({ viewMode, anchorDate })
   font-size: 9px; font-weight: 700; text-align: left;
   cursor: pointer; overflow: hidden;
   /* Task ribbons sit at z-index 5 and the leave overlay at 6, both overlapping
-     this part of the cell — stay above them or the chip can't be clicked. */
+     this part of the cell - stay above them or the chip can't be clicked. */
   position: relative; z-index: 7; pointer-events: auto;
 }
 .deadline-chip:hover { filter: brightness(0.95); }

@@ -125,8 +125,8 @@ async def calendar_tasks(
 ):
     """
     Returns tasks overlapping the requested window. Accepts either:
-      - explicit start_date + end_date (preferred — handles month-straddling windows)
-      - year + month (legacy fallback — fetches the whole month)
+      - explicit start_date + end_date (preferred - handles month-straddling windows)
+      - year + month (legacy fallback - fetches the whole month)
     """
     from datetime import date as dt
     import calendar
@@ -198,7 +198,7 @@ async def bulk_assign(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_manager)
 ):
-    """Assign a project (as a task) to several employees at once — one Task row
+    """Assign a project (as a task) to several employees at once - one Task row
     per selected employee. Powers the 'Assign Project' button."""
     if not data.assigned_to:
         raise HTTPException(400, "Select at least one employee")

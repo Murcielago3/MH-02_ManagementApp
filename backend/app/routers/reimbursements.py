@@ -92,7 +92,7 @@ async def create_reimbursement(
         notify_event(
             "reimbursement",
             f"💸 *Reimbursement submitted*\n"
-            f"{tag} — {rupees(amount)} for _{reason}_ (dated {date})",
+            f"{tag} - {rupees(amount)} for _{reason}_ (dated {date})",
         )
     background_tasks.add_task(_notify_reimbursement_submitted, current_user, amount, reason, date)
     return entry
@@ -116,7 +116,7 @@ async def action_reimbursement(
     entry.status = data.status
     if data.status == "approved":
         # Bundle into the salary slip for the month of the *expense date*. That
-        # slip pays out the following month — e.g. a June-dated bill rides June's
+        # slip pays out the following month - e.g. a June-dated bill rides June's
         # slip, received ~Jul 7. The expense date is the reliable, admin-visible
         # month for a claim (submission timestamps weren't recorded historically).
         basis = entry.date or (entry.created_at.date() if entry.created_at else date.today())
@@ -128,7 +128,7 @@ async def action_reimbursement(
     await db.commit()
     await db.refresh(entry)
 
-    # Notify accounts/admin in Slack of the decision — tag the employee.
+    # Notify accounts/admin in Slack of the decision - tag the employee.
     emp = (await db.execute(
         select(User).where(User.id == entry.employee_id)
     )).scalar_one_or_none()
@@ -141,7 +141,7 @@ async def action_reimbursement(
         verb = "approved ✅" if status == "approved" else "rejected ❌"
         notify_event(
             "reimbursement_decision",
-            f"💰 Reimbursement *{verb}* — {tag}: {rupees(entry.amount)} for _{entry.reason}_",
+            f"💰 Reimbursement *{verb}* - {tag}: {rupees(entry.amount)} for _{entry.reason}_",
         )
     background_tasks.add_task(_notify_reimbursement_decision, emp, entry, data.status)
     return entry

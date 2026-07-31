@@ -35,7 +35,7 @@ client.interceptors.response.use(
     const status = error.response?.status
     const config = error.config || {}
 
-    // 401: kick to login. Don't toast — the page change is the signal.
+    // 401: kick to login. Don't toast - the page change is the signal.
     if (status === 401) {
       localStorage.removeItem('access_token')
       localStorage.removeItem('user_role')
@@ -53,7 +53,7 @@ client.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // Skip toast for the login endpoint — its 401 already shows an inline form error.
+    // Skip toast for the login endpoint - its 401 already shows an inline form error.
     const url = (config.url || '').toString()
     if (/\/auth\/login\b/.test(url)) {
       return Promise.reject(error)

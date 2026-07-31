@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <h1 class="page-title">Projects</h1>
-        <p class="page-sub">Manage stage subtasks — add them, set deadlines, and mark them complete.</p>
+        <p class="page-sub">Manage stage subtasks - add them, set deadlines, and mark them complete.</p>
       </div>
       <button class="refresh-btn" @click="reload" :disabled="loading">
         <span class="material-symbols-outlined">refresh</span> Refresh
@@ -103,7 +103,7 @@ const filtered = computed(() => {
         (p.name || '').toLowerCase().includes(q) ||
         (p.project_number || '').toLowerCase().includes(q))
     : projects.value
-  // Projects with open subtasks first — that's what a PM is here to clear.
+  // Projects with open subtasks first - that's what a PM is here to clear.
   return [...list].sort((a, b) => (counts.value[b.id]?.open || 0) - (counts.value[a.id]?.open || 0))
 })
 

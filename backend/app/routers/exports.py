@@ -139,7 +139,7 @@ def _pay_date_str(d) -> str:
 
 
 def _round_rupee(v) -> Decimal:
-    """Nearest whole rupee, half up — how payroll rounds the net."""
+    """Nearest whole rupee, half up - how payroll rounds the net."""
     return Decimal(str(v or 0)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
 
@@ -217,7 +217,7 @@ async def export_ca_salary_sheet(
 
 @router.get("/salary-months")
 async def salary_months(db: AsyncSession = Depends(get_db), current_user=Depends(require_admin)):
-    """Distinct salary-slip months, newest first — drives the month picker."""
+    """Distinct salary-slip months, newest first - drives the month picker."""
     months = (await db.execute(
         select(SalarySlip.month).distinct().order_by(SalarySlip.month.desc())
     )).scalars().all()

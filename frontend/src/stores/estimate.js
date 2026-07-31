@@ -59,7 +59,7 @@ export const useEstimateStore = defineStore('estimate', () => {
 
   const partnerPayPerHour = ref(null)
 
-  // ── Computed getters (derived — never stored) ──────────────────────────────
+  // ── Computed getters (derived - never stored) ──────────────────────────────
   const workingDays = computed(() => countWorkingDays(startDate.value, endDate.value))
   const calendarDays = computed(() => countCalendarDays(startDate.value, endDate.value))
   const teamHrsPerDay = computed(() =>
@@ -217,7 +217,7 @@ export const useEstimateStore = defineStore('estimate', () => {
     return true
   }
 
-  // Legacy compat — kept for the draft banner restore flow
+  // Legacy compat - kept for the draft banner restore flow
   function loadDraft() {
     // No-op now; use loadDraftById instead
     return false

@@ -52,7 +52,7 @@ def freeze_entry_cost(periods, daily_hours, hours, week_start):
     salary periods. ``daily_hours`` (Mon..Sun, aligned to week_start) is the
     source of truth; legacy NULL falls back to even-spread of ``hours``.
 
-    breakdown = [{salary_history_id, hours, rate, cost}, ...] — one bucket
+    breakdown = [{salary_history_id, hours, rate, cost}, ...] - one bucket
     normally, two when the week straddles a raise. Returns plain floats/ints.
     """
     if isinstance(daily_hours, list) and len(daily_hours) > 0:

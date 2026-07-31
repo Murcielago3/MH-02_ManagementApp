@@ -44,9 +44,9 @@
                 {{ c.customer_type === 'individual' ? 'Individual' : 'Business' }}
               </span>
             </td>
-            <td class="muted">{{ c.email || '—' }}</td>
-            <td class="mono muted">{{ c.phone || '—' }}</td>
-            <td class="mono muted">{{ c.customer_type === 'individual' ? (c.pan || '—') : (c.gstin || c.pan || '—') }}</td>
+            <td class="muted">{{ c.email || '-' }}</td>
+            <td class="mono muted">{{ c.phone || '-' }}</td>
+            <td class="mono muted">{{ c.customer_type === 'individual' ? (c.pan || '-') : (c.gstin || c.pan || '-') }}</td>
             <td>
               <div class="row-actions">
                 <button class="action-btn edit-btn" title="Edit" @click="openEditModal(c)">
@@ -627,7 +627,7 @@ async function handleDelete() {
 .page-btn:hover:not(:disabled) { background: var(--color-outline-variant); }
 .page-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* Row actions — visible on hover */
+/* Row actions - visible on hover */
 .row-actions {
   display: flex;
   align-items: center;

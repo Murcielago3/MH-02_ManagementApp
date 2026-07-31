@@ -4,12 +4,12 @@ Quarters follow the Indian financial year: Q1 Apr–Jun, Q2 Jul–Sep, Q3 Oct–
 Q4 Jan–Mar. ``fy_year`` names the year the FY opens in, so fy_year=2026 is
 FY 2026-27 and its Q4 lands in Jan–Mar 2027.
 
-An item belongs to the quarter its DEADLINE falls in — that's what "how many
+An item belongs to the quarter its DEADLINE falls in - that's what "how many
 went due this quarter" means. Buckets are mutually exclusive and sum to total:
 
     completed_on_time   finished on or before the deadline
     completed_late      finished, but after the deadline
-    completed_untimed   finished before this feature shipped (no timestamp) —
+    completed_untimed   finished before this feature shipped (no timestamp) -
                         reported honestly rather than assumed on-time
     overdue             not finished, deadline has passed
     open                not finished, deadline still ahead
@@ -188,7 +188,7 @@ async def available_quarters(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_manager),
 ):
-    """Quarters that actually contain data, newest first — drives the picker so
+    """Quarters that actually contain data, newest first - drives the picker so
     it never offers an empty quarter."""
     bounds = (await db.execute(select(StageSubtask.due_date).where(StageSubtask.due_date.isnot(None)))).scalars().all()
     task_ends = (await db.execute(select(Task.end_date))).scalars().all()

@@ -173,7 +173,7 @@
               <div class="form-field">
                 <label>Current Stage</label>
                 <select v-model="form.current_stage">
-                  <option value="">— Select Stage —</option>
+                  <option value="">Select Stage</option>
                   <option v-for="s in stages" :key="s" :value="s">{{ s }}</option>
                 </select>
               </div>
@@ -190,7 +190,7 @@
               <div class="form-field">
                 <label>Client</label>
                 <select v-model="form.client_id">
-                  <option :value="null">— No Client —</option>
+                  <option :value="null">No Client</option>
                   <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.name }}</option>
                 </select>
               </div>
@@ -271,7 +271,7 @@
 
               <div class="wiz-divider"><span>Project stages</span></div>
               <div v-if="!editingId" class="wiz-note">
-                Save the details first — stages attach to the saved project.
+                Save the details first - stages attach to the saved project.
               </div>
               <div v-else-if="stagesLoading" class="wiz-note">Loading stages…</div>
               <ProjectStagesEditor
@@ -286,7 +286,7 @@
             <!-- ── Step 3: subtasks (skippable) ── -->
             <div v-show="wizardStep === 3" class="wiz-step">
               <p class="wiz-intro">
-                Add subtasks to each stage. These become the studio-wide todo list —
+                Add subtasks to each stage. These become the studio-wide todo list -
                 employees pick them on their timesheets and their deadlines show on calendars.
                 <strong>This step is optional.</strong>
               </p>
@@ -299,7 +299,7 @@
                 @changed="loadStages"
               />
               <div v-else class="wiz-note">
-                No stages defined — go back to step 2 to add some, or finish without subtasks.
+                No stages defined - go back to step 2 to add some, or finish without subtasks.
               </div>
             </div>
 
@@ -432,7 +432,7 @@ const wizardSteps = [
 const stageData = ref(null)
 const stagesLoading = ref(false)
 
-// Working days between the project dates — same Mon-Fri rule as estimates.
+// Working days between the project dates - same Mon-Fri rule as estimates.
 const timelineWorkingDays = computed(() => countWorkingDays(form.start_date, form.end_date))
 const timelineCalendarDays = computed(() => countCalendarDays(form.start_date, form.end_date))
 const timelineInvalid = computed(() =>
@@ -505,7 +505,7 @@ const form = reactive({
   color: '#60A5FA',
 })
 
-// Project color palette — medium-saturation, clearly visible on calendar
+// Project color palette - medium-saturation, clearly visible on calendar
 const projectPresets = [
   '#F87171', // red
   '#FB923C', // orange
@@ -597,7 +597,7 @@ async function fetchAll() {
 }
 
 // Some timesheets come back from the list endpoint without their `entries`
-// populated — fetch the missing ones individually (same pattern used on the
+// populated - fetch the missing ones individually (same pattern used on the
 // project summary page), capped so a huge backlog can't blow up requests.
 async function ensureTimesheetEntries(timesheets) {
   const list = [...(timesheets || [])]
@@ -633,8 +633,8 @@ const hoursByProjectAndEmployee = computed(() => {
 
 // Billed / unbilled / employee & partner remuneration per project. Employee
 // and partner remuneration are ALWAYS calculated live from approved
-// timesheet hours — total hours × each employee's hourly pay, and total
-// hours × the project's partner hourly rate — never the static budgeted
+// timesheet hours - total hours × each employee's hourly pay, and total
+// hours × the project's partner hourly rate - never the static budgeted
 // fields on the project record.
 function getFinancials(projectId) {
   const r = reserveMap.value[projectId]
@@ -869,7 +869,7 @@ function stageBadgeClass(stage) {
 }
 
 function getClientName(clientId) {
-  if (!clientId) return '—'
+  if (!clientId) return '-'
   const c = clients.value.find(client => client.id === clientId)
   return c ? c.name : `Client #${clientId}`
 }

@@ -21,8 +21,8 @@ class Client(Base):
     # NULL = "same as client name" (falls back to `name` wherever it's read).
     salutation = Column(String, nullable=True)
 
-    # Structured address. `address` (above) is kept for backward compatibility —
-    # existing clients that predate these fields keep working — but new/edited
+    # Structured address. `address` (above) is kept for backward compatibility -
+    # existing clients that predate these fields keep working - but new/edited
     # clients populate both, with `address` auto-derived from these on save.
     address_line1 = Column(String, nullable=True)
     address_line2 = Column(String, nullable=True)

@@ -74,7 +74,7 @@
               <div class="employee-card-body">
                 <div class="stat-row">
                   <span class="stat-label">Designation</span>
-                  <span>{{ emp.designation || '—' }}</span>
+                  <span>{{ emp.designation || '-' }}</span>
                 </div>
                 <div class="stat-row">
                   <span class="stat-label">Joining</span>
@@ -199,23 +199,23 @@
                 <CurrencyInput v-if="!isEditing" v-model="form.salary_month" placeholder="e.g. 25000" />
                 <template v-else>
                   <input
-                    :value="form.salary_month ? `₹${Number(form.salary_month).toLocaleString('en-IN')}` : '—'"
+                    :value="form.salary_month ? `₹${Number(form.salary_month).toLocaleString('en-IN')}` : '-'"
                     type="text" disabled class="readonly-input"
                   />
                   <p class="field-hint">
-                    Salary is effective-dated — change it in
+                    Salary is effective-dated - change it in
                     <router-link to="/admin/hr">HR → Salary increments</router-link>.
                   </p>
                 </template>
               </div>
               <div class="form-field" v-if="isAdmin && !isEditing">
-                <label>Hourly Rate (₹) — auto</label>
+                <label>Hourly Rate (₹) - auto</label>
                 <input :value="salaryPerHour" type="text" disabled class="readonly-input" />
               </div>
               <div class="form-field">
                 <label>Manager</label>
                 <select v-model="form.manager_id">
-                  <option :value="null">— None —</option>
+                  <option :value="null">None</option>
                   <option v-for="m in managers" :key="m.id" :value="m.id">{{ m.name }}</option>
                 </select>
               </div>
@@ -238,7 +238,7 @@
               <div class="form-field">
                 <label>Gender</label>
                 <select v-model="form.gender">
-                  <option value="">— Select —</option>
+                  <option value="">Select</option>
                   <option value="M">Male</option>
                   <option value="F">Female</option>
                   <option value="Other">Other</option>
@@ -484,7 +484,7 @@ async function fetchEmployees() {
 
 onMounted(fetchEmployees)
 
-// An employee whose end date has passed — shown only here, hidden elsewhere.
+// An employee whose end date has passed - shown only here, hidden elsewhere.
 function hasLeft(emp) {
   if (!emp.end_date) return false
   const end = new Date(emp.end_date)
@@ -707,7 +707,7 @@ function avatarColor(name) {
 }
 
 function formatDate(d) {
-  if (!d) return '—'
+  if (!d) return '-'
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
@@ -716,7 +716,7 @@ function formatSalary(val) {
 }
 
 function formatRole(role) {
-  if (!role) return '—'
+  if (!role) return '-'
   if (role === 'project_manager') return 'Project Manager'
   return role.charAt(0).toUpperCase() + role.slice(1)
 }

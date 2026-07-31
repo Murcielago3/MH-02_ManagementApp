@@ -20,7 +20,7 @@ export function formatInrPerHour(amount) {
   return `₹${num}/hr`
 }
 
-/** Live preview: ((base_pay × 13) / 12) / 160 — mirrors backend */
+/** Live preview: ((base_pay × 13) / 12) / 160 - mirrors backend */
 export function previewHourlyFromBasePay(basePay) {
   const bp = Number(basePay)
   if (!bp || bp <= 0) return null

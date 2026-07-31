@@ -6,7 +6,7 @@ import { draftsAPI } from '../api/drafts'
  *
  * Previously backed by localStorage; now backed by the server so the draft
  * follows the logged-in user across devices. The namespace doubles as the
- * feature key — e.g. 'client_create', 'project_create', 'timesheet_2026-05-26'.
+ * feature key - e.g. 'client_create', 'project_create', 'timesheet_2026-05-26'.
  *
  * Saves are debounced so an autosave watcher firing on every keystroke results
  * in at most one network write per quiet period.
@@ -74,7 +74,7 @@ export function useDraftStorage(key) {
       if (inflight) await inflight  // don't let a late save resurrect the draft
       await draftsAPI.remove(ns, SLOT_KEY)
     } catch (e) {
-      // ignore — clearing a draft is best-effort
+      // ignore - clearing a draft is best-effort
     }
   }
 

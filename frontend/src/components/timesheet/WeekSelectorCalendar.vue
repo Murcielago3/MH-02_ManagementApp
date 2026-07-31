@@ -177,7 +177,7 @@ function getStatusLabel(status) {
   const labels = {
     pending: 'Pending',
     submitted: 'Submitted',
-    // pm_approved is a legacy status — the PM stage no longer exists.
+    // pm_approved is a legacy status - the PM stage no longer exists.
     pm_approved: 'Submitted',
     admin_approved: 'Awaiting 2nd Admin',
     approved: 'Approved',
@@ -196,7 +196,7 @@ function getWeekClasses(week) {
   
   return {
     'status-pending': status === 'pending',
-    // admin_approved is still mid-review (awaiting 2nd admin) — style like submitted.
+    // admin_approved is still mid-review (awaiting 2nd admin) - style like submitted.
     'status-submitted': status === 'submitted' || status === 'admin_approved',
     'status-approved': status === 'approved',
     'status-rejected': status === 'rejected',

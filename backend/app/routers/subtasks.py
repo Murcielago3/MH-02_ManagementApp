@@ -94,7 +94,7 @@ async def create_subtask(
     return _serialize(s)
 
 
-# Endpoints to update/delete an individual subtask — mounted on a separate
+# Endpoints to update/delete an individual subtask - mounted on a separate
 # router prefix so the {subtask_id} path param doesn't collide with the
 # parent-scoped list/create above.
 single_router = APIRouter(prefix="/subtasks", tags=["subtasks"])

@@ -71,7 +71,7 @@
                     <a v-if="item.proof_url" :href="resolveUrl(item.proof_url)" target="_blank" class="proof-link">
                       <span class="material-symbols-outlined">attachment</span> View Proof
                     </a>
-                    <span v-else class="no-proof">—</span>
+                    <span v-else class="no-proof">-</span>
                   </td>
                   <td>
                     <span class="status-badge" :class="item.status">
@@ -80,7 +80,7 @@
                   </td>
                   <td class="payroll-cell">
                     <span v-if="item.month_added" class="payroll-badge">Added to {{ item.month_added }}</span>
-                    <span v-else>—</span>
+                    <span v-else>-</span>
                   </td>
                 </tr>
               </tbody>

@@ -3,7 +3,7 @@
     <div class="ap-head">
       <div>
         <h2 class="ap-title">Audit Trail</h2>
-        <p class="ap-note">Every major action — submissions, approvals, rejections, exports — with who did it and when.</p>
+        <p class="ap-note">Every major action (submissions, approvals, rejections, exports) with who did it and when.</p>
       </div>
       <button class="btn-ghost" @click="load" title="Refresh">
         <span class="material-symbols-outlined">refresh</span>

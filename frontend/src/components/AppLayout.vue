@@ -146,7 +146,7 @@
             :href="SLACK_INVITE_URL"
             target="_blank"
             rel="noopener noreferrer"
-            title="Notifications — open Slack"
+            title="Notifications - open Slack"
             aria-label="Open notifications in Slack"
           >
             <span class="material-symbols-outlined">notifications</span>
@@ -207,7 +207,7 @@ const SLACK_INVITE_URL = 'https://join.slack.com/t/studiomh02/shared_invite/zt-4
 // Desktop: collapse the sidebar to an icon rail. Remembered across sessions.
 const sidebarCollapsed = ref(localStorage.getItem('sidebar_collapsed') === '1')
 // While collapsed the sub-items are hidden, so opening the group would appear
-// to do nothing — expand the rail instead.
+// to do nothing - expand the rail instead.
 function onProjectsClick() {
   if (sidebarCollapsed.value) {
     toggleCollapse()

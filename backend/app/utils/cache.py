@@ -18,7 +18,7 @@ from typing import Any, Optional
 class TTLCache:
     """A trivially small key-value cache with per-entry expiry.
 
-    Do NOT cache SQLAlchemy ORM instances here — they're bound to a closed
+    Do NOT cache SQLAlchemy ORM instances here - they're bound to a closed
     Session by the time the next request reads them. Cache plain values
     (dicts, tuples, dataclasses, primitives) only.
     """

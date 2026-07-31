@@ -30,7 +30,7 @@ def serialize_draft(d: Draft) -> dict:
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
 # Every endpoint is scoped to the authenticated user (drafts are private to the
-# account, never shared), so a user only ever sees and edits their own drafts —
+# account, never shared), so a user only ever sees and edits their own drafts -
 # from any device they sign in on.
 
 @router.get("/{namespace}")

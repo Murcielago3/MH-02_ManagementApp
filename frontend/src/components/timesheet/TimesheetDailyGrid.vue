@@ -27,7 +27,7 @@
             </td>
             <td v-for="(d, di) in weekDays" :key="di" class="day-cell" :class="{ 'is-weekend': di >= 5 }">
               <span class="day-val" :class="{ 'has-hours': Number(entry.daily_hours[di]) > 0, 'sat-hours': di === 5 && Number(entry.daily_hours[di]) > 0 }">
-                {{ Number(entry.daily_hours[di]) > 0 ? entry.daily_hours[di] + 'h' : '—' }}
+                {{ Number(entry.daily_hours[di]) > 0 ? entry.daily_hours[di] + 'h' : '-' }}
               </span>
             </td>
             <td class="row-total has-hours">{{ entry.hours }}h</td>
@@ -81,7 +81,7 @@
       </table>
       <p class="legacy-note">
         <span class="material-symbols-outlined">info</span>
-        Submitted before daily breakdown tracking — only weekly totals per project are available.
+        Submitted before daily breakdown tracking - only weekly totals per project are available.
       </p>
     </div>
 
@@ -222,7 +222,7 @@ function getProjectName(id) {
   color: var(--color-outline);
 }
 .day-val.has-hours { color: var(--color-on-surface); }
-/* Saturday work is comp-earning — flag its hours in red. */
+/* Saturday work is comp-earning - flag its hours in red. */
 .day-val.sat-hours { color: #dc2626; font-weight: 700; }
 
 .row-total {

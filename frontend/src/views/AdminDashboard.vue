@@ -203,7 +203,7 @@
               <td class="mono">{{ formatCurrency(p.project_remuneration) }}</td>
               <td>
                 <span class="status-pill" :class="p.is_billed">
-                  {{ p.is_billed || '—' }}
+                  {{ p.is_billed || '-' }}
                 </span>
               </td>
             </tr>
@@ -219,7 +219,7 @@
           <div class="modal-head">
             <div>
               <h3 class="modal-title">Projects in Deficit</h3>
-              <p class="modal-sub">Work costs exceed invoices raised — unbilled labour</p>
+              <p class="modal-sub">Work costs exceed invoices raised - unbilled labour</p>
             </div>
             <button class="modal-close" @click="deficitModalOpen = false">
               <span class="material-symbols-outlined">close</span>
@@ -248,7 +248,7 @@
                         class="color-dot"
                         :style="{ background: getProject(r.project_id)?.color || '#ef4444' }"
                       />
-                      <span class="proj-num">{{ getProject(r.project_id)?.project_number || '—' }}</span>
+                      <span class="proj-num">{{ getProject(r.project_id)?.project_number || '-' }}</span>
                       <span class="proj-name-sm">{{ getProject(r.project_id)?.name || `Project #${r.project_id}` }}</span>
                     </div>
                   </td>
@@ -383,7 +383,7 @@ const monthlyChartData = computed(() => {
     }))
   }
   // Last resort: legacy map keyed by full month name, e.g. { January: 1200 }.
-  // Also the path taken when the stats fetch fails and `stats` is still empty —
+  // Also the path taken when the stats fetch fails and `stats` is still empty -
   // it must render an empty year, never throw.
   return MONTH_NAMES.map((full) => ({
     month:   full.slice(0, 3),
@@ -451,7 +451,7 @@ const recentProjects = computed(() => projects.value.slice(0, 5))
 
 // ── Helpers ──
 function getClientName(id) {
-  if (!id) return '—'
+  if (!id) return '-'
   const c = clients.value.find((cl) => cl.id === id)
   return c ? c.name : `Client #${id}`
 }

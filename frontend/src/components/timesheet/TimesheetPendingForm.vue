@@ -218,7 +218,7 @@ function onProjectChange(row) {
 const draftKey = computed(() => `timesheet_${props.week.week_start}`)
 const { draft: tsDraft, saveDraft: saveTsDraft, clearDraft: clearTsDraft, hasDraft: hasTsDraft, load: loadTsDraft } = useDraftStorage(draftKey)
 // Snapshot of the draft as loaded from the server, captured before autosave can
-// overwrite it — so "Restore" always brings back what was actually saved.
+// overwrite it - so "Restore" always brings back what was actually saved.
 const restorableDraft = ref(null)
 // True while we populate the form from the store/server. Auto-save is suppressed
 // during this window so the programmatic (often empty) population never saves a
@@ -240,7 +240,7 @@ function draftHasContent(d) {
   return Array.isArray(d.rows) && d.rows.some(rowHasContent)
 }
 
-// Sync from store — convert flat entries to grid rows
+// Sync from store - convert flat entries to grid rows
 watch(() => props.week, async () => {
   hydrating.value = true
   description.value = store.form.description || ''
@@ -267,7 +267,7 @@ watch(() => props.week, async () => {
   if (draftHasContent(restorableDraft.value)) {
     showDraftBanner.value = true
   }
-  // Population (and the watchers it triggers) has flushed — re-enable auto-save.
+  // Population (and the watchers it triggers) has flushed - re-enable auto-save.
   await nextTick()
   hydrating.value = false
 }, { immediate: true })
@@ -296,7 +296,7 @@ watch([description, rows], () => {
   }))
 }, { deep: true })
 
-// Auto-save draft on changes — but never during hydration, and never an empty
+// Auto-save draft on changes - but never during hydration, and never an empty
 // form (which would clobber a real saved draft). To clear a draft, use Discard.
 watch([description, rows], () => {
   if (hydrating.value) return
@@ -356,7 +356,7 @@ const grandTotal = computed(() => {
 })
 
 // A row only "counts" once it has a project AND some hours. A project row left
-// at 0h means the employee didn't work on it this week — it's ignored, not an
+// at 0h means the employee didn't work on it this week - it's ignored, not an
 // error (and gets dropped from the payload on submit).
 function rowIsActive(r) {
   return !!(r.project_id && rowTotalForRow(r) > 0)
@@ -372,7 +372,7 @@ const missingItems = computed(() => {
   if (rows.value.some(r => !r.project_id && rowTotalForRow(r) > 0)) {
     out.push('Select a project for every row that has hours logged.')
   }
-  // A stage is required once the project defines any — hours must be
+  // A stage is required once the project defines any - hours must be
   // attributable to a stage so stage progress and spend stay meaningful.
   if (rows.value.some(r =>
     r.project_id && rowTotalForRow(r) > 0 &&
@@ -619,7 +619,7 @@ label {
 .ec-select:focus { border-color: var(--color-primary); }
 .ec-project { font-weight: 700; min-width: 160px; }
 .ec-stage, .ec-sub { font-size: 12px; background: var(--color-surface-container-lowest, #f8fafc); }
-/* A staged project with hours but no stage picked — flag it before submit. */
+/* A staged project with hours but no stage picked - flag it before submit. */
 .ec-select.missing { border-color: #dc2626; background: #fef2f2; }
 .ec-arrow { font-size: 16px; color: var(--color-outline); flex-shrink: 0; }
 

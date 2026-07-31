@@ -24,7 +24,7 @@
       </button>
     </div>
 
-    <!-- CA Salary Sheet — a per-month register in the studio CA's layout -->
+    <!-- CA Salary Sheet - a per-month register in the studio CA's layout -->
     <div class="ca-section">
       <div class="ca-head">
         <span class="material-symbols-outlined ca-icon">description</span>
@@ -97,12 +97,12 @@ onMounted(async () => {
     if (salaryMonths.value.length) {
       caMonth.value = salaryMonths.value[0]
     } else {
-      // No slips yet — default the native picker to last month.
+      // No slips yet - default the native picker to last month.
       const d = new Date(); d.setMonth(d.getMonth() - 1)
       caMonth.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
     }
   } catch (e) {
-    // Non-fatal — the native month input still works.
+    // Non-fatal - the native month input still works.
   }
 })
 

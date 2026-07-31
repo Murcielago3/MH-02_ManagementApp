@@ -261,7 +261,7 @@
                       v-model="form.manager_id"
                       class="w-full bg-transparent border-b border-[#A2937E] focus:border-primary focus:ring-0 px-0 py-2 outline-none transition-colors"
                     >
-                      <option value="">— None —</option>
+                      <option value="">None</option>
                       <option v-for="m in managers" :key="m.id" :value="m.id">{{ m.name }}</option>
                     </select>
                   </div>

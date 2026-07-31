@@ -23,7 +23,7 @@ _RESERVE_KEY = "all"
 
 
 def _invalidate_reserve():
-    """Drop the reserve cache AND the dashboard cache — both are derived from
+    """Drop the reserve cache AND the dashboard cache - both are derived from
     the same underlying data (projects, invoices, timesheets, salaries)."""
     _reserve_cache.invalidate(_RESERVE_KEY)
     try:
@@ -41,7 +41,7 @@ def user_rates(user, salary_months_per_year: float = 13.0, working_hours_per_mon
     """
     Single source of truth for per-employee pay used across all project views
     (summary, totals, billing, projected cost). Salaries live on the User
-    profile — assignments are pure many-to-many links and don't carry their
+    profile - assignments are pure many-to-many links and don't carry their
     own salary anymore (Estimates is the only place where per-row overrides
     are allowed, and that runs through its own store).
 
@@ -66,7 +66,7 @@ def user_rates(user, salary_months_per_year: float = 13.0, working_hours_per_mon
 
 async def _rate_params(db) -> tuple[float, float]:
     """Tiny helper: returns (salary_months_per_year, working_hours_per_month)
-    from settings. Reads through the cached settings snapshot — invalidated
+    from settings. Reads through the cached settings snapshot - invalidated
     automatically whenever an admin saves the Settings page."""
     from app.routers.settings import get_settings_snapshot
     s = await get_settings_snapshot(db)
@@ -392,7 +392,7 @@ async def create_project(
     db.add(project)
     await db.flush()
     await log_audit(db, current_user, "project.created", "project", project.id,
-                    summary=f"Created project {project.project_number} — {project.name}")
+                    summary=f"Created project {project.project_number} - {project.name}")
     await db.commit()
     await db.refresh(project)
     _invalidate_reserve()
@@ -452,7 +452,7 @@ async def delete_project(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     await log_audit(db, current_user, "project.deleted", "project", project.id,
-                    summary=f"Deleted project {project.project_number} — {project.name}")
+                    summary=f"Deleted project {project.project_number} - {project.name}")
     await db.delete(project)
     await db.commit()
     _invalidate_reserve()
@@ -463,7 +463,7 @@ class AssignUserBody(BaseModel):
 
 class AssignEmployee(BaseModel):
     user_id: int
-    # base_pay accepted for backward compat but ignored — salary is pulled from
+    # base_pay accepted for backward compat but ignored - salary is pulled from
     # the User profile (single source of truth).
     base_pay: Optional[float] = None
 
@@ -509,7 +509,7 @@ async def assign_employee(
         "hourly_rate": hourly_rate,
     }
 
-# Per-assignment salary override removed — salaries live on the User profile.
+# Per-assignment salary override removed - salaries live on the User profile.
 # Estimates remain the only place where per-row manipulation is supported.
 
 @router.get("/{project_id}/summary")
@@ -806,7 +806,7 @@ async def get_projected_cost(
             "grand_projected": 0,
         }
 
-    # Fetch users — salary is the single source of truth (no assignment override)
+    # Fetch users - salary is the single source of truth (no assignment override)
     from app.models.user import User
     user_ids = list(emp_hours.keys())
     users_result = await db.execute(select(User).where(User.id.in_(user_ids)))
@@ -820,7 +820,7 @@ async def get_projected_cost(
     for uid, proj_hours in emp_hours.items():
         user = users.get(uid)
         name = user.name if user else f"Employee #{uid}"
-        designation = (user.designation if user else None) or "—"
+        designation = (user.designation if user else None) or "-"
         _, hourly_rate = user_rates(user, smpy, whpm)
 
         projected_cost = round(proj_hours * hourly_rate, 2)

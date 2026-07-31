@@ -12,7 +12,7 @@ class WeeklyTimesheet(Base):
     total_hours = Column(Numeric(6, 2), nullable=True) # Changed to Numeric for decimal hours
     description = Column(String, nullable=True) # Keeping global description just in case, but can be optional
     # Approval slots. A non-admin timesheet is fully approved ('approved') only
-    # when BOTH admin slots are filled — the two admins must be different
+    # when BOTH admin slots are filled - the two admins must be different
     # accounts (four-eyes). An admin's own timesheet needs only the single admin
     # slot. Only admins approve or reject.
     status = Column(String, nullable=False)  # submitted, admin_approved, approved, rejected

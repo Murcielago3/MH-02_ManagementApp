@@ -73,7 +73,7 @@
                     This request covers <strong>{{ calculatedDays }}</strong> working day{{ calculatedDays !== 1 ? 's' : '' }}.
                     <template v-if="estimatedUnpaid > 0">
                       <br><strong>{{ estimatedPaid }}</strong> paid, <strong>{{ estimatedUnpaid }}</strong> unpaid
-                      ({{ onProbation ? 'probation period' : 'balance exhausted' }}) — unpaid days are deducted from salary.
+                      ({{ onProbation ? 'probation period' : 'balance exhausted' }}) - unpaid days are deducted from salary.
                     </template>
                   </p>
                 </div>
@@ -133,13 +133,13 @@
                   <tr v-for="leave in leaveHistory" :key="leave.id">
                     <td class="mono">{{ formatDateShort(leave.start_date) }} – {{ formatDateShort(leave.end_date) }}</td>
                     <td class="center mono">{{ countWorkingDays(leave.start_date, leave.end_date) }}</td>
-                    <td class="center mono">{{ leave.status === 'approved' ? leave.paid_days : '—' }}</td>
+                    <td class="center mono">{{ leave.status === 'approved' ? leave.paid_days : '-' }}</td>
                     <td class="center mono">
                       <span :class="{ 'unpaid-flag': leave.status === 'approved' && leave.unpaid_days > 0 }">
-                        {{ leave.status === 'approved' ? leave.unpaid_days : '—' }}
+                        {{ leave.status === 'approved' ? leave.unpaid_days : '-' }}
                       </span>
                     </td>
-                    <td class="reason-cell" :title="leave.reason">{{ leave.reason || '—' }}</td>
+                    <td class="reason-cell" :title="leave.reason">{{ leave.reason || '-' }}</td>
                     <td>
                       <span class="status-badge" :class="leave.status">
                         {{ formatStatus(leave.status) }}
@@ -180,7 +180,7 @@ const overtime = ref({ available: 0, credits: [] })
 
 const todayDate = toLocalDateStr()
 
-// Employees can backdate leaves to the start of the current calendar month —
+// Employees can backdate leaves to the start of the current calendar month -
 // for emergencies or forgotten applications, and to stay aligned with the
 // monthly payroll cycle. Anything earlier has to be filed by an admin.
 // Built from local date parts (not toISOString, which is UTC) to avoid an

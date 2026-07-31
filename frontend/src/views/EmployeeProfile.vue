@@ -8,8 +8,8 @@
         </div>
         <div class="profile-details">
           <h1 class="profile-name">{{ employee.name || 'Loading...' }}</h1>
-          <p class="profile-role">{{ employee.designation || formatRole(employee.role) || '—' }}</p>
-          <p class="profile-email">{{ employee.studio_email || '—' }}</p>
+          <p class="profile-role">{{ employee.designation || formatRole(employee.role) || '-' }}</p>
+          <p class="profile-email">{{ employee.studio_email || '-' }}</p>
         </div>
       </div>
     </div>
@@ -40,15 +40,15 @@
           </div>
           <div class="info-item">
             <label>Studio Email</label>
-            <span>{{ employee.studio_email || '—' }}</span>
+            <span>{{ employee.studio_email || '-' }}</span>
           </div>
           <div class="info-item">
             <label>Personal Email</label>
-            <span>{{ employee.personal_mail || '—' }}</span>
+            <span>{{ employee.personal_mail || '-' }}</span>
           </div>
           <div class="info-item">
             <label>Phone Number</label>
-            <span>{{ employee.phone_number || '—' }}</span>
+            <span>{{ employee.phone_number || '-' }}</span>
           </div>
           <div class="info-item">
             <label>Role</label>
@@ -56,7 +56,7 @@
           </div>
           <div class="info-item">
             <label>Designation</label>
-            <span>{{ employee.designation || '—' }}</span>
+            <span>{{ employee.designation || '-' }}</span>
           </div>
           <div class="info-item">
             <label>Joining Date</label>
@@ -64,15 +64,15 @@
           </div>
           <div class="info-item">
             <label>End Date</label>
-            <span>{{ employee.end_date ? formatDate(employee.end_date) : '—' }}</span>
+            <span>{{ employee.end_date ? formatDate(employee.end_date) : '-' }}</span>
           </div>
           <div class="info-item">
             <label>Monthly Salary</label>
-            <span>{{ employee.salary_month ? `₹${Number(employee.salary_month).toLocaleString('en-IN')}` : '—' }}</span>
+            <span>{{ employee.salary_month ? `₹${Number(employee.salary_month).toLocaleString('en-IN')}` : '-' }}</span>
           </div>
           <div class="info-item">
             <label>Hourly Rate</label>
-            <span>{{ employee.salary_hour ? `₹${employee.salary_hour}` : '—' }}</span>
+            <span>{{ employee.salary_hour ? `₹${employee.salary_hour}` : '-' }}</span>
           </div>
           <div class="info-item">
             <label>Leaves Allowed</label>
@@ -92,7 +92,7 @@
           </div>
           <div class="info-item">
             <label>Manager</label>
-            <span>{{ employee.manager?.name || '—' }}</span>
+            <span>{{ employee.manager?.name || '-' }}</span>
           </div>
         </div>
       </div>
@@ -185,10 +185,10 @@
                 <td class="mono">{{ formatDate(l.start_date) }}</td>
                 <td class="mono">{{ formatDate(l.end_date) }}</td>
                 <td class="mono">{{ l.days_count }}</td>
-                <td class="mono">{{ l.status === 'approved' ? l.paid_days : '—' }}</td>
+                <td class="mono">{{ l.status === 'approved' ? l.paid_days : '-' }}</td>
                 <td class="mono">
                   <span :class="{ 'unpaid-flag': l.status === 'approved' && l.unpaid_days > 0 }">
-                    {{ l.status === 'approved' ? l.unpaid_days : '—' }}
+                    {{ l.status === 'approved' ? l.unpaid_days : '-' }}
                   </span>
                 </td>
                 <td class="muted">{{ l.reason }}</td>
@@ -237,12 +237,12 @@
                 <td class="muted">{{ r.reason }}</td>
                 <td>
                   <a v-if="r.proof_url" :href="resolveFileUrl(r.proof_url)" target="_blank" class="proof-link">View</a>
-                  <span v-else class="muted">—</span>
+                  <span v-else class="muted">-</span>
                 </td>
                 <td>
                   <span class="status-badge" :class="`status-${r.status}`">{{ r.status }}</span>
                 </td>
-                <td class="mono">{{ r.status === 'approved' && r.month_added ? payrollLabel(r.month_added) : '—' }}</td>
+                <td class="mono">{{ r.status === 'approved' && r.month_added ? payrollLabel(r.month_added) : '-' }}</td>
               </tr>
             </tbody>
           </table>
@@ -271,14 +271,14 @@
               </tr>
               <tr v-for="t in tasks" :key="t.id" class="proj-row">
                 <td><span class="proj-name">{{ t.title }}</span></td>
-                <td class="muted">{{ t.project?.name || '—' }}</td>
+                <td class="muted">{{ t.project?.name || '-' }}</td>
                 <td>
                   <span class="priority-badge" :class="`priority-${t.priority}`">
                     {{ t.priority }}
                   </span>
                 </td>
                 <td class="mono">
-                  {{ t.date ? formatDate(t.date) : '—' }}
+                  {{ t.date ? formatDate(t.date) : '-' }}
                   <div v-if="t.date" :class="['due-status', { late: isLate(t), dueToday: isDueToday(t) }]">
                     {{ taskDueStatus(t) }}
                   </div>
@@ -299,11 +299,11 @@
         <div class="info-grid id-grid">
           <div class="info-item">
             <label>PAN Number</label>
-            <span class="mono-id">{{ employee.pan_number || '—' }}</span>
+            <span class="mono-id">{{ employee.pan_number || '-' }}</span>
           </div>
           <div class="info-item">
             <label>Aadhaar Number</label>
-            <span class="mono-id">{{ employee.aadhar_number || '—' }}</span>
+            <span class="mono-id">{{ employee.aadhar_number || '-' }}</span>
           </div>
         </div>
 
@@ -419,7 +419,7 @@ const loadingLeaves = ref(false)
 const loadingReimb = ref(false)
 const loadingTasks = ref(false)
 
-// All-time reimbursement total for this employee — only approved claims are
+// All-time reimbursement total for this employee - only approved claims are
 // money actually paid, so that's the headline figure.
 const reimbApproved = computed(() => reimbursements.value.filter(r => r.status === 'approved'))
 const reimbTotalAllTime = computed(() => reimbApproved.value.reduce((s, r) => s + Number(r.amount || 0), 0))
@@ -443,7 +443,7 @@ const tabs = computed(() => {
     { key: 'reimbursements', label: 'Reimbursements' },
     { key: 'tasks', label: 'Assigned Tasks' },
   ]
-  // PAN/Aadhaar are sensitive — documents are admin-only.
+  // PAN/Aadhaar are sensitive - documents are admin-only.
   if (isAdmin.value) t.push({ key: 'documents', label: 'Documents' })
   return t
 })
@@ -622,7 +622,7 @@ const inrFmt = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'IN
 function formatCurrency(val) { return inrFmt.format(val || 0) }
 function resolveFileUrl(url) { return usersAPI.resolveFileUrl(url) }
 function payrollLabel(ym) {
-  if (!ym) return '—'
+  if (!ym) return '-'
   const [y, m] = ym.split('-')
   return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
 }
@@ -723,7 +723,7 @@ function closeDetailModal() {
 }
 
 function taskDueStatus(task) {
-  if (!task?.date) return '—'
+  if (!task?.date) return '-'
   const due = new Date(task.date)
   due.setHours(0, 0, 0, 0)
   const today = new Date()

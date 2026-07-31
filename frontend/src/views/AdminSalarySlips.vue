@@ -134,7 +134,7 @@
             <td class="col-right cell-mono">{{ formatCurrency(s.base_salary) }}</td>
             <td class="col-right cell-mono">
               <span :class="s.reimbursement_total > 0 ? 'reimb-pos' : 'cell-muted'">
-                {{ s.reimbursement_total > 0 ? '+ ' + formatCurrency(s.reimbursement_total) : '—' }}
+                {{ s.reimbursement_total > 0 ? '+ ' + formatCurrency(s.reimbursement_total) : '-' }}
               </span>
             </td>
             <td class="col-right cell-mono tds-neg">− {{ formatCurrency(s.tds_amount) }}</td>
@@ -177,7 +177,7 @@
         <div class="modal">
           <div class="modal-header">
             <div>
-              <h3 class="modal-title">Salary Slip — {{ reviewSlip.employee_name }}</h3>
+              <h3 class="modal-title">Salary Slip - {{ reviewSlip.employee_name }}</h3>
               <p class="modal-subtitle">{{ monthLabel(reviewSlip.month) }}</p>
             </div>
             <button class="modal-close" @click="closeReview">
@@ -336,7 +336,7 @@ function monthLabel(ms) {
   return `${monthNames[m - 1]} ${y}`
 }
 function formatDate(d) {
-  if (!d) return '—'
+  if (!d) return '-'
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 function formatStatus(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : '' }

@@ -402,7 +402,7 @@ function truncateDesc(desc) {
 
 const STATUS_LABELS = {
   submitted: 'Pending Review',
-  // Legacy rows only — the PM stage was removed; nothing writes this any more.
+  // Legacy rows only - the PM stage was removed; nothing writes this any more.
   pm_approved: 'Pending Review',
   admin_approved: 'Awaiting 2nd Admin',
   approved: 'Approved',
@@ -450,7 +450,7 @@ async function doReject(tsId, reason) {
 function submitterIsAdmin(ts) {
   return employees.value.find(e => e.id === ts.employee_id)?.role === 'admin'
 }
-// Approval is admin-only — project managers get this console read-only.
+// Approval is admin-only - project managers get this console read-only.
 function canApprove(ts) {
   if (!isAdmin.value) return false
   if (ts.status === 'approved' || ts.status === 'rejected') return false
@@ -668,7 +668,7 @@ function closeDetailModal() {
 }
 .badge-submitted { background: #fef3c7; color: #92400e; }
 .badge-pending   { background: #fef3c7; color: #92400e; }
-/* Legacy status — the PM stage is gone; show it as plain pending review. */
+/* Legacy status - the PM stage is gone; show it as plain pending review. */
 .badge-pm_approved { background: #fef3c7; color: #92400e; }
 .badge-admin_approved { background: #e0e7ff; color: #3730a3; }
 .badge-approved  { background: #dcfce7; color: #166534; }

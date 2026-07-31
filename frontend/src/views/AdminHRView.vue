@@ -42,9 +42,9 @@
             <tr>
               <td class="strong">{{ e.name }}</td>
               <td class="muted">{{ e.designation }}</td>
-              <td class="num">{{ e.current_salary != null ? '₹' + formatInr(e.current_salary, 0) : '—' }}</td>
-              <td class="num">{{ e.current_hourly_rate != null ? '₹' + formatInr(e.current_hourly_rate, 2) : '—' }}</td>
-              <td class="muted">{{ e.effective_from || '—' }}</td>
+              <td class="num">{{ e.current_salary != null ? '₹' + formatInr(e.current_salary, 0) : '-' }}</td>
+              <td class="num">{{ e.current_hourly_rate != null ? '₹' + formatInr(e.current_hourly_rate, 2) : '-' }}</td>
+              <td class="muted">{{ e.effective_from || '-' }}</td>
               <td class="actions-col">
                 <button class="btn-link" @click="toggleHistory(e)">
                   {{ openHistory === e.id ? 'Hide' : 'History' }}
@@ -65,8 +65,8 @@
                     <tr v-for="p in history" :key="p.id">
                       <td>{{ p.effective_from }}</td>
                       <td>{{ p.effective_to || 'current' }}</td>
-                      <td class="num">{{ p.monthly_salary != null ? '₹' + formatInr(p.monthly_salary, 0) : '—' }}</td>
-                      <td class="num">{{ p.hourly_rate != null ? '₹' + formatInr(p.hourly_rate, 2) : '—' }}</td>
+                      <td class="num">{{ p.monthly_salary != null ? '₹' + formatInr(p.monthly_salary, 0) : '-' }}</td>
+                      <td class="num">{{ p.hourly_rate != null ? '₹' + formatInr(p.hourly_rate, 2) : '-' }}</td>
                       <td class="muted">{{ p.note || '' }}</td>
                       <td>
                         <button class="btn-link danger" @click="removePeriod(e, p)">Delete</button>
@@ -95,7 +95,7 @@
     <!-- ADD INCREMENT MODAL -->
     <div v-if="modal.open" class="modal-backdrop" @click.self="modal.open = false">
       <div class="modal">
-        <h2 class="modal-title">Add Increment — {{ modal.name }}</h2>
+        <h2 class="modal-title">Add Increment - {{ modal.name }}</h2>
         <p class="modal-sub">Takes effect on the 1st of the chosen month. Backdating is limited to last month.</p>
         <div class="field">
           <label>New Monthly Salary (₹)</label>

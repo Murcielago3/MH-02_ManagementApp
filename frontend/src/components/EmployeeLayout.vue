@@ -90,7 +90,7 @@
             :href="SLACK_INVITE_URL"
             target="_blank"
             rel="noopener noreferrer"
-            title="Notifications — open Slack"
+            title="Notifications - open Slack"
             aria-label="Open notifications in Slack"
           >
             <span class="material-symbols-outlined">notifications</span>
@@ -194,7 +194,7 @@ const navItems = computed(() => {
     { path: '/employee/salary', icon: 'payments', label: 'Salary' },
     { path: '/employee/reimbursements', icon: 'receipt_long', label: 'Reimbursements' },
     { path: '/employee/projects', icon: 'architecture', label: 'Projects' },
-    // Also in the footer dropdown, but that is hard to reach on a phone —
+    // Also in the footer dropdown, but that is hard to reach on a phone -
     // keep a first-class nav entry so the profile is always one tap away.
     { path: '/employee/profile', icon: 'person', label: 'My Profile' },
   ]

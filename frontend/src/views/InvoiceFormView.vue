@@ -77,7 +77,7 @@
             <div class="form-group">
               <label>Project *</label>
               <select v-model="form.project_id" @change="onProjectSelect" required>
-                <option :value="null">— Select Project —</option>
+                <option :value="null">Select Project</option>
                 <option v-for="p in projects" :key="p.id" :value="p.id">
                   {{ p.project_number }} - {{ p.name }}
                 </option>
@@ -145,7 +145,7 @@
                   <TaxIdField v-model="form.bill_to_pan" kind="pan" placeholder="e.g. AAAAA9999A" />
                   <p class="idtype-hint">
                     <span class="material-symbols-outlined">info</span>
-                    No GSTIN — taxed as CGST + SGST, never IGST.
+                    No GSTIN - taxed as CGST + SGST, never IGST.
                   </p>
                 </div>
               </div>
@@ -248,9 +248,9 @@
             <div v-else class="form-group">
               <label>Select Account</label>
               <select v-model="form.bank_account_id">
-                <option :value="null">— Select Bank Account —</option>
+                <option :value="null">Select Bank Account</option>
                 <option v-for="b in bankAccounts" :key="b.id" :value="b.id">
-                  {{ b.bank_name }} — {{ b.account_number }} ({{ b.account_holder_name }})
+                  {{ b.bank_name }} - {{ b.account_number }} ({{ b.account_holder_name }})
                 </option>
               </select>
             </div>
@@ -500,13 +500,13 @@ onMounted(async () => {
     projects.value = pRes.data
     bankAccounts.value = bRes.data
 
-    // Always pre-select the bank account — default to the only one if just one exists
+    // Always pre-select the bank account - default to the only one if just one exists
     if (!form.bank_account_id && bankAccounts.value.length === 1) {
       form.bank_account_id = bankAccounts.value[0].id
     }
 
     if (isEditing.value && editingId.value) {
-      // Edit mode — load existing invoice
+      // Edit mode - load existing invoice
       const res = await invoicesAPI.getInvoice(editingId.value)
       const inv = res.data
       populateFormFromData(inv)
@@ -627,7 +627,7 @@ const billIdType = ref('gstin')  // 'gstin' | 'pan'
 
 function setBillIdType(t) {
   billIdType.value = t
-  // In PAN mode there is no GSTIN — clear it so nothing can trigger IGST,
+  // In PAN mode there is no GSTIN - clear it so nothing can trigger IGST,
   // on this form or in the backend (which keys tax off GSTIN presence).
   if (t === 'pan') form.bill_to_gstin = ''
 }
@@ -649,7 +649,7 @@ const taxTypeIndicator = computed(() => {
   if (taxType.value === 'CGST_SGST') {
     return {
       text: billIdType.value === 'pan'
-        ? 'Tax: CGST + SGST (billed against PAN — no IGST)'
+        ? 'Tax: CGST + SGST (billed against PAN - no IGST)'
         : 'Tax: CGST + SGST (split per item bracket)',
       class: 'indicator-teal',
     }
@@ -658,7 +658,7 @@ const taxTypeIndicator = computed(() => {
 })
 
 // Groups line items by their tax_rate bracket (8/12/18%) and computes
-// CGST+SGST (half each) or IGST (full rate) per bracket — mirrors
+// CGST+SGST (half each) or IGST (full rate) per bracket - mirrors
 // calculate_totals() in app/routers/invoices.py exactly, so the live summary
 // always matches what the backend will actually save/print.
 const liveTotals = computed(() => {
@@ -688,7 +688,7 @@ const liveTotals = computed(() => {
 })
 
 // Rate shown in the compact single-bracket summary display (all items share
-// one rate, or there are no items yet — default to 18%).
+// one rate, or there are no items yet - default to 18%).
 const singleBracketRate = computed(() => liveTotals.value.breakdown[0]?.rate ?? 18)
 
 const isFormValid = computed(() => {

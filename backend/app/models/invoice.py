@@ -17,7 +17,7 @@ class Invoice(Base):
     bill_to_gstin = Column(String, nullable=True)
     bill_to_pan = Column(String, nullable=True)
     # Snapshot of the client's type at invoice-creation time ('business' or
-    # 'individual') — drives whether GSTIN or PAN is printed on the PDF.
+    # 'individual') - drives whether GSTIN or PAN is printed on the PDF.
     customer_type = Column(String, nullable=True)
 
     ship_to_name = Column(String, nullable=True)

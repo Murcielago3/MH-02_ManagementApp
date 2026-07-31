@@ -112,7 +112,7 @@
               <div class="form-field">
                 <label class="form-label">Category *</label>
                 <select v-model="form.category" required class="form-input">
-                  <option value="">— Select Category —</option>
+                  <option value="">Select Category</option>
                   <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
                 </select>
               </div>

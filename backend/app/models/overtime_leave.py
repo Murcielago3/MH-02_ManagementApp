@@ -1,7 +1,7 @@
 """Compensatory ("comp-off") leave earned from overtime.
 
 One row per (timesheet, work_date) that qualified. Weekdays: a 12h+ day earns
-0.5, a 14h+ day earns 1.0. Saturday: any work earns comp — 8h+ = 1.0, under 8h
+0.5, a 14h+ day earns 1.0. Saturday: any work earns comp - 8h+ = 1.0, under 8h
 = 0.5 (Sunday is no-work). Paid-leave credit is granted when the timesheet is fully
 approved. Each credit is valid for 50 days from the *work date* (not the approval
 date). Consumed automatically, soonest-expiry first, when a leave is approved.

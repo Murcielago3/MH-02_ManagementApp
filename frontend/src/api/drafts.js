@@ -19,7 +19,7 @@ export const draftsAPI = {
   list: (namespace) =>
     client.get(`/drafts/${encodeURIComponent(namespace)}`),
 
-  // Fetch one draft. 404s when absent — pass skipGlobalErrorToast so a missing
+  // Fetch one draft. 404s when absent - pass skipGlobalErrorToast so a missing
   // draft never pops an error toast.
   get: (namespace, key) =>
     client.get(

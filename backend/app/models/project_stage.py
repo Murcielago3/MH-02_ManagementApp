@@ -6,7 +6,7 @@ A project's agreed value (``project_remuneration``) is split as:
 
 Each stage claims a ``percentage`` of that bucket for invoicing, and the same
 percentage of the project's ``total_assigned_hours`` as its time budget. Money
-and hours are **derived, never stored** — if the project value or hour budget is
+and hours are **derived, never stored** - if the project value or hour budget is
 corrected later, every stage stays consistent automatically.
 
 Stage subtasks are deliberately a separate table from ``subtasks`` (which is a

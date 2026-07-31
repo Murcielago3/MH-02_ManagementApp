@@ -118,10 +118,10 @@
             <div class="formula-body">
               (Base monthly salary
               <span class="formula-op">×</span>
-              <strong>{{ form.salary_months_per_year || '—' }}</strong>
+              <strong>{{ form.salary_months_per_year || '-' }}</strong>
               / 12)
               <span class="formula-op">÷</span>
-              <strong>{{ form.working_hours_per_month || '—' }}</strong>
+              <strong>{{ form.working_hours_per_month || '-' }}</strong>
             </div>
             <p class="formula-note">
               Employees with an explicit <code>salary_hour</code> on their profile bypass this formula.
@@ -167,7 +167,7 @@
 
         <div class="settings-group" style="padding-left:0; padding-right:0; border-bottom:none;">
           <div class="group-header">
-            <h2 class="group-title">Payroll — TDS</h2>
+            <h2 class="group-title">Payroll - TDS</h2>
             <p class="group-desc">
               TDS percentage deducted from base salary on every salary slip. Can be adjusted per-slip before approval.
             </p>

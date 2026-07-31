@@ -55,13 +55,13 @@
       <div class="qdr-rates">
         <div class="rate">
           <span class="rate-val" :class="rateClass(active.on_time_rate)">
-            {{ active.on_time_rate === null ? '—' : active.on_time_rate + '%' }}
+            {{ active.on_time_rate === null ? '-' : active.on_time_rate + '%' }}
           </span>
           <span class="rate-lbl">On time</span>
         </div>
         <div class="rate">
           <span class="rate-val" :class="rateClass(active.completion_rate)">
-            {{ active.completion_rate === null ? '—' : active.completion_rate + '%' }}
+            {{ active.completion_rate === null ? '-' : active.completion_rate + '%' }}
           </span>
           <span class="rate-lbl">Completed</span>
         </div>
@@ -91,7 +91,7 @@
       <div v-if="active.never_started > 0" class="qdr-flag">
         <span class="material-symbols-outlined">error</span>
         <strong>{{ active.never_started }}</strong>
-        {{ active.never_started === 1 ? 'was' : 'were' }} never started —
+        {{ active.never_started === 1 ? 'was' : 'were' }} never started -
         still untouched since being assigned.
       </div>
 
@@ -116,7 +116,7 @@
       </table>
 
       <p v-if="active.completed_untimed > 0" class="qdr-note">
-        {{ active.completed_untimed }} completed before delivery tracking began —
+        {{ active.completed_untimed }} completed before delivery tracking began -
         counted as done, but their timing isn't known.
       </p>
     </template>
@@ -130,7 +130,7 @@ import { reportsAPI } from '../api/reports'
 const props = defineProps({
   employeeId: { type: Number, default: null },
   employeeName: { type: String, default: '' },
-  // Week the timesheet covers — picks the quarter to open on.
+  // Week the timesheet covers - picks the quarter to open on.
   weekStart: { type: String, default: '' },
 })
 
@@ -155,7 +155,7 @@ const bars = computed(() => {
   ]
 })
 
-// Worst performers first — the report exists to surface problems.
+// Worst performers first - the report exists to surface problems.
 const rankedRows = computed(() =>
   [...(data.value?.by_employee || [])]
     .filter(r => r[capsule.value].total > 0)

@@ -9,9 +9,9 @@ Money/hours per stage are DERIVED, never stored:
 so correcting a project's value or hour budget keeps every stage consistent.
 
 Permissions
-    stages          — admin only (create / update / delete / mark complete)
-    stage subtasks  — admin or project manager (CRUD + mark complete)
-    reading         — any authenticated employee (it's a studio-wide todo list)
+    stages          - admin only (create / update / delete / mark complete)
+    stage subtasks  - admin or project manager (CRUD + mark complete)
+    reading         - any authenticated employee (it's a studio-wide todo list)
 """
 from datetime import date as date_type, datetime
 from decimal import Decimal
@@ -71,7 +71,7 @@ def _q(v) -> Decimal:
 
 def project_bucket(project: Project) -> Decimal:
     """The amount stages divide up: agreed value less the advance already taken.
-    Never negative — an advance larger than the value leaves nothing to stage."""
+    Never negative - an advance larger than the value leaves nothing to stage."""
     bucket = _q(project.project_remuneration) - _q(project.advance_amount)
     return bucket if bucket > 0 else Decimal("0")
 
@@ -121,7 +121,7 @@ def _serialize_stage(st: ProjectStage, project: Project, workers_by_subtask=None
         "name": st.name,
         "sequence": st.sequence,
         "percentage": float(pct),
-        # Derived — see module docstring.
+        # Derived - see module docstring.
         "amount": float((bucket * pct / FULL).quantize(Decimal("0.01"))),
         "hours": float((total_hours * pct / FULL).quantize(Decimal("0.01"))),
         "status": st.status,
@@ -236,7 +236,7 @@ async def create_stage(
     if allocated + pct > FULL:
         raise HTTPException(
             400,
-            f"Only {float(FULL - allocated):g}% of the project is left to allocate — "
+            f"Only {float(FULL - allocated):g}% of the project is left to allocate - "
             f"{float(pct):g}% would take the total to {float(allocated + pct):g}%.",
         )
 
@@ -287,7 +287,7 @@ async def update_stage(
         if allocated + pct > FULL:
             raise HTTPException(
                 400,
-                f"Only {float(FULL - allocated):g}% is available for this stage — "
+                f"Only {float(FULL - allocated):g}% is available for this stage - "
                 f"{float(pct):g}% would take the project to {float(allocated + pct):g}%.",
             )
         stage.percentage = pct
@@ -336,7 +336,7 @@ async def list_project_subtasks(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Every stage subtask on a project — the studio-wide todo list that feeds
+    """Every stage subtask on a project - the studio-wide todo list that feeds
     the timesheet picker and the employee project view."""
     q = select(StageSubtask, ProjectStage.name).join(
         ProjectStage, ProjectStage.id == StageSubtask.stage_id
@@ -448,7 +448,7 @@ async def my_subtask_deadlines(
     Stage subtasks are a studio-wide todo list: every employee can see what is
     open on any project and pick it on their timesheet, so these are NOT scoped
     to project assignment. (An earlier version filtered by ProjectAssignment,
-    which hid every deadline from employees — projects are staffed via teams,
+    which hid every deadline from employees - projects are staffed via teams,
     so that table is largely empty.)
     """
     q = (

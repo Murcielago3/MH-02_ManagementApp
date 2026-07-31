@@ -31,7 +31,7 @@
           <div class="ctl">
             <label>Add member</label>
             <select v-model="addMemberSelection[team.id]">
-              <option :value="null">— Select employee —</option>
+              <option :value="null">Select employee</option>
               <option v-for="u in availableUsersForTeam(team)" :key="u.id" :value="u.id">
                 {{ u.name }}{{ u.designation ? ' (' + u.designation + ')' : '' }}
               </option>
@@ -47,7 +47,7 @@
           <div class="ctl">
             <label>Team Lead</label>
             <select :value="team.team_lead_id ?? ''" @change="updateLead(team, $event.target.value)">
-              <option value="">— None —</option>
+              <option value="">None</option>
               <option v-for="m in team.members" :key="m.user_id" :value="m.user_id">
                 {{ m.name }}
               </option>

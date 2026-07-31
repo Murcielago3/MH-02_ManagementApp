@@ -21,7 +21,7 @@
 
     <div v-if="open" class="gs-panel">
       <p class="gs-hint">
-        <strong>scope:term</strong> jumps straight there — e.g.
+        <strong>scope:term</strong> jumps straight there - e.g.
         <button type="button" class="gs-example" @click="useExample">invoices:adani motilal</button>
       </p>
 
@@ -145,7 +145,7 @@ function completeScope(e) {
 function run(opt) {
   const target = opt || options.value[cursor.value]
   if (!target) return
-  // The term rides along as ?q= — target pages pre-fill their own search box.
+  // The term rides along as ?q= - target pages pre-fill their own search box.
   router.push({ path: target.path, query: target.term ? { q: target.term } : {} })
   open.value = false
   raw.value = ''

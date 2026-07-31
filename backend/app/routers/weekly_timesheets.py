@@ -17,7 +17,7 @@ router = APIRouter(prefix="/weekly-timesheets", tags=["weekly-timesheets"])
 
 class TimesheetEntryCreate(BaseModel):
     project_id: Optional[int] = None
-    # What the hours went to, for projects that use stages. Both optional —
+    # What the hours went to, for projects that use stages. Both optional -
     # projects without stages simply leave them unset.
     stage_id: Optional[int] = None
     subtask_id: Optional[int] = None
@@ -124,8 +124,8 @@ async def get_pending_weeks(
     # Monday of the current week (latest week to show)
     current_monday = today - timedelta(days=today.weekday())
 
-    # Fetch every timesheet in the window up front — one query instead of one
-    # per week — and index it by week_start.
+    # Fetch every timesheet in the window up front - one query instead of one
+    # per week - and index it by week_start.
     existing_rows = (await db.execute(
         select(WeeklyTimesheet).where(
             WeeklyTimesheet.employee_id == current_user.id,
@@ -195,7 +195,7 @@ async def submit_timesheet(
     def _entry_hours(e):
         return round(sum(float(h or 0) for h in e.daily_hours), 2)
 
-    # A stage is mandatory once its project defines any — otherwise hours can't
+    # A stage is mandatory once its project defines any - otherwise hours can't
     # be attributed to stage progress or spend. Projects without stages are
     # unaffected, as are rows with no hours.
     from app.models.project_stage import ProjectStage
@@ -215,7 +215,7 @@ async def submit_timesheet(
         if missing:
             raise HTTPException(
                 400,
-                "This project uses stages — pick the stage each row's hours belong to.",
+                "This project uses stages - pick the stage each row's hours belong to.",
             )
 
     total_hours = round(sum(_entry_hours(e) for e in data.entries), 2)
@@ -257,7 +257,7 @@ async def submit_timesheet(
         notify_event(
             "timesheet_uploaded",
             f"📋 {tag} submitted a timesheet for the week of "
-            f"{week_start} — {total_hours}h",
+            f"{week_start} - {total_hours}h",
         )
     background_tasks.add_task(_notify_timesheet_uploaded, current_user, data.week_start, total_hours)
 
@@ -294,14 +294,14 @@ async def get_timesheet(
 def _recompute_status(ts, submitter_is_admin: bool):
     """Derive the stored `status` from the approval / rejection slots.
 
-    Approval is admin-only. The project-manager stage was removed entirely —
+    Approval is admin-only. The project-manager stage was removed entirely -
     it stalled 1100+ hours for three weeks because PMs never worked the queue.
     The pm_approved_* columns are retained for historical rows but no longer
     influence status.
 
     Admin submitter → 'approved' once the single admin slot is filled.
     Non-admin submitter → 'approved' when both admin slots are filled
-        (two distinct admins — four-eyes is preserved on the admin side).
+        (two distinct admins - four-eyes is preserved on the admin side).
     """
     if ts.rejected_at:
         ts.status = "rejected"
@@ -337,7 +337,7 @@ async def _freeze_entries(db, timesheet, entries):
 def comp_amount_for_day(day_index: int, hrs) -> "Decimal":
     """Comp-off days earned for one day, by weekday index (0=Mon .. 6=Sun).
 
-    Saturday (5): any work earns comp — 8h+ = 1.0 day, under 8h = 0.5 day.
+    Saturday (5): any work earns comp - 8h+ = 1.0 day, under 8h = 0.5 day.
     Sunday (6): no work / no comp.
     Mon–Fri (0–4): 14h+ = 1.0 day, 12h+ (under 14h) = 0.5 day.
     """
@@ -345,7 +345,7 @@ def comp_amount_for_day(day_index: int, hrs) -> "Decimal":
     hrs = Decimal(str(hrs or 0))
     if day_index == 5:  # Saturday
         return Decimal("1.0") if hrs >= 8 else (Decimal("0.5") if hrs > 0 else Decimal("0"))
-    if day_index == 6:  # Sunday — strictly no work
+    if day_index == 6:  # Sunday - strictly no work
         return Decimal("0")
     return Decimal("1.0") if hrs >= 14 else (Decimal("0.5") if hrs >= 12 else Decimal("0"))
 
@@ -413,7 +413,7 @@ def _queue_decision_slack(background_tasks, emp, timesheet, status, rejection_re
         else:
             tag = f"*Employee #{timesheet.employee_id}*"
         verb = "approved ✅" if status == "approved" else "rejected ❌"
-        msg = f"🗂️ Timesheet *{verb}* — {tag}, week of {timesheet.week_start}"
+        msg = f"🗂️ Timesheet *{verb}* - {tag}, week of {timesheet.week_start}"
         if status == "rejected" and rejection_reason:
             msg += f"\nReason: _{rejection_reason}_"
         notify_event("timesheet_decision", msg)
@@ -465,7 +465,7 @@ async def approve_timesheet(
             slot = "admin"
         elif timesheet.admin2_approved_at is None:
             if timesheet.admin_approved_by == current_user.id:
-                raise HTTPException(400, "You gave the first admin approval — a different admin must give the second.")
+                raise HTTPException(400, "You gave the first admin approval - a different admin must give the second.")
             timesheet.admin2_approved_by = current_user.id
             timesheet.admin2_approved_at = now
             slot = "admin2"
@@ -485,7 +485,7 @@ async def approve_timesheet(
                     summary=f"Admin approved {who}'s timesheet (week of {timesheet.week_start})")
     if fully_approved:
         await log_audit(db, current_user, "timesheet.approved", "timesheet", timesheet.id,
-                        summary=f"Timesheet fully approved — {who} (week of {timesheet.week_start})")
+                        summary=f"Timesheet fully approved - {who} (week of {timesheet.week_start})")
 
     await db.commit()
     await db.refresh(timesheet)

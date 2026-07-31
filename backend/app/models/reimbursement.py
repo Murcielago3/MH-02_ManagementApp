@@ -14,7 +14,7 @@ class Reimbursement(Base):
     proof_url = Column(String, nullable=True)
     status = Column(String, default="pending")  # pending, approved, rejected
     # Which salary-slip month this claim is bundled into once approved. Derived
-    # from the expense date's month, so a June-dated bill rolls into June's slip —
+    # from the expense date's month, so a June-dated bill rolls into June's slip -
     # which pays out the following month (~Jul 7).
     month_added = Column(String, nullable=True)  # e.g. "2026-06"
     # When the employee submitted the claim (recorded going forward).

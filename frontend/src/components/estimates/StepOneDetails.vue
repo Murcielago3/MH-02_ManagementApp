@@ -15,7 +15,7 @@
           type="text"
           class="field-input"
           :class="{ error: nameError }"
-          placeholder="e.g. Villa Renovation — Phase 2"
+          placeholder="e.g. Villa Renovation - Phase 2"
           @blur="nameBlurred = true"
         />
         <span v-if="nameError" class="field-error">Project name is required.</span>

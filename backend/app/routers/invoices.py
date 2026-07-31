@@ -17,7 +17,7 @@ class InvoiceItemCreate(BaseModel):
     description: str
     hsn_sac: Optional[str] = None
     amount: float
-    tax_rate: float = 18  # 8, 12, or 18 — per-service GST bracket
+    tax_rate: float = 18  # 8, 12, or 18 - per-service GST bracket
 
 class InvoiceCreate(BaseModel):
     invoice_type: str  # tax or proforma
@@ -46,7 +46,7 @@ def determine_tax_type(gstin: Optional[str], place_of_supply: Optional[str] = No
     """CGST+SGST for intra-state supply, IGST for inter-state.
 
     A registered client is judged on their GSTIN's state code. Without a GSTIN
-    the client is unregistered and billed against their PAN — the place of
+    the client is unregistered and billed against their PAN - the place of
     supply then falls back to the supplier's own location, making it an
     intra-state supply, so it is always CGST+SGST and never IGST.
 
@@ -347,7 +347,7 @@ async def get_invoice_preview_html(
     """Returns the exact HTML used to render the PDF.
 
     The frontend embeds this in an iframe so the preview and the downloaded
-    PDF are guaranteed identical — no separate Vue template can drift from it.
+    PDF are guaranteed identical - no separate Vue template can drift from it.
     """
     from sqlalchemy.orm import selectinload
     from app.routers.settings import get_or_create_settings
@@ -562,7 +562,7 @@ def render_invoice_html(invoice, settings=None) -> str:
                 <td class="tot-val">₹{format_indian_currency(float(invoice.igst))}</td>
             </tr>"""
     else:
-        # Multiple brackets — a row (or CGST+SGST pair) per rate, broken down
+        # Multiple brackets - a row (or CGST+SGST pair) per rate, broken down
         # before the Total / Total-in-words section.
         rows = []
         for b in breakdown:
@@ -597,7 +597,7 @@ def render_invoice_html(invoice, settings=None) -> str:
     date_str = invoice.invoice_date.strftime("%d/%m/%Y") if invoice.invoice_date else ""
     subject_val = invoice.subject or ''
 
-    # Company profile — pulled from Settings; fall back to historical hardcoded values
+    # Company profile - pulled from Settings; fall back to historical hardcoded values
     company_name = (settings.company_name if settings and settings.company_name else "Studio MH02 LLP")
     company_address = (settings.company_address if settings and settings.company_address
                        else "201, Prathamesh Apt, Mahant Road, Vile Parle East\nMumbai, Maharashtra 400507")
@@ -668,7 +668,7 @@ def render_invoice_html(invoice, settings=None) -> str:
   .col-gst  {{ width: 45px; text-align: center; }}
   .col-amt  {{ width: 110px; text-align: right; }}
 
-  /* ===== FOOTER (bank + totals) — bumped to match the +3 address size ===== */
+  /* ===== FOOTER (bank + totals) - bumped to match the +3 address size ===== */
   .foot-left {{ width: 55%; padding: 8px 10px; }}
   .foot-right {{ width: 45%; padding: 8px 10px; }}
   .bank-tbl td {{ padding: 2px 0; font-size: 10.5px; }}

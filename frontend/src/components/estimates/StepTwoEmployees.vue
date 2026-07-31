@@ -47,7 +47,7 @@
                     :class="{ placeholder: !emp.type }"
                     @change="store.updateEmployee(emp.id, 'type', $event.target.value)"
                   >
-                    <option value="" disabled>— Select —</option>
+                    <option value="" disabled>Select</option>
                     <option v-for="t in empTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
                   </select>
                 </td>
@@ -63,7 +63,7 @@
                   />
                 </td>
                 <!-- Pay/Hr (auto) -->
-                <td class="num-cell derived">{{ emp.payPerHour ? '₹' + emp.payPerHour.toFixed(2) : '—' }}</td>
+                <td class="num-cell derived">{{ emp.payPerHour ? '₹' + emp.payPerHour.toFixed(2) : '-' }}</td>
                 <!-- Hrs/Day -->
                 <td>
                   <input

@@ -139,7 +139,7 @@ function monthLabel(ms) {
   return `${monthNamesFull[m - 1]} ${y}`
 }
 function formatDate(d) {
-  if (!d) return '—'
+  if (!d) return '-'
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 

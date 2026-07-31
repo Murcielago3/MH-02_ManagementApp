@@ -45,7 +45,7 @@
               <div class="project-header__left">
                 <div class="project-color-dot" :style="{ background: projectMeta?.color || 'var(--color-primary)' }" />
                 <div>
-                  <h2 class="detail-title">{{ summary?.project_name || '—' }}</h2>
+                  <h2 class="detail-title">{{ summary?.project_name || '-' }}</h2>
                   <p class="detail-sub">
                     {{ projectMeta?.project_number }}
                     <template v-if="projectMeta?.year"> · {{ projectMeta.year }}</template>
@@ -516,7 +516,7 @@ function renderAll() {
   requestAnimationFrame(tryOnce)
 }
 
-// Also re-render whenever data changes — covers the case where summary lands
+// Also re-render whenever data changes - covers the case where summary lands
 // after the canvases have already been mounted (project switch, etc.).
 watch(
   () => [summary.value, hasBillingData.value, hasEmpData.value, hasDistData.value],

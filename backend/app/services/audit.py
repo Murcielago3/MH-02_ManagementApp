@@ -1,7 +1,7 @@
 """Audit-trail helper.
 
 Call `log_audit(...)` from any endpoint after a meaningful action. It adds a row
-to the *current request's* session — the caller's existing `commit()` persists it
+to the *current request's* session - the caller's existing `commit()` persists it
 atomically with the action. Logging never raises, so it can't break the action.
 """
 import logging

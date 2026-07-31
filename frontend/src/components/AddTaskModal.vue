@@ -15,7 +15,7 @@
             <div class="form-field span-2">
               <label>Project</label>
               <select v-model="form.project_id">
-                <option :value="null">— No Project —</option>
+                <option :value="null">No Project</option>
                 <option v-for="p in projects" :key="p.id" :value="p.id">
                   ● {{ p.name }}
                 </option>
@@ -25,7 +25,7 @@
             <div class="form-field">
               <label>Assigned To *</label>
               <select v-model="form.assigned_to" required>
-                <option :value="null">— Select Employee —</option>
+                <option :value="null">Select Employee</option>
                 <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
               </select>
             </div>

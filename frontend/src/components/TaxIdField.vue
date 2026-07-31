@@ -21,7 +21,7 @@
 import { ref, computed } from 'vue'
 import { validatePan, validateGstin } from '../utils/taxIds'
 
-// $attrs (placeholder, required, etc.) are placed on the inner <input> only —
+// $attrs (placeholder, required, etc.) are placed on the inner <input> only -
 // don't also let Vue auto-fallthrough them onto the wrapper <div>.
 defineOptions({ inheritAttrs: false })
 
@@ -49,7 +49,7 @@ const error = computed(() => {
 })
 
 // Only surface the popover once the field looks "done" (full length reached,
-// or the user has moved on) — avoids flagging every valid-so-far keystroke.
+// or the user has moved on) - avoids flagging every valid-so-far keystroke.
 const showError = computed(
   () => !!error.value && (touched.value || (props.modelValue || '').length >= expectedLen.value)
 )

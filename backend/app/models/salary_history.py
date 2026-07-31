@@ -7,7 +7,7 @@ derived convenience (``next.effective_from - 1 day``); the latest row's
 ``effective_to`` is NULL = open until the next raise or exit.
 
 Each row freezes the inputs *and* the resulting hourly rate, so historical pay
-is immutable even if global Settings (smpy/whpm) change later — that's the point
+is immutable even if global Settings (smpy/whpm) change later - that's the point
 of versioning.
 """
 from sqlalchemy import (

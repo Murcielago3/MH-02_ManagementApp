@@ -79,7 +79,7 @@
                   Reject
                 </button>
               </div>
-              <span v-else class="cell-muted no-action">—</span>
+              <span v-else class="cell-muted no-action">-</span>
             </td>
           </tr>
         </tbody>

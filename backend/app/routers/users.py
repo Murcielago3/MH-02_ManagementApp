@@ -117,7 +117,7 @@ async def get_my_profile(
     from app.routers.leaves import accrue_all
     await accrue_all(db)
     await db.refresh(current_user)
-    # AppLayout calls this on every page mount — short cache covers session navigation
+    # AppLayout calls this on every page mount - short cache covers session navigation
     response.headers["Cache-Control"] = "private, max-age=60"
     return current_user
 
@@ -177,7 +177,7 @@ async def create_user(
     )
     db.add(user)
     await db.flush()
-    await log_audit(db, current_user, "user.created", "user", user.id, summary=f"Created {user.role} — {user.name}")
+    await log_audit(db, current_user, "user.created", "user", user.id, summary=f"Created {user.role} - {user.name}")
     await db.commit()
     await db.refresh(user)
 
@@ -222,14 +222,14 @@ async def update_user(
     
     update_data = data.model_dump(exclude_unset=True)
 
-    # Salary is managed only through the HR increment flow — never edited here.
+    # Salary is managed only through the HR increment flow - never edited here.
     update_data.pop("salary_month", None)
     update_data.pop("salary_hour", None)
 
     # Bank details: anyone may maintain their OWN (they're paid into that
     # account and it prints on their salary slip); otherwise admin-only, so a
     # project manager can never edit someone else's. Note bank_ifsc_code was
-    # previously guarded by neither list — it was editable by anyone.
+    # previously guarded by neither list - it was editable by anyone.
     BANK_FIELDS = ("bank_name", "bank_account_number", "bank_ifsc_code")
     if not (is_self or is_admin):
         for field in BANK_FIELDS:
@@ -336,7 +336,7 @@ async def upload_document(
 ):
     """Upload a document (PDF/image) for the given user. doc_type: aadhar | pan | other.
 
-    Employees may upload their OWN documents, but only once — a document, once
+    Employees may upload their OWN documents, but only once - a document, once
     uploaded, can't be changed by the employee. Admins can upload/replace freely.
     """
     is_admin = current_user.role == "admin"
@@ -358,7 +358,7 @@ async def upload_document(
     except (json.JSONDecodeError, TypeError):
         docs = []
 
-    # Once uploaded, an employee can't change their own document — only an admin can.
+    # Once uploaded, an employee can't change their own document - only an admin can.
     already = any(d.get("doc_type") == doc_type for d in docs)
     if already and not is_admin:
         raise HTTPException(status_code=403, detail="This document has already been uploaded and can only be changed by an admin.")
@@ -418,7 +418,7 @@ async def delete_document(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Remove a specific document from a user's profile. Admin only — employees
+    """Remove a specific document from a user's profile. Admin only - employees
     can't delete their own documents once uploaded."""
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Only an admin can remove documents")

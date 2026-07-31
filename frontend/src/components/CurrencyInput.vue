@@ -75,7 +75,7 @@ function findCaretFromSignificant(str, target) {
 watch(
   () => props.modelValue,
   (val) => {
-    // Only reset external value into display when the input isn't focused —
+    // Only reset external value into display when the input isn't focused -
     // otherwise typing would fight with the model echo.
     if (document.activeElement !== inputRef.value) {
       displayValue.value = formatRaw(val)
