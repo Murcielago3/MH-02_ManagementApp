@@ -122,6 +122,11 @@ const user = ref(null)
 const leaves = ref([])
 const allTasks = ref([])
 const projectsList = ref([])
+// Was referenced by the template and assigned in fetchDashboardData but never
+// declared — every dashboard load threw "holidays is not defined" partway
+// through, so holidays never rendered and anything assigned after it (the
+// subtask deadlines) was silently skipped.
+const holidays = ref([])
 const subtaskDeadlines = ref([])
 const selectedDeadline = ref(null)
 
