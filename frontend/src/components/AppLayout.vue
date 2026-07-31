@@ -31,6 +31,7 @@
             :key="item.path"
             :to="item.path"
             :class="['nav-item', { active: isActive(item.path) }]"
+            :title="sidebarCollapsed ? item.label : ''"
           >
             <span class="nav-icon material-symbols-outlined"
               :style="isActive(item.path) ? 'font-variation-settings:\'FILL\' 1' : ''">
@@ -47,6 +48,7 @@
             :key="item.path"
             :to="item.path"
             :class="['nav-item', { active: isActive(item.path) }]"
+            :title="sidebarCollapsed ? item.label : ''"
           >
             <span class="nav-icon material-symbols-outlined"
               :style="isActive(item.path) ? 'font-variation-settings:\'FILL\' 1' : ''">
@@ -63,7 +65,8 @@
           <button
             class="nav-item"
             :class="{ active: isProjectsSectionActive }"
-            @click="toggleProjects"
+            :title="sidebarCollapsed ? 'Projects' : ''"
+            @click="onProjectsClick"
           >
             <span class="nav-icon material-symbols-outlined"
               :style="isProjectsSectionActive ? 'font-variation-settings:\'FILL\' 1' : ''">
@@ -98,6 +101,7 @@
             :key="item.path"
             :to="item.path"
             :class="['nav-item', { active: isActive(item.path) }]"
+            :title="sidebarCollapsed ? item.label : ''"
           >
             <span class="nav-icon material-symbols-outlined"
               :style="isActive(item.path) ? 'font-variation-settings:\'FILL\' 1' : ''">
@@ -195,6 +199,17 @@ const projectsExpanded = ref(false)
 const sidebarOpen     = ref(false)
 // Desktop: collapse the sidebar to an icon rail. Remembered across sessions.
 const sidebarCollapsed = ref(localStorage.getItem('sidebar_collapsed') === '1')
+// While collapsed the sub-items are hidden, so opening the group would appear
+// to do nothing — expand the rail instead.
+function onProjectsClick() {
+  if (sidebarCollapsed.value) {
+    toggleCollapse()
+    projectsExpanded.value = true
+    return
+  }
+  toggleProjects()
+}
+
 function toggleCollapse() {
   sidebarCollapsed.value = !sidebarCollapsed.value
   localStorage.setItem('sidebar_collapsed', sidebarCollapsed.value ? '1' : '0')
@@ -290,17 +305,28 @@ function toggleProjects()  { projectsExpanded.value = !projectsExpanded.value }
 /* ── Sidebar ── */
 .app-shell { --sb-w: 248px; }
 .app-shell.sb-collapsed { --sb-w: 64px; }
-/* Collapsed rail: icons only. */
+/* Collapsed rail: icons only. Everything textual is hidden, including the
+   Projects group's chevron and its sub-items (which otherwise render as a
+   column of stray dots). */
 .sb-collapsed .nav-label,
+.sb-collapsed .nav-chevron,
+.sb-collapsed .nav-subitems,
 .sb-collapsed .sidebar-user-info,
 .sb-collapsed .sidebar-user-icon,
-.sb-collapsed .brand-text,
-.sb-collapsed .nav-badge,
-.sb-collapsed .group-label,
-.sb-collapsed .group-chevron { display: none; }
+.sb-collapsed .brand-text { display: none; }
+
 .sb-collapsed .nav-item,
-.sb-collapsed .sidebar-user { justify-content: center; padding-left: 0; padding-right: 0; }
-.sb-collapsed .sidebar-brand { justify-content: center; padding-left: 0; padding-right: 0; }
+.sb-collapsed .sidebar-user,
+.sb-collapsed .sidebar-brand {
+  justify-content: center;
+  padding-left: 0; padding-right: 0;
+  gap: 0;
+}
+/* Keep the icon from being squeezed by the flex row it no longer needs. */
+.sb-collapsed .nav-icon { margin: 0; flex-shrink: 0; }
+.sb-collapsed .nav-item { width: 100%; }
+.sb-collapsed .nav-divider { margin-left: 10px; margin-right: 10px; }
+.sb-collapsed .brand-logo { margin: 0; }
 
 .sb-toggle {
   position: absolute; top: 14px; right: -12px; z-index: 32;
