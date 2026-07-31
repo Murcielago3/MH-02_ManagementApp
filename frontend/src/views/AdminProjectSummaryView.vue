@@ -56,6 +56,34 @@
         </span>
       </div>
 
+      <!-- Financials | Stages -->
+      <div class="summary-tabs">
+        <button type="button" class="summary-tab" :class="{ active: activeTab === 'financials' }"
+                @click="activeTab = 'financials'">
+          <span class="material-symbols-outlined">payments</span> Financials
+        </button>
+        <button type="button" class="summary-tab" :class="{ active: activeTab === 'stages' }"
+                @click="activeTab = 'stages'">
+          <span class="material-symbols-outlined">flag</span> Stages
+          <span v-if="stageData && stageData.stages.length" class="tab-count">{{ stageData.stages.length }}</span>
+        </button>
+      </div>
+
+      <!-- ── Stages tab ── -->
+      <div v-show="activeTab === 'stages'" class="section-block">
+        <div v-if="stagesLoading" class="stages-msg">Loading stages…</div>
+        <ProjectStagesEditor
+          v-else-if="stageData"
+          :data="stageData"
+          :can-edit-stages="isAdmin"
+          :can-edit-subtasks="isAdmin || isPM"
+          @changed="loadStages"
+          @view-worker="onViewWorker"
+        />
+        <div v-else class="stages-msg">Could not load stages.</div>
+      </div>
+
+      <div v-show="activeTab === 'financials'">
             <!-- Section: Project Financials -->
             <div class="section-block">
               <div class="section-header">
@@ -324,6 +352,7 @@
                 <p>No tasks scheduled for this project yet.</p>
               </div>
             </div>
+      </div><!-- /financials tab -->
 
     </div>
 
@@ -353,7 +382,10 @@ import AppLayout from '../components/AppLayout.vue'
 import ToastNotification from '../components/ToastNotification.vue'
 import AssignProjectModal from '../components/AssignProjectModal.vue'
 import CurrencyInput from '../components/CurrencyInput.vue'
+import ProjectStagesEditor from '../components/ProjectStagesEditor.vue'
 import { projectsAPI } from '../api/projects'
+import { stagesAPI } from '../api/stages'
+import { useAuthStore } from '../stores/auth'
 import { usersAPI } from '../api/users'
 import { weeklyTimesheetsAPI } from '../api/weekly_timesheets'
 import { formatInr, formatInrPerHour, previewHourlyFromBasePay } from '../utils/currency'
@@ -401,6 +433,32 @@ async function loadProjectedCost(id) {
 }
 
 const selectedProjectId = ref(null)
+
+// ── Financials | Stages ──
+const authStore = useAuthStore()
+const isAdmin = computed(() => authStore.role === 'admin')
+const isPM = computed(() => authStore.role === 'project_manager')
+const activeTab = ref('financials')
+const stageData = ref(null)
+const stagesLoading = ref(false)
+
+async function loadStages() {
+  if (!selectedProjectId.value) { stageData.value = null; return }
+  stagesLoading.value = true
+  try {
+    const { data } = await stagesAPI.list(selectedProjectId.value)
+    stageData.value = data
+  } catch (e) {
+    stageData.value = null
+  } finally {
+    stagesLoading.value = false
+  }
+}
+
+// Jump to the employee's timesheets from a subtask's worker chip.
+function onViewWorker(w) {
+  router.push({ path: '/admin/timesheets', query: { employee: w.name } })
+}
 
 const apiSummary = ref({
   project_id: null,
@@ -803,6 +861,8 @@ onMounted(() => {
   }
 })
 
+watch(selectedProjectId, () => { loadStages() }, { immediate: true })
+
 watch(selectedProjectId, (id) => {
   if (!id) {
     apiSummary.value = {
@@ -968,6 +1028,27 @@ async function savePartnerRate() {
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
 /* ── Detail content wrapper ───────────────────────────────────────────────── */
+/* ── Financials | Stages tabs ── */
+.summary-tabs {
+  display: flex; gap: 4px; margin-bottom: 18px;
+  border-bottom: 1px solid var(--color-outline);
+}
+.summary-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 16px; margin-bottom: -1px;
+  background: none; border: none; border-bottom: 2px solid transparent;
+  font-size: 13px; font-weight: 700; color: var(--color-on-surface-variant); cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.summary-tab:hover { color: var(--color-on-surface); }
+.summary-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+.summary-tab .material-symbols-outlined { font-size: 17px; }
+.tab-count {
+  background: var(--color-primary-light, #e6f0f0); color: var(--color-primary);
+  border-radius: 999px; padding: 0 7px; font-size: 11px; font-weight: 700;
+}
+.stages-msg { font-size: 13px; color: var(--color-on-surface-variant); font-style: italic; padding: 20px 0; }
+
 .detail-content {
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
