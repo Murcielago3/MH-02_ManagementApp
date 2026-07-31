@@ -140,12 +140,17 @@
           <GlobalSearch />
         </div>
         <div class="top-bar-right">
-          <button class="top-icon-btn" title="Notifications">
+          <!-- Notifications are delivered in Slack, so this opens the workspace. -->
+          <a
+            class="top-icon-btn"
+            :href="SLACK_INVITE_URL"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Notifications — open Slack"
+            aria-label="Open notifications in Slack"
+          >
             <span class="material-symbols-outlined">notifications</span>
-          </button>
-          <button class="top-icon-btn" title="Help">
-            <span class="material-symbols-outlined">help_outline</span>
-          </button>
+          </a>
           <div class="top-avatar-wrap" @click.stop="showProfileMenu = !showProfileMenu">
             <div class="top-avatar">{{ userInitials }}</div>
             <transition name="dropdown">
@@ -197,6 +202,8 @@ const currentUser     = ref(null)
 const showProfileMenu = ref(false)
 const projectsExpanded = ref(false)
 const sidebarOpen     = ref(false)
+// Notifications live in Slack; the bell opens the workspace invite.
+const SLACK_INVITE_URL = 'https://join.slack.com/t/studiomh02/shared_invite/zt-45jtu4soi-9UAeCjzhR68dvolFl2wMXQ' 
 // Desktop: collapse the sidebar to an icon rail. Remembered across sessions.
 const sidebarCollapsed = ref(localStorage.getItem('sidebar_collapsed') === '1')
 // While collapsed the sub-items are hidden, so opening the group would appear
@@ -559,7 +566,7 @@ function toggleProjects()  { projectsExpanded.value = !projectsExpanded.value }
 
 .top-bar-right { display: flex; align-items: center; gap: 4px; }
 
-.top-icon-btn {
+.top-icon-btn { text-decoration: none;
   width: 36px; height: 36px;
   display: flex; align-items: center; justify-content: center;
   background: transparent;

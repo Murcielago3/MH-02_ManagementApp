@@ -84,9 +84,17 @@
           <h2 class="page-title">{{ currentPageTitle }}</h2>
         </div>
         <div class="top-bar-right">
-          <button class="top-icon-btn" title="Notifications">
+          <!-- Notifications are delivered in Slack, so this opens the workspace. -->
+          <a
+            class="top-icon-btn"
+            :href="SLACK_INVITE_URL"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Notifications — open Slack"
+            aria-label="Open notifications in Slack"
+          >
             <span class="material-symbols-outlined">notifications</span>
-          </button>
+          </a>
         </div>
       </header>
 
@@ -112,6 +120,8 @@ const timesheetStore = useTimesheetStore()
 const currentUser = ref(null)
 const showProfileMenu = ref(false)
 const sidebarOpen = ref(false)
+// Notifications live in Slack; the bell opens the workspace invite.
+const SLACK_INVITE_URL = 'https://join.slack.com/t/studiomh02/shared_invite/zt-45jtu4soi-9UAeCjzhR68dvolFl2wMXQ'
 const logoUrl = getBrandLogoUrl()
 
 // Close the mobile drawer whenever the route changes
@@ -441,7 +451,7 @@ const currentPageTitle = computed(() => {
 }
 .top-bar-right { display: flex; align-items: center; gap: 4px; }
 
-.top-icon-btn {
+.top-icon-btn { text-decoration: none;
   width: 36px; height: 36px;
   display: flex; align-items: center; justify-content: center;
   background: transparent;
