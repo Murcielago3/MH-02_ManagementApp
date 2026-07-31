@@ -51,13 +51,31 @@
             </thead>
             <tbody>
               <tr v-for="(row, ri) in rows" :key="ri">
-                <td>
-                  <select v-model="row.project_id" required class="form-select">
+                <td class="work-cell">
+                  <select v-model="row.project_id" required class="form-select"
+                          @change="onProjectChange(row)">
                     <option :value="null" disabled>Select Project</option>
                     <option v-for="p in projects" :key="p.id" :value="p.id">
                       {{ p.name }}
                     </option>
                   </select>
+
+                  <!-- Stage + subtask, only for projects that use stages -->
+                  <template v-if="row.project_id && stagesFor(row.project_id).length">
+                    <select v-model="row.stage_id" class="form-select sub-select"
+                            @change="row.subtask_id = null">
+                      <option :value="null">— Stage (optional) —</option>
+                      <option v-for="s in stagesFor(row.project_id)" :key="s.id" :value="s.id">
+                        {{ s.name }} · {{ s.completion_percent }}%
+                      </option>
+                    </select>
+                    <select v-if="row.stage_id" v-model="row.subtask_id" class="form-select sub-select">
+                      <option :value="null">— Subtask (optional) —</option>
+                      <option v-for="t in subtasksFor(row.project_id, row.stage_id)" :key="t.id" :value="t.id">
+                        {{ t.status === 'completed' ? '✓ ' : '' }}{{ t.title }}
+                      </option>
+                    </select>
+                  </template>
                 </td>
                 <td v-for="(d, di) in weekDays" :key="di" class="day-cell" :class="{ 'is-weekend': di >= 5 }">
                   <input
@@ -161,6 +179,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useTimesheetStore } from '../../stores/timesheet'
 import { useDraftStorage } from '../../composables/useDraftStorage'
+import { stagesAPI } from '../../api/stages'
 
 const props = defineProps({
   week: { type: Object, required: true },
@@ -193,7 +212,38 @@ const weekDays = computed(() => {
 })
 
 function makeEmptyRow() {
-  return { project_id: null, daily: [0, 0, 0, 0, 0, 0, 0], description: '' }
+  return { project_id: null, stage_id: null, subtask_id: null, daily: [0, 0, 0, 0, 0, 0, 0], description: '' }
+}
+
+// ── Stage / subtask options, fetched lazily per project ──
+// Cached so switching rows between projects doesn't refetch. Projects without
+// stages simply return [], and the selects stay hidden.
+const stagesByProject = ref({})
+const subtasksByProject = ref({})
+
+function stagesFor(projectId) { return stagesByProject.value[projectId] || [] }
+function subtasksFor(projectId, stageId) {
+  return (subtasksByProject.value[projectId] || []).filter(t => t.stage_id === stageId)
+}
+
+async function ensureStages(projectId) {
+  if (!projectId || stagesByProject.value[projectId]) return
+  try {
+    const { data } = await stagesAPI.list(projectId)
+    stagesByProject.value = { ...stagesByProject.value, [projectId]: data.stages || [] }
+    subtasksByProject.value = {
+      ...subtasksByProject.value,
+      [projectId]: (data.stages || []).flatMap(s => s.subtasks || []),
+    }
+  } catch (e) {
+    stagesByProject.value = { ...stagesByProject.value, [projectId]: [] }
+  }
+}
+
+function onProjectChange(row) {
+  row.stage_id = null
+  row.subtask_id = null
+  ensureStages(row.project_id)
 }
 
 // Draft storage keyed by week start (reactive key). Server-backed per account,
@@ -232,9 +282,13 @@ watch(() => props.week, async () => {
   if (storeEntries.length > 0) {
     rows.value = storeEntries.map(e => ({
       project_id: e.project_id,
+      stage_id: e.stage_id ?? null,
+      subtask_id: e.subtask_id ?? null,
       daily: e.daily ? padDaily(e.daily) : distributeHours(e.hours || 0),
       description: e.description || ''
     }))
+    // Load stage options for every project already on the sheet.
+    for (const id of new Set(rows.value.map(r => r.project_id).filter(Boolean))) ensureStages(id)
   } else {
     rows.value = [makeEmptyRow()]
   }
@@ -267,6 +321,8 @@ watch([description, rows], () => {
   store.form.description = description.value
   store.form.entries = rows.value.map(r => ({
     project_id: r.project_id,
+    stage_id: r.stage_id ?? null,
+    subtask_id: r.subtask_id ?? null,
     hours: rowTotalForRow(r),
     description: r.description,
     daily: [...r.daily]
@@ -299,9 +355,12 @@ function restoreTsDraft() {
   if (d.rows) {
     rows.value = d.rows.map(r => ({
       project_id: r.project_id,
+      stage_id: r.stage_id ?? null,
+      subtask_id: r.subtask_id ?? null,
       daily: padDaily(r.daily),
       description: r.description || ''
     }))
+    for (const id of new Set(rows.value.map(r => r.project_id).filter(Boolean))) ensureStages(id)
   }
   showDraftBanner.value = false
 }
@@ -566,6 +625,17 @@ label {
 .grid-table td:first-child {
   padding-left: 8px;
 }
+
+/* Project / stage / subtask stack in one cell */
+.work-cell { min-width: 210px; }
+.work-cell .sub-select {
+  margin-top: 5px;
+  font-size: 12px;
+  padding-left: 18px;
+  position: relative;
+  background-color: var(--color-surface-container-lowest, #f8fafc);
+}
+.work-cell .sub-select::before { content: '↳'; }
 
 .form-select {
   width: 100%;

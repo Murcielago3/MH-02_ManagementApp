@@ -93,6 +93,8 @@ export const useTimesheetStore = defineStore('timesheet', () => {
         if (ts.entries && ts.entries.length > 0) {
           form.value.entries = ts.entries.map(e => ({
             project_id: e.project_id,
+            stage_id: e.stage_id ?? null,
+            subtask_id: e.subtask_id ?? null,
             hours: Number(e.hours),
             description: e.description
           }))
@@ -179,6 +181,8 @@ export const useTimesheetStore = defineStore('timesheet', () => {
           .filter(e => e.project_id && (Number(e.hours) || 0) > 0)
           .map(e => ({
             project_id: e.project_id,
+            stage_id: e.stage_id ?? null,
+            subtask_id: e.subtask_id ?? null,
             hours: Number(e.hours),
             description: e.description,
             daily_hours: e.daily ? e.daily.map(h => Number(h) || 0) : null
