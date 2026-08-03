@@ -516,8 +516,8 @@ def render_invoice_html(invoice, settings=None) -> str:
             <td>{bank.bank_name}</td>
         </tr>
         <tr>
-            <td class="bank-label">Account</td>
-            <td>Type {bank.account_type}</td>
+            <td class="bank-label">Account Type</td>
+            <td>{bank.account_type}</td>
         </tr>
         <tr>
             <td class="bank-label">Account Holder Name</td>
