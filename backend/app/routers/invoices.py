@@ -504,7 +504,6 @@ def render_invoice_html(invoice, settings=None) -> str:
             <td style="{base} border-right:1px solid #000 !important; text-align:center;">{i}</td>
             <td style="{base} border-right:1px solid #000 !important;">{item.description}</td>
             <td style="{base} border-right:1px solid #000 !important;">{item.hsn_sac or ''}</td>
-            <td style="{base} border-right:1px solid #000 !important; text-align:center;">{fmt_rate(item.tax_rate)}%</td>
             <td style="{base} text-align:right;">&#8377;{format_indian_currency(float(item.amount))}</td>
         </tr>"""
 
@@ -538,7 +537,7 @@ def render_invoice_html(invoice, settings=None) -> str:
         else "PROFORMA INVOICE"
     formatted_num = get_formatted_invoice_number(invoice)
     invoice_number_html = f"""
-        <div class="invoice-num">{formatted_num}</div>
+        <div class="invoice-num">#{formatted_num}</div>
     """ if formatted_num else ""
 
     if num_brackets <= 1:
@@ -645,9 +644,10 @@ def render_invoice_html(invoice, settings=None) -> str:
   .hdr-right {{ width: 40%; padding: 5mm 8mm 5mm 5mm !important; vertical-align: middle !important; text-align: right; }}
   .logo-img {{ width: 80px; height: 80px; object-fit: contain; display: block; }}
   .firm-name {{ font-size: 12px; font-weight: bold; margin-bottom: 2px; }}
-  .firm-details {{ font-size: 7.5px; line-height: 1.4; color: #222; }}
+  .firm-details {{ font-size: 9.5px; line-height: 1.4; color: #222; }}
   .invoice-type {{ font-size: 18px; font-weight: bold; letter-spacing: 0.6px; }}
-  .invoice-num {{ font-size: 9px; margin-top: 4px; color: #333; }}
+  .invoice-num {{ font-size: 11px; margin-top: 4px; color: #333; }}
+  .subject-line {{ font-size: 9.5px; }}
 
   /* ===== META ===== */
   .meta-label {{ font-size: 8.5px; color: #555; margin-bottom: 2px; }}
@@ -756,24 +756,22 @@ def render_invoice_html(invoice, settings=None) -> str:
       </td>
     </tr>
     <tr style=\"height:{SUBJECT_H}mm;\">
-      <td colspan=\"2\" style=\"padding:5px 8px;\">
-        <span class=\"meta-label\">Subject:</span> {subject_val}
+      <td colspan=\"2\" class=\"subject-line\" style=\"padding:5px 8px;\">
+        <span class=\"meta-label\" style=\"font-size:10.5px;\">Subject:</span> {subject_val}
       </td>
     </tr>
     <tr>
       <td colspan=\"2\" style=\"padding:0;\">
         <table class=\"inner\" style=\"border-collapse:collapse;\">
-          <colgroup><col style=\"width:32px\"><col><col style=\"width:85px\"><col style=\"width:45px\"><col style=\"width:110px\"></colgroup>
+          <colgroup><col style=\"width:32px\"><col><col style=\"width:85px\"><col style=\"width:110px\"></colgroup>
           <tr class=\"items-head\" style=\"height:{ITEMS_THEAD_H}mm;\">
             <td class=\"col-num\" style=\"border-right:1px solid #000 !important;\">#</td>
             <td style=\"padding:5px 6px; border-right:1px solid #000 !important;\">Service / Description</td>
             <td style=\"padding-left:6px; border-right:1px solid #000 !important;\">HSN/SAC</td>
-            <td style=\"text-align:center; border-right:1px solid #000 !important;\">GST%</td>
             <td style=\"padding-right:6px; text-align:right;\">Amount</td>
           </tr>
           {items_rows}
           <tr style=\"height:{spacer_height}mm;\">
-            <td style=\"border-right:1px solid #000 !important;\"></td>
             <td style=\"border-right:1px solid #000 !important;\"></td>
             <td style=\"border-right:1px solid #000 !important;\"></td>
             <td style=\"border-right:1px solid #000 !important;\"></td>

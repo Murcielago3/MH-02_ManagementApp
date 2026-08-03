@@ -2,11 +2,13 @@
 
 Money/hours per stage are DERIVED, never stored:
 
-    bucket        = project_remuneration - advance_amount
+    bucket        = project_remuneration   (the full agreed value)
     stage.amount  = percentage% of bucket
     stage.hours   = percentage% of total_assigned_hours
 
 so correcting a project's value or hour budget keeps every stage consistent.
+The advance is NOT deducted: a stage's percentage is of the whole project cost,
+and the advance is tracked separately on the project.
 
 Permissions
     stages          - admin only (create / update / delete / mark complete)
@@ -70,9 +72,9 @@ def _q(v) -> Decimal:
 
 
 def project_bucket(project: Project) -> Decimal:
-    """The amount stages divide up: agreed value less the advance already taken.
-    Never negative - an advance larger than the value leaves nothing to stage."""
-    bucket = _q(project.project_remuneration) - _q(project.advance_amount)
+    """The amount stages divide up: the full agreed project value. The advance
+    is NOT deducted (it's tracked separately on the project)."""
+    bucket = _q(project.project_remuneration)
     return bucket if bucket > 0 else Decimal("0")
 
 

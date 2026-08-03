@@ -1,24 +1,19 @@
 <template>
   <div class="pse">
-    <!-- Running bucket: what's left to allocate, always visible -->
+    <!-- Running bucket: stages divide the full project cost (advance is not
+         deducted). What's left to allocate is always visible. -->
     <div class="pse-bucket">
-      <div class="bk-item">
+      <div class="bk-item bk-item--strong">
         <span class="bk-label">Total project cost</span>
-        <span class="bk-value">{{ inr(data.total_cost) }}</span>
+        <span class="bk-value">{{ inr(data.bucket) }}</span>
       </div>
-      <span class="bk-op">−</span>
       <div class="bk-item">
         <span class="bk-label">Advance received</span>
         <span class="bk-value">{{ inr(data.advance_amount) }}</span>
       </div>
-      <span class="bk-op">=</span>
-      <div class="bk-item bk-item--strong">
-        <span class="bk-label">To disburse across stages</span>
-        <span class="bk-value">{{ inr(data.bucket) }}</span>
-      </div>
       <div class="bk-spacer"></div>
       <div class="bk-item bk-item--remaining" :class="{ full: remainingPct <= 0 }">
-        <span class="bk-label">Remaining</span>
+        <span class="bk-label">Unallocated</span>
         <span class="bk-value">
           {{ inr(data.remaining_amount) }}
           <small>· {{ fmtPct(remainingPct) }}% · {{ fmtHours(data.remaining_hours) }}h</small>
