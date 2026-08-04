@@ -12,7 +12,7 @@ The invoice is "paid" once the sum of settled amounts reaches its total.
 Money-in mirror of ExpensePayment (money-out).
 """
 from sqlalchemy import Column, Integer, String, Numeric, Date, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -38,4 +38,9 @@ class InvoicePayment(Base):
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
-    invoice = relationship("Invoice", backref="payments")
+    # passive_deletes lets the DB's ON DELETE CASCADE remove these rows instead
+    # of the ORM trying to null invoice_id first (which the NOT NULL FK rejects).
+    invoice = relationship(
+        "Invoice",
+        backref=backref("payments", cascade="all, delete-orphan", passive_deletes=True),
+    )

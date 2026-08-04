@@ -5,7 +5,7 @@ from the same supplier are quick to record. An expense can be paid in parts, so
 it has many ExpensePayments - the money-out mirror of InvoicePayment.
 """
 from sqlalchemy import Column, Integer, String, Numeric, Date, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -41,4 +41,9 @@ class ExpensePayment(Base):
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
-    expense = relationship("Expense", backref="payments")
+    # passive_deletes lets the DB's ON DELETE CASCADE remove these rows instead
+    # of the ORM trying to null expense_id first (which the NOT NULL FK rejects).
+    expense = relationship(
+        "Expense",
+        backref=backref("payments", cascade="all, delete-orphan", passive_deletes=True),
+    )
