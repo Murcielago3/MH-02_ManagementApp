@@ -187,6 +187,16 @@ class LeaveAction(BaseModel):
     status: str
 
 
+class MarkAbsentBody(BaseModel):
+    employee_id: int
+    start_date: date
+    end_date: Optional[date] = None      # defaults to start_date (single day)
+    reason: Optional[str] = None
+    # Force loss-of-pay: skip the paid-leave balance entirely and count every
+    # working day as unpaid. Off = treat like a normal leave (draw balance/OT).
+    unpaid: bool = False
+
+
 # ─── Routes ───────────────────────────────────────────────────────────────────
 @router.get("/")
 async def list_leaves(
@@ -303,6 +313,56 @@ async def action_leave(
     await log_audit(db, current_user, f"leave.{data.status}", "leave", leave.id,
                     summary=f"{data.status.capitalize()} {emp.name if emp else 'employee'}'s leave "
                             f"{leave.start_date} to {leave.end_date}")
+    await db.commit()
+    await db.refresh(leave)
+    return leave
+
+
+@router.post("/mark-absent", status_code=201)
+async def mark_absent(
+    data: MarkAbsentBody,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Admin records an absence for an employee who didn't apply for leave.
+
+    Creates an already-approved leave so it flows through the same
+    balance / paid-unpaid / salary machinery as a normal leave, and shows on
+    the calendar. ``unpaid=True`` forces loss of pay (no balance/OT draw)."""
+    emp = (await db.execute(select(User).where(User.id == data.employee_id))).scalar_one_or_none()
+    if not emp:
+        raise HTTPException(404, "Employee not found")
+
+    start = data.start_date
+    end = data.end_date or data.start_date
+    if end < start:
+        raise HTTPException(400, "End date cannot be before start date")
+    wd = len(working_days(start, end))
+    if wd == 0:
+        raise HTTPException(400, "No working days (Mon-Fri) in that range")
+
+    leave = LeaveRequest(
+        employee_id=emp.id,
+        start_date=start,
+        end_date=end,
+        reason=(data.reason or "Marked absent by admin"),
+        days_count=wd,
+        status="approved",
+    )
+    db.add(leave)
+    await db.flush()
+
+    if data.unpaid:
+        # Loss of pay: every working day unpaid, balance untouched.
+        leave.paid_days = 0
+        leave.unpaid_days = wd
+    else:
+        # Same treatment as an approved leave: draw OT credits, then balance.
+        await consume_for_leave(db, leave, emp)
+
+    kind = "unpaid (LOP)" if data.unpaid else f"{leave.paid_days} paid / {leave.unpaid_days} unpaid"
+    await log_audit(db, current_user, "leave.marked_absent", "leave", leave.id,
+                    summary=f"Marked {emp.name} absent {start} to {end} ({wd} working days, {kind})")
     await db.commit()
     await db.refresh(leave)
     return leave

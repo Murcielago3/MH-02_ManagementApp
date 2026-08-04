@@ -6,7 +6,66 @@
         <h1 class="page-title">Leave Requests</h1>
         <p class="page-subtitle">Review and manage employee leave applications</p>
       </div>
+      <button class="btn-primary" @click="openAbsent">
+        <span class="material-symbols-outlined">person_off</span>
+        Mark Absent
+      </button>
     </div>
+
+    <!-- Mark Absent modal -->
+    <Teleport to="body">
+      <div v-if="absentOpen" class="modal-backdrop">
+        <div class="modal modal-sm">
+          <div class="modal-header">
+            <div>
+              <h3 class="modal-title">Mark Absent</h3>
+              <p class="modal-subtitle">Record an absence for an employee who didn't apply</p>
+            </div>
+            <button class="modal-close" @click="absentOpen = false">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div class="modal-body absent-body">
+            <label class="af">
+              <span>Employee *</span>
+              <select v-model.number="absent.employee_id">
+                <option :value="null" disabled>Select employee</option>
+                <option v-for="e in absentEmployees" :key="e.id" :value="e.id">{{ e.name }}</option>
+              </select>
+            </label>
+            <div class="af-row">
+              <label class="af">
+                <span>From *</span>
+                <input v-model="absent.start_date" type="date" />
+              </label>
+              <label class="af">
+                <span>To (optional)</span>
+                <input v-model="absent.end_date" type="date" :min="absent.start_date" />
+              </label>
+            </div>
+            <label class="af">
+              <span>Reason</span>
+              <input v-model="absent.reason" type="text" placeholder="e.g. Unreported absence" />
+            </label>
+            <label class="af-check">
+              <input v-model="absent.unpaid" type="checkbox" />
+              <span>Loss of pay — count every working day as unpaid (don't touch leave balance)</span>
+            </label>
+            <p class="af-note">
+              <template v-if="absent.unpaid">All working days will be deducted from salary.</template>
+              <template v-else>Days draw from comp-off then paid balance; any overflow is unpaid, exactly like an approved leave.</template>
+            </p>
+            <p v-if="absentError" class="af-error">{{ absentError }}</p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-cancel" @click="absentOpen = false">Cancel</button>
+            <button class="btn-submit" :disabled="!absent.employee_id || !absent.start_date || absentSaving" @click="submitAbsent">
+              {{ absentSaving ? 'Saving…' : 'Mark Absent' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Filter Bar -->
     <div class="filter-bar">
@@ -98,6 +157,8 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import { leavesAPI } from '../api/leaves'
+import { usersAPI } from '../api/users'
+import { toLocalDateStr } from '../utils/date'
 
 const leaves = ref([])
 const loading = ref(true)
@@ -116,7 +177,48 @@ async function fetchLeaves() {
   }
 }
 
-onMounted(fetchLeaves)
+// ── Mark Absent ──
+const absentEmployees = ref([])
+const absentOpen = ref(false)
+const absentSaving = ref(false)
+const absentError = ref('')
+const absent = reactive({ employee_id: null, start_date: toLocalDateStr(), end_date: '', reason: '', unpaid: false })
+
+async function fetchEmployeesForAbsent() {
+  try {
+    const res = await usersAPI.getUsers()
+    absentEmployees.value = (res.data || [])
+      .filter(u => u.role === 'employee' || u.role === 'project_manager')
+      .sort((a, b) => a.name.localeCompare(b.name))
+  } catch (e) { /* non-fatal */ }
+}
+function openAbsent() {
+  Object.assign(absent, { employee_id: null, start_date: toLocalDateStr(), end_date: '', reason: '', unpaid: false })
+  absentError.value = ''
+  absentOpen.value = true
+}
+async function submitAbsent() {
+  if (!absent.employee_id || !absent.start_date) return
+  absentSaving.value = true
+  absentError.value = ''
+  try {
+    await leavesAPI.markAbsent({
+      employee_id: absent.employee_id,
+      start_date: absent.start_date,
+      end_date: absent.end_date || null,
+      reason: absent.reason?.trim() || null,
+      unpaid: absent.unpaid,
+    })
+    absentOpen.value = false
+    await fetchLeaves()
+  } catch (e) {
+    absentError.value = e.response?.data?.detail || 'Could not mark absent.'
+  } finally {
+    absentSaving.value = false
+  }
+}
+
+onMounted(() => { fetchLeaves(); fetchEmployeesForAbsent() })
 
 const filtered = computed(() => {
   let list = [...leaves.value]
@@ -377,4 +479,26 @@ function formatDate(dateStr) {
   .data-table { min-width: 620px; }
   .row-actions { flex-wrap: nowrap; }
 }
+
+/* Mark Absent */
+.page-header { display: flex; justify-content: space-between; align-items: flex-start; }
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px;
+  background: var(--color-primary); color: #fff; border: none; border-radius: var(--radius-lg, 10px);
+  font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.btn-primary:hover { filter: brightness(1.05); }
+.btn-primary .material-symbols-outlined { font-size: 18px; }
+.absent-body { display: flex; flex-direction: column; gap: 12px; }
+.af { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--color-on-surface-variant); }
+.af input, .af select {
+  padding: 9px 11px; border: 1px solid var(--color-outline); border-radius: var(--radius-md, 8px);
+  font-size: 13px; font-weight: 500; background: var(--color-surface); color: var(--color-on-surface); outline: none;
+}
+.af input:focus, .af select:focus { border-color: var(--color-primary); }
+.af-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.af-check { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--color-on-surface); cursor: pointer; }
+.af-check input { margin-top: 2px; }
+.af-note { font-size: 11px; color: var(--color-on-surface-variant); margin: 0; line-height: 1.5; }
+.af-error { font-size: 12px; color: var(--color-error, #dc2626); margin: 0; }
 </style>
