@@ -109,18 +109,19 @@
             <th class="col-amt text-right">Base</th>
             <th class="col-amt text-right">Tax</th>
             <th class="col-amt text-right">Total</th>
+            <th class="col-pay">Payment</th>
             <th class="col-actions text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="7" class="state-cell">
+            <td colspan="8" class="state-cell">
               <span class="material-symbols-outlined spin-icon">progress_activity</span>
               <span>Loading invoices…</span>
             </td>
           </tr>
           <tr v-else-if="filteredInvoices.length === 0">
-            <td colspan="7">
+            <td colspan="8">
               <div class="empty-state">
                 <div class="empty-icon-wrap">
                   <span class="material-symbols-outlined">receipt_long</span>
@@ -177,8 +178,21 @@
             <td class="text-right amt-cell">
               <span class="amt-primary">₹{{ formatAmount(inv.total) }}</span>
             </td>
+            <td class="col-pay">
+              <div class="pay-cell" @click.stop="openPayments(inv)">
+                <span class="pay-status" :class="'ps-' + inv.payment_status">{{ payLabel(inv.payment_status) }}</span>
+                <span v-if="inv.payment_status !== 'paid'" class="pay-remaining">
+                  ₹{{ formatAmount(inv.remaining_amount) }} left
+                </span>
+                <span v-if="inv.is_overdue" class="pay-overdue">{{ inv.days_overdue }}d overdue</span>
+                <span v-else-if="inv.payment_status !== 'paid'" class="pay-due">due {{ formatDueShort(inv.due_date) }}</span>
+              </div>
+            </td>
             <td class="text-right">
               <div class="action-group" @click.stop>
+                <button class="icon-btn" @click="openPayments(inv)" title="Payments">
+                  <span class="material-symbols-outlined">account_balance_wallet</span>
+                </button>
                 <button class="icon-btn" @click="goToDetail(inv.id)" title="View">
                   <span class="material-symbols-outlined">visibility</span>
                 </button>
@@ -260,6 +274,14 @@
     </Teleport>
 
     <ToastNotification v-if="toastMsg" :message="toastMsg" :type="toastType" @done="toastMsg = ''" />
+    <!-- Payments drawer -->
+    <InvoicePaymentsDrawer
+      v-if="payTarget"
+      :invoice-id="payTarget.id"
+      :invoice-label="payLabelFor(payTarget)"
+      @close="payTarget = null"
+      @changed="fetchInvoices"
+    />
   </AppLayout>
 </template>
 
@@ -268,6 +290,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 import ToastNotification from '../components/ToastNotification.vue'
+import InvoicePaymentsDrawer from '../components/InvoicePaymentsDrawer.vue'
 import { invoicesAPI } from '../api/invoices'
 import { useInvoiceDrafts } from '../composables/useInvoiceDrafts'
 const route = useRoute()
@@ -276,6 +299,16 @@ const router = useRouter()
 const { drafts, hasDrafts, deleteDraft, refresh: refreshDrafts } = useInvoiceDrafts()
 
 const invoices = ref([])
+const payTarget = ref(null)
+function openPayments(inv) { payTarget.value = inv }
+function payLabel(st) { return { paid: 'Paid', partial: 'Partial', unpaid: 'Unpaid' }[st] || st }
+function payLabelFor(inv) {
+  return (inv.invoice_type === 'tax' ? (inv.invoice_number || 'Invoice') : 'Proforma') +
+    ' · ₹' + formatAmount(inv.total)
+}
+function formatDueShort(d) {
+  return d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : ''
+}
 const loading = ref(true)
 const submitting = ref(false)
 const deleteTarget = ref(null)
@@ -1143,4 +1176,15 @@ function resetFilters() {
   .modal { max-width: 100%; width: 100%; }
   .modal-backdrop { padding: 8px; }
 }
+
+/* Payment status cell */
+.col-pay { white-space: nowrap; }
+.pay-cell { display: flex; flex-direction: column; gap: 2px; cursor: pointer; align-items: flex-start; }
+.pay-status { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; }
+.ps-paid { background: #dcfce7; color: #166534; }
+.ps-partial { background: #fef3c7; color: #92400e; }
+.ps-unpaid { background: #e5e7eb; color: #374151; }
+.pay-remaining { font-size: 11px; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; }
+.pay-overdue { font-size: 10px; font-weight: 800; color: #991b1b; }
+.pay-due { font-size: 10px; color: var(--color-on-surface-variant); }
 </style>

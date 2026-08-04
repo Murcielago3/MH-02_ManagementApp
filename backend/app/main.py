@@ -574,6 +574,29 @@ async def run_migrations():
     except Exception:
         pass
 
+    # Invoice payments (partial settlement + TDS tracking).
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS invoice_payments (
+                    id SERIAL PRIMARY KEY,
+                    invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+                    received_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+                    tds_percent NUMERIC(5, 2) NOT NULL DEFAULT 0,
+                    tds_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+                    settled_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+                    payment_date DATE NOT NULL,
+                    note VARCHAR,
+                    created_by INTEGER REFERENCES users(id),
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            await conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_invoice_payments_invoice"
+                " ON invoice_payments (invoice_id)"))
+    except Exception:
+        logging.exception("invoice_payments creation failed (non-fatal)")
+
     # Timesheet entries can point at the stage + subtask the hours went to.
     for col_name, col_def in [
         ("stage_id", "INTEGER REFERENCES project_stages(id) ON DELETE SET NULL"),

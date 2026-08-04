@@ -10,6 +10,7 @@ from app.models.reimbursement import Reimbursement
 from app.models.weekly_timesheet import WeeklyTimesheet, WeeklyTimesheetEntry
 from app.models.bank_account import BankAccount
 from app.models.invoice import Invoice, InvoiceItem
+from app.models.invoice_payment import InvoicePayment
 from app.models.team import Team, TeamMember
 from app.models.settings import Settings
 from app.models.estimate import Estimate, EstimateEmployee

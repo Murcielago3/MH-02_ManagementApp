@@ -24,5 +24,15 @@ export const invoicesAPI = {
   // downloaded PDF.
   getPreviewHTML(id) {
     return client.get(`/invoices/${id}/preview-html`, { responseType: 'text' })
-  }
+  },
+  // ── Payment tracking ──
+  getPayments(id) {
+    return client.get(`/invoices/${id}/payments`)
+  },
+  addPayment(id, data) {
+    return client.post(`/invoices/${id}/payments`, data)
+  },
+  deletePayment(paymentId) {
+    return client.delete(`/invoices/payments/${paymentId}`)
+  },
 }

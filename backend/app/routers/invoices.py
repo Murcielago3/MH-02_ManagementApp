@@ -101,7 +101,69 @@ async def list_invoices(
     result = await db.execute(
         select(Invoice).options(selectinload(Invoice.project))
     )
-    return result.scalars().all()
+    invoices = result.scalars().all()
+    settled = await _settled_by_invoice(db, [inv.id for inv in invoices])
+    return [_serialize_invoice(inv, settled.get(inv.id, 0.0)) for inv in invoices]
+
+# ── Payment tracking ────────────────────────────────────────────────────────
+# Payment is due this many days after the invoice date; each day past that the
+# invoice is overdue.
+PAYMENT_DUE_DAYS = 30
+
+
+def _payment_status(invoice, settled: float) -> dict:
+    """Derived collection state for an invoice: settled, remaining, status and
+    overdue days. Reserve is unaffected - this is a pure 'have we been paid'
+    layer shown on the invoices page."""
+    from datetime import date as _date, timedelta
+    total = float(invoice.total or 0)
+    settled = round(float(settled or 0), 2)
+    remaining = round(total - settled, 2)
+    if settled >= total - 0.01 and total > 0:
+        status = "paid"
+    elif settled > 0:
+        status = "partial"
+    else:
+        status = "unpaid"
+
+    due = (invoice.invoice_date or _date.today()) + timedelta(days=PAYMENT_DUE_DAYS)
+    today = _date.today()
+    overdue = status != "paid" and today > due
+    return {
+        "settled_amount": settled,
+        "remaining_amount": max(remaining, 0.0),
+        "payment_status": status,
+        "due_date": str(due),
+        "is_overdue": overdue,
+        "days_overdue": (today - due).days if overdue else 0,
+    }
+
+
+async def _settled_by_invoice(db: AsyncSession, invoice_ids: list) -> dict:
+    """{invoice_id: sum(settled_amount)} in one query."""
+    if not invoice_ids:
+        return {}
+    from app.models.invoice_payment import InvoicePayment
+    from sqlalchemy import func
+    rows = (await db.execute(
+        select(InvoicePayment.invoice_id, func.coalesce(func.sum(InvoicePayment.settled_amount), 0))
+        .where(InvoicePayment.invoice_id.in_(invoice_ids))
+        .group_by(InvoicePayment.invoice_id)
+    )).all()
+    return {iid: float(s) for iid, s in rows}
+
+
+def _serialize_invoice(invoice, settled: float) -> dict:
+    d = {c.name: getattr(invoice, c.name) for c in invoice.__table__.columns}
+    for k in ("subtotal", "cgst", "sgst", "igst", "total"):
+        if d.get(k) is not None:
+            d[k] = float(d[k])
+    d["invoice_date"] = str(invoice.invoice_date) if invoice.invoice_date else None
+    if getattr(invoice, "project", None):
+        d["project"] = {"id": invoice.project.id, "name": invoice.project.name}
+    d.update(_payment_status(invoice, settled))
+    return d
+
 
 @router.get("/{invoice_id}")
 async def get_invoice(
@@ -124,6 +186,110 @@ async def get_invoice(
     if not invoice:
         raise HTTPException(404, "Invoice not found")
     return invoice
+
+
+class PaymentCreate(BaseModel):
+    received_amount: float
+    tds_percent: float = 0          # 0, 2 or 10
+    payment_date: date
+    note: Optional[str] = None
+
+
+def _serialize_payment(p) -> dict:
+    return {
+        "id": p.id,
+        "invoice_id": p.invoice_id,
+        "received_amount": float(p.received_amount or 0),
+        "tds_percent": float(p.tds_percent or 0),
+        "tds_amount": float(p.tds_amount or 0),
+        "settled_amount": float(p.settled_amount or 0),
+        "payment_date": str(p.payment_date) if p.payment_date else None,
+        "note": p.note,
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+    }
+
+
+@router.get("/{invoice_id}/payments")
+async def list_payments(
+    invoice_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    from app.models.invoice_payment import InvoicePayment
+    rows = (await db.execute(
+        select(InvoicePayment).where(InvoicePayment.invoice_id == invoice_id)
+        .order_by(InvoicePayment.payment_date, InvoicePayment.id)
+    )).scalars().all()
+    inv = (await db.execute(select(Invoice).where(Invoice.id == invoice_id))).scalar_one_or_none()
+    if not inv:
+        raise HTTPException(404, "Invoice not found")
+    settled = sum(float(p.settled_amount or 0) for p in rows)
+    return {
+        "invoice_id": invoice_id,
+        "total": float(inv.total or 0),
+        **_payment_status(inv, settled),
+        "payments": [_serialize_payment(p) for p in rows],
+    }
+
+
+@router.post("/{invoice_id}/payments", status_code=201)
+async def add_payment(
+    invoice_id: int,
+    data: PaymentCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    from app.models.invoice_payment import InvoicePayment
+    from decimal import Decimal, ROUND_HALF_UP
+
+    inv = (await db.execute(select(Invoice).where(Invoice.id == invoice_id))).scalar_one_or_none()
+    if not inv:
+        raise HTTPException(404, "Invoice not found")
+    received = Decimal(str(data.received_amount or 0))
+    if received <= 0:
+        raise HTTPException(400, "Received amount must be greater than 0")
+    tds_pct = Decimal(str(data.tds_percent or 0))
+    if tds_pct not in (Decimal("0"), Decimal("2"), Decimal("10")):
+        raise HTTPException(400, "TDS must be 0, 2 or 10 percent")
+
+    # Received is net of TDS; gross it up so the full invoice value settles.
+    if tds_pct > 0:
+        settled = (received / (Decimal("1") - tds_pct / Decimal("100"))).quantize(Decimal("0.01"), ROUND_HALF_UP)
+    else:
+        settled = received.quantize(Decimal("0.01"), ROUND_HALF_UP)
+    tds_amount = (settled - received).quantize(Decimal("0.01"), ROUND_HALF_UP)
+
+    p = InvoicePayment(
+        invoice_id=invoice_id,
+        received_amount=received,
+        tds_percent=tds_pct,
+        tds_amount=tds_amount,
+        settled_amount=settled,
+        payment_date=data.payment_date,
+        note=data.note,
+        created_by=current_user.id,
+    )
+    db.add(p)
+    await log_audit(db, current_user, "invoice.payment_added", "invoice", invoice_id,
+                    summary=f"Recorded ₹{format_indian_currency(float(settled))} against invoice "
+                            f"{inv.invoice_number or inv.id}")
+    await db.commit()
+    await db.refresh(p)
+    return _serialize_payment(p)
+
+
+@router.delete("/payments/{payment_id}", status_code=204)
+async def delete_payment(
+    payment_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    from app.models.invoice_payment import InvoicePayment
+    p = (await db.execute(select(InvoicePayment).where(InvoicePayment.id == payment_id))).scalar_one_or_none()
+    if not p:
+        raise HTTPException(404, "Payment not found")
+    await db.delete(p)
+    await db.commit()
 
 @router.post("/", status_code=201)
 async def create_invoice(
