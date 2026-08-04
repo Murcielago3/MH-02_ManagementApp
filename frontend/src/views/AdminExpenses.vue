@@ -32,16 +32,17 @@
         <thead>
           <tr>
             <th>Title</th>
+            <th>Party</th>
             <th>Category</th>
-            <th>Amount</th>
+            <th class="text-right">Bill total</th>
+            <th>Payment</th>
             <th>Date</th>
-            <th>Recurring</th>
             <th class="col-actions">Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="6" class="empty-cell">
+            <td colspan="7" class="empty-cell">
               <div class="empty-state">
                 <span class="material-symbols-outlined empty-icon">hourglass_empty</span>
                 <p>Loading expenses…</p>
@@ -49,7 +50,7 @@
             </td>
           </tr>
           <tr v-else-if="filtered.length === 0">
-            <td colspan="6" class="empty-cell">
+            <td colspan="7" class="empty-cell">
               <div class="empty-state">
                 <span class="material-symbols-outlined empty-icon">receipt_long</span>
                 <p>No expenses found.</p>
@@ -58,16 +59,24 @@
           </tr>
           <tr v-for="e in filtered" :key="e.id" class="data-row">
             <td><span class="row-name">{{ e.title }}</span></td>
+            <td class="cell-muted">{{ e.party_name || '—' }}</td>
             <td class="cell-muted">{{ e.category }}</td>
-            <td class="cell-mono cell-amount">₹{{ formatAmount(e.amount) }}</td>
-            <td class="cell-mono cell-muted">{{ formatDate(e.date) }}</td>
-            <td>
-              <span class="badge" :class="e.recurring ? 'badge-blue' : 'badge-neutral'">
-                {{ e.recurring ? 'Recurring' : 'One-time' }}
-              </span>
+            <td class="text-right cell-mono cell-amount">
+              ₹{{ formatAmount(e.amount) }}
+              <span v-if="e.gst_percent > 0" class="gst-note">incl. {{ e.gst_percent }}% GST</span>
             </td>
             <td>
+              <div class="pay-cell" @click="openPayments(e)">
+                <span class="pay-status" :class="'ps-' + e.payment_status">{{ payLabel(e.payment_status) }}</span>
+                <span v-if="e.payment_status !== 'paid'" class="pay-remaining">₹{{ formatAmount(e.remaining_amount) }} left</span>
+              </div>
+            </td>
+            <td class="cell-mono cell-muted">{{ formatDate(e.date) }}</td>
+            <td>
               <div class="row-actions">
+                <button class="icon-btn" title="Payments" @click="openPayments(e)">
+                  <span class="material-symbols-outlined">account_balance_wallet</span>
+                </button>
                 <button class="icon-btn icon-btn-edit" title="Edit" @click="openEditModal(e)">
                   <span class="material-symbols-outlined">edit</span>
                 </button>
@@ -116,15 +125,43 @@
                   <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
                 </select>
               </div>
-              <!-- Amount -->
+              <!-- Party -->
               <div class="form-field">
-                <label class="form-label">Amount (₹)</label>
-                <CurrencyInput v-model="form.amount" required placeholder="0" class="form-input" />
+                <label class="form-label">Party / Vendor</label>
+                <div class="party-row">
+                  <select v-model.number="form.party_id" class="form-input" @change="onPartyChange">
+                    <option :value="null">No party</option>
+                    <option v-for="p in parties" :key="p.id" :value="p.id">{{ p.name }}</option>
+                  </select>
+                  <button type="button" class="party-manage" title="Manage parties" @click="openParties">
+                    <span class="material-symbols-outlined">group</span>
+                  </button>
+                </div>
               </div>
               <!-- Date -->
               <div class="form-field">
-                <label class="form-label">Date *</label>
+                <label class="form-label">Bill Date *</label>
                 <input v-model="form.date" type="date" required class="form-input" />
+              </div>
+              <!-- Base amount + GST -->
+              <div class="form-field">
+                <label class="form-label">Base Amount (₹, pre-GST)</label>
+                <CurrencyInput v-model="form.base_amount" required placeholder="0" class="form-input" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">GST %</label>
+                <select v-model.number="form.gst_percent" class="form-input">
+                  <option :value="0">No GST</option>
+                  <option :value="8">8%</option>
+                  <option :value="12">12%</option>
+                  <option :value="18">18%</option>
+                </select>
+              </div>
+              <!-- Computed total -->
+              <div class="form-field span-2 total-preview">
+                <span>Base {{ inr(form.base_amount) }}</span>
+                <span v-if="form.gst_percent > 0">+ GST {{ form.gst_percent }}% {{ inr(gstAmount) }}</span>
+                <span class="tp-total">= Bill total {{ inr(billTotal) }}</span>
               </div>
               <!-- Recurring -->
               <div class="form-field form-field-checkbox">
@@ -185,6 +222,62 @@
         </div>
       </div>
     </Teleport>
+    <!-- Payments drawer -->
+    <ExpensePaymentsDrawer
+      v-if="payTarget"
+      :expense="payTarget"
+      @close="payTarget = null"
+      @changed="fetchExpenses"
+    />
+
+    <!-- Parties manager -->
+    <Teleport to="body">
+      <div v-if="partiesModalOpen" class="modal-backdrop">
+        <div class="modal modal-wide">
+          <div class="modal-header">
+            <div>
+              <h3 class="modal-title">Parties / Vendors</h3>
+              <p class="modal-subtitle">Reusable vendors that prefill an expense</p>
+            </div>
+            <button class="modal-close" @click="partiesModalOpen = false">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="party-add">
+              <input v-model="partyForm.name" placeholder="Name *" class="form-input" />
+              <input v-model="partyForm.gstin" placeholder="GSTIN" class="form-input" />
+              <input v-model="partyForm.pan" placeholder="PAN" class="form-input" />
+              <input v-model="partyForm.phone" placeholder="Phone" class="form-input" />
+              <select v-model.number="partyForm.default_gst_percent" class="form-input">
+                <option :value="0">GST 0%</option><option :value="8">GST 8%</option>
+                <option :value="12">GST 12%</option><option :value="18">GST 18%</option>
+              </select>
+              <button class="btn-submit" :disabled="!partyForm.name.trim()" @click="saveParty">
+                {{ partyForm.id ? 'Save' : 'Add' }}
+              </button>
+              <button v-if="partyForm.id" class="btn-cancel" @click="resetPartyForm">New</button>
+            </div>
+            <table class="data-table" style="margin-top:14px;">
+              <thead><tr><th>Name</th><th>GSTIN / PAN</th><th>Phone</th><th>GST%</th><th></th></tr></thead>
+              <tbody>
+                <tr v-for="p in parties" :key="p.id">
+                  <td class="row-name">{{ p.name }}</td>
+                  <td class="cell-muted">{{ p.gstin || p.pan || '—' }}</td>
+                  <td class="cell-muted">{{ p.phone || '—' }}</td>
+                  <td class="cell-muted">{{ p.default_gst_percent ?? '—' }}%</td>
+                  <td>
+                    <button class="icon-btn icon-btn-edit" @click="editParty(p)"><span class="material-symbols-outlined">edit</span></button>
+                    <button class="icon-btn icon-btn-delete" @click="deleteParty(p)"><span class="material-symbols-outlined">delete</span></button>
+                  </td>
+                </tr>
+                <tr v-if="!parties.length"><td colspan="5" class="cell-muted" style="text-align:center;padding:20px;">No parties yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </AppLayout>
 </template>
 
@@ -193,6 +286,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import { expensesAPI } from '../api/expenses'
 import CurrencyInput from '../components/CurrencyInput.vue'
+import ExpensePaymentsDrawer from '../components/ExpensePaymentsDrawer.vue'
 import { useRoute } from 'vue-router'
 const route = useRoute()
 
@@ -219,11 +313,55 @@ const categories = [
 const form = reactive({
   title: '',
   category: '',
-  amount: null,
+  base_amount: null,
+  gst_percent: 0,
+  party_id: null,
   date: new Date().toISOString().split('T')[0],
   recurring: false,
   notes: '',
 })
+
+// ── Parties ──
+const parties = ref([])
+async function fetchParties() {
+  try { parties.value = (await expensesAPI.getParties()).data || [] } catch (e) { /* non-fatal */ }
+}
+function onPartyChange() {
+  const p = parties.value.find(x => x.id === form.party_id)
+  if (p && p.default_gst_percent != null && (form.gst_percent === 0 || form.gst_percent == null)) {
+    form.gst_percent = Number(p.default_gst_percent)
+  }
+}
+
+// ── Money computeds ──
+const inrFmt = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })
+function inr(v) { return inrFmt.format(Number(v) || 0) }
+const gstAmount = computed(() => Math.round((Number(form.base_amount) || 0) * (Number(form.gst_percent) || 0) / 100 * 100) / 100)
+const billTotal = computed(() => (Number(form.base_amount) || 0) + gstAmount.value)
+
+// ── Payments drawer + parties manager ──
+const payTarget = ref(null)
+function openPayments(e) { payTarget.value = e }
+function payLabel(st) { return { paid: 'Paid', partial: 'Partial', unpaid: 'Unpaid' }[st] || st }
+const partiesModalOpen = ref(false)
+function openParties() { partiesModalOpen.value = true }
+const partyForm = reactive({ id: null, name: '', gstin: '', pan: '', phone: '', default_gst_percent: 18 })
+function resetPartyForm() { Object.assign(partyForm, { id: null, name: '', gstin: '', pan: '', phone: '', default_gst_percent: 18 }) }
+function editParty(p) { Object.assign(partyForm, { id: p.id, name: p.name, gstin: p.gstin || '', pan: p.pan || '', phone: p.phone || '', default_gst_percent: p.default_gst_percent ?? 18 }) }
+async function saveParty() {
+  if (!partyForm.name.trim()) return
+  const payload = { name: partyForm.name.trim(), gstin: partyForm.gstin || null, pan: partyForm.pan || null, phone: partyForm.phone || null, default_gst_percent: Number(partyForm.default_gst_percent) || 0 }
+  try {
+    if (partyForm.id) await expensesAPI.updateParty(partyForm.id, payload)
+    else await expensesAPI.createParty(payload)
+    resetPartyForm(); await fetchParties()
+  } catch (e) { alert(e.response?.data?.detail || 'Could not save party.') }
+}
+async function deleteParty(p) {
+  if (!confirm(`Delete party "${p.name}"?`)) return
+  try { await expensesAPI.deleteParty(p.id); if (partyForm.id === p.id) resetPartyForm(); await fetchParties() }
+  catch (e) { alert('Could not delete party.') }
+}
 
 async function fetchExpenses() {
   loading.value = true
@@ -237,7 +375,7 @@ async function fetchExpenses() {
   }
 }
 
-onMounted(fetchExpenses)
+onMounted(() => { fetchExpenses(); fetchParties() })
 
 const filtered = computed(() => {
   let list = [...expenses.value]
@@ -255,7 +393,9 @@ const filtered = computed(() => {
 function resetForm() {
   form.title = ''
   form.category = ''
-  form.amount = null
+  form.base_amount = null
+  form.gst_percent = 0
+  form.party_id = null
   form.date = new Date().toISOString().split('T')[0]
   form.recurring = false
   form.notes = ''
@@ -274,7 +414,9 @@ function openEditModal(e) {
   editingId.value = e.id
   form.title = e.title
   form.category = e.category
-  form.amount = Number(e.amount)
+  form.base_amount = e.base_amount != null ? Number(e.base_amount) : Number(e.amount)
+  form.gst_percent = Number(e.gst_percent) || 0
+  form.party_id = e.party_id || null
   form.date = e.date
   form.recurring = e.recurring
   form.notes = e.notes || ''
@@ -291,7 +433,9 @@ async function handleSubmit() {
     const payload = {
       title: form.title,
       category: form.category,
-      amount: form.amount,
+      base_amount: Number(form.base_amount) || 0,
+      gst_percent: Number(form.gst_percent) || 0,
+      party_id: form.party_id || null,
       date: form.date,
       recurring: form.recurring,
       notes: form.notes || null,
@@ -742,4 +886,20 @@ textarea.form-input { resize: vertical; }
   .form-grid { grid-template-columns: 1fr; }
   .span-2 { grid-column: span 1; }
 }
+
+/* Expense payment + party additions */
+.text-right { text-align: right; }
+.gst-note { display: block; font-size: 10px; color: var(--color-on-surface-variant); font-weight: 500; }
+.pay-cell { display: flex; flex-direction: column; gap: 2px; cursor: pointer; align-items: flex-start; }
+.pay-status { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; }
+.ps-paid { background: #dcfce7; color: #166534; } .ps-partial { background: #fef3c7; color: #92400e; } .ps-unpaid { background: #e5e7eb; color: #374151; }
+.pay-remaining { font-size: 11px; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; }
+.party-row { display: flex; gap: 6px; align-items: stretch; }
+.party-row .form-input { flex: 1; }
+.party-manage { flex-shrink: 0; width: 40px; border: 1px solid var(--color-outline); border-radius: var(--radius-md); background: var(--color-surface); cursor: pointer; color: var(--color-on-surface-variant); }
+.party-manage:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.total-preview { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 10px 12px; background: var(--color-surface-dim, #f8fafc); border-radius: var(--radius-md); font-size: 13px; color: var(--color-on-surface-variant); }
+.total-preview .tp-total { margin-left: auto; font-weight: 800; color: var(--color-primary); font-size: 15px; }
+.party-add { display: grid; grid-template-columns: 1.4fr 1fr 1fr .9fr .9fr auto auto; gap: 8px; align-items: center; }
+@media (max-width: 820px) { .party-add { grid-template-columns: 1fr 1fr; } }
 </style>

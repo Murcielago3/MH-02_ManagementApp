@@ -574,6 +574,48 @@ async def run_migrations():
     except Exception:
         pass
 
+    # Expense parties (vendors) + expense payments + expense GST/party columns.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS expense_parties (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR NOT NULL,
+                    gstin VARCHAR, pan VARCHAR, phone VARCHAR, email VARCHAR, address VARCHAR,
+                    default_gst_percent NUMERIC(5, 2) DEFAULT 18,
+                    notes VARCHAR,
+                    created_by INTEGER REFERENCES users(id),
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS expense_payments (
+                    id SERIAL PRIMARY KEY,
+                    expense_id INTEGER NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+                    amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+                    payment_date DATE NOT NULL,
+                    note VARCHAR,
+                    created_by INTEGER REFERENCES users(id),
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            await conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_expense_payments_expense ON expense_payments (expense_id)"))
+    except Exception:
+        logging.exception("expense parties/payments creation failed (non-fatal)")
+
+    for col_name, col_def in [
+        ("base_amount", "NUMERIC(12, 2)"),
+        ("gst_percent", "NUMERIC(5, 2) DEFAULT 0"),
+        ("gst_amount", "NUMERIC(12, 2) DEFAULT 0"),
+        ("party_id", "INTEGER REFERENCES expense_parties(id) ON DELETE SET NULL"),
+    ]:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(f"ALTER TABLE expenses ADD COLUMN {col_name} {col_def}"))
+        except Exception:
+            pass
+
     # Invoice payments (partial settlement + TDS tracking).
     try:
         async with engine.begin() as conn:
