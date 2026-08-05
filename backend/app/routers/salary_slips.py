@@ -16,6 +16,7 @@ Net pay = base_salary - tds_amount + reimbursement_total
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from typing import Optional
 from datetime import date, timedelta, datetime
 from decimal import Decimal
@@ -27,6 +28,7 @@ from app.models.salary_slip import SalarySlip
 from app.models.reimbursement import Reimbursement
 from app.models.leave import LeaveRequest
 from app.models.user import User
+from app.models.weekly_timesheet import WeeklyTimesheet, WeeklyTimesheetEntry
 from app.auth import require_admin, require_manager, get_current_user
 from app.routers.settings import get_settings_snapshot, get_or_create_settings
 from app.routers.invoices import format_indian_currency
@@ -44,6 +46,12 @@ AUTO_WINDOW_MONTHS = 14
 #   10 = Smit Santosh Pawar
 #   11 = Shriya Srujan Gadgil
 PAYROLL_EXCLUDED_IDS = {1, 10, 11}
+
+# Accounts paid strictly by hours worked: their monthly base is (approved
+# timesheet hours in the month) × their hourly rate, instead of the flat monthly
+# salary. Unworked time is simply unpaid, so no separate leave deduction applies.
+#   14 = Darshit Patel
+HOURS_BASED_IDS = {14}
 
 
 # ─── Month / date helpers ─────────────────────────────────────────────────────
@@ -222,6 +230,36 @@ async def _leave_totals(db: AsyncSession, months: list[str]) -> dict:
     return totals
 
 
+async def _monthly_worked_hours(db: AsyncSession, employee_id: int, y: int, m: int) -> Decimal:
+    """Approved timesheet hours an employee worked within calendar month (y, m),
+    counted day by day so a week straddling two months is split correctly."""
+    month_first = date(y, m, 1)
+    month_last = date(*_add_months(y, m, 1), 1) - timedelta(days=1)
+    res = await db.execute(
+        select(WeeklyTimesheet)
+        .options(selectinload(WeeklyTimesheet.entries))
+        .where(
+            WeeklyTimesheet.employee_id == employee_id,
+            WeeklyTimesheet.status == "approved",
+            WeeklyTimesheet.week_start <= month_last,
+            WeeklyTimesheet.week_end >= month_first,
+        )
+    )
+    total = Decimal("0")
+    for ts in res.scalars().all():
+        for e in ts.entries:
+            dh = e.daily_hours or []
+            if dh:
+                for i in range(min(7, len(dh))):
+                    day = ts.week_start + timedelta(days=i)
+                    if month_first <= day <= month_last:
+                        total += Decimal(str(dh[i] or 0))
+            elif month_first <= ts.week_start <= month_last:
+                # Legacy entry with no per-day split: attribute to week_start month.
+                total += Decimal(str(e.hours or 0))
+    return total
+
+
 async def ensure_slips(db: AsyncSession, only_month: Optional[str] = None) -> int:
     """Create missing slips (and refresh pending ones).
 
@@ -314,6 +352,13 @@ async def ensure_slips(db: AsyncSession, only_month: Optional[str] = None) -> in
                 continue
             if out_of_window:
                 base_sal = Decimal("0")
+                leave_ded = Decimal("0")
+            elif u.id in HOURS_BASED_IDS:
+                # Paid strictly by hours: base = approved hours this month × the
+                # hourly rate. Unworked time is already unpaid, so no separate
+                # leave deduction is applied.
+                worked = await _monthly_worked_hours(db, u.id, y, m)
+                base_sal = (hourly * worked).quantize(Decimal("0.01"))
                 leave_ded = Decimal("0")
             else:
                 # Joined or left partway through the month → pay only for the
