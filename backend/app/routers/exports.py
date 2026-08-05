@@ -24,6 +24,7 @@ from app.models.salary_slip import SalarySlip
 from app.models.leave import LeaveRequest
 from app.models.weekly_timesheet import WeeklyTimesheet
 from app.models.estimate import Estimate
+from app.routers.salary_slips import PAYROLL_EXCLUDED_IDS
 
 router = APIRouter(prefix="/exports", tags=["exports"])
 
@@ -83,7 +84,11 @@ async def _build(entity: str, db: AsyncSession):
         return h, [[r.id, um.get(r.employee_id), r.amount, r.reason, r.date, r.status, r.month_added] for r in rows]
 
     if entity == "salary-slips":
-        rows = (await db.execute(select(SalarySlip).order_by(SalarySlip.month.desc()))).scalars().all()
+        rows = (await db.execute(
+            select(SalarySlip)
+            .where(SalarySlip.employee_id.notin_(PAYROLL_EXCLUDED_IDS))
+            .order_by(SalarySlip.month.desc())
+        )).scalars().all()
         um = await _user_map(db)
         h = ["id", "employee", "month", "base_salary", "tds_percent", "tds_amount",
              "reimbursement_total", "leave_deduction", "net_total", "payout_date", "status", "approved_at"]
@@ -160,7 +165,10 @@ async def _build_ca_salary_sheet(month: str, db: AsyncSession):
     title = f"Details of Salary ({_MONTHS[m - 1]} {y} paid in {_MONTHS[paid_m - 1]} {paid_y})"
 
     slips = (await db.execute(
-        select(SalarySlip).where(SalarySlip.month == month)
+        select(SalarySlip).where(
+            SalarySlip.month == month,
+            SalarySlip.employee_id.notin_(PAYROLL_EXCLUDED_IDS),
+        )
     )).scalars().all()
     users = {u.id: u for u in (await db.execute(select(User))).scalars().all()}
     slips.sort(key=lambda s: (users.get(s.employee_id).name if users.get(s.employee_id) else ""))
