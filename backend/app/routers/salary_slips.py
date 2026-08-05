@@ -228,6 +228,17 @@ async def ensure_slips(db: AsyncSession, only_month: Optional[str] = None) -> in
     explicit = only_month is not None
     today = date.today()
     months = [only_month] if explicit else _eligible_months(today)
+    if not explicit:
+        # Also reprocess any month that already has a PENDING slip, even if its
+        # payout date hasn't arrived yet. Without this, a leave or admin-marked
+        # absence added after the slip was generated (e.g. an absence marked on
+        # the 31st, after the slip was created earlier in the month) never flows
+        # into the deduction until the payout month rolls around. Pending slips
+        # are safe to refresh; approved ones are left untouched by the loop below.
+        pend_res = await db.execute(
+            select(SalarySlip.month).where(SalarySlip.status == "pending").distinct()
+        )
+        months = sorted(set(months) | {row[0] for row in pend_res.all()})
     if not months:
         return 0
 
