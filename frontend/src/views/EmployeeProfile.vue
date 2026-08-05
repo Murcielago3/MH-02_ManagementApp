@@ -72,7 +72,7 @@
           </div>
           <div class="info-item">
             <label>Hourly Rate</label>
-            <span>{{ employee.salary_hour ? `₹${employee.salary_hour}` : '-' }}</span>
+            <span>{{ hourlyRateDisplay }}</span>
           </div>
           <div class="info-item">
             <label>Leaves Allowed</label>
@@ -397,6 +397,7 @@ import { leavesAPI } from '../api/leaves'
 import { reimbursementsAPI } from '../api/reimbursements'
 import { tasksAPI } from '../api/tasks'
 import { projectsAPI } from '../api/projects'
+import { previewHourlyFromBasePay } from '../utils/currency'
 import { useAuthStore } from '../stores/auth'
 
 const route = useRoute()
@@ -409,6 +410,14 @@ const timesheets = ref([])
 const leaves = ref([])
 const overtime = ref({ available: 0, credits: [] })
 const overtimeAvailable = computed(() => Number(overtime.value?.available || 0))
+
+// Hourly rate is derived from monthly salary (salary_hour is not stored);
+// fall back to the stored value if one ever exists.
+const hourlyRateDisplay = computed(() => {
+  const stored = Number(employee.value?.salary_hour)
+  const hr = stored > 0 ? stored : previewHourlyFromBasePay(employee.value?.salary_month)
+  return hr ? `₹${Number(hr).toFixed(2)}/hr` : '-'
+})
 const tasks = ref([])
 const reimbursements = ref([])
 const loadingTimesheets = ref(false)
