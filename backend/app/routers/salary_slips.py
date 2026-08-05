@@ -37,6 +37,14 @@ router = APIRouter(prefix="/salary-slips", tags=["salary_slips"])
 # How many months back to auto-generate slips for (keeps the work bounded).
 AUTO_WINDOW_MONTHS = 14
 
+# Accounts kept entirely off payroll at the owner's request: no slips are
+# generated for them, and any existing slips are hidden from the slip list and
+# from anything exported off it.
+#   1  = Srujan Gadgil
+#   10 = Smit Santosh Pawar
+#   11 = Shriya Srujan Gadgil
+PAYROLL_EXCLUDED_IDS = {1, 10, 11}
+
 
 # ─── Month / date helpers ─────────────────────────────────────────────────────
 def _parse_month(month_str: str):
@@ -246,7 +254,10 @@ async def ensure_slips(db: AsyncSession, only_month: Optional[str] = None) -> in
     tds_percent = snapshot.get("tds_percent", 10)
 
     # Active employees with their joining/end dates
-    users_res = await db.execute(select(User).where(User.is_active == True))  # noqa: E712
+    users_res = await db.execute(select(User).where(
+        User.is_active == True,  # noqa: E712
+        User.id.notin_(PAYROLL_EXCLUDED_IDS),
+    ))
     users = users_res.scalars().all()
 
     # Point-in-time salary per month from salary_history; fall back to the
@@ -418,7 +429,7 @@ async def list_slips(
     current_user=Depends(require_manager),
 ):
     await ensure_slips(db)
-    query = select(SalarySlip)
+    query = select(SalarySlip).where(SalarySlip.employee_id.notin_(PAYROLL_EXCLUDED_IDS))
     if month:
         query = query.where(SalarySlip.month == month)
     if employee_id:
@@ -438,6 +449,8 @@ async def my_slips(
     current_user=Depends(get_current_user),
 ):
     await ensure_slips(db)
+    if current_user.id in PAYROLL_EXCLUDED_IDS:
+        return []
     result = await db.execute(
         select(SalarySlip).where(SalarySlip.employee_id == current_user.id)
     )
