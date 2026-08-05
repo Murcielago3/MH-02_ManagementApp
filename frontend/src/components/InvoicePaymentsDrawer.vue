@@ -96,7 +96,7 @@
             </div>
             <p v-if="tdsValue > 0 && Number(form.received_amount) > 0" class="tds-preview">
               Settles <strong>{{ inr(settled) }}</strong>
-              (TDS {{ inr(tdsValue) }} added back)
+              (TDS {{ inr(tdsValue) }}<template v-if="form.tds_choice !== 'custom'"> = {{ form.tds_choice }}% of {{ inr(data.subtotal) }} base</template> added back)
             </p>
             <p v-if="overpay" class="add-warn">
               <span class="material-symbols-outlined">warning</span>
@@ -137,16 +137,19 @@ const today = toLocalDateStr()
 // rupee amount the client withheld instead of a slab percentage.
 const form = ref({ received_amount: null, tds_choice: '0', tds_amount: null, payment_date: today, note: '' })
 
-// Full amount this payment settles against the invoice (received + TDS).
-const settled = computed(() => {
-  const r = Number(form.value.received_amount) || 0
+// TDS on a slab % is levied on the invoice's non-taxed base (subtotal), not on
+// the received amount — matching how Indian TDS is actually deducted.
+const tdsValue = computed(() => {
   if (form.value.tds_choice === 'custom') {
-    return Math.round((r + (Number(form.value.tds_amount) || 0)) * 100) / 100
+    return Math.round((Number(form.value.tds_amount) || 0) * 100) / 100
   }
   const t = Number(form.value.tds_choice) || 0
-  return t > 0 ? Math.round((r / (1 - t / 100)) * 100) / 100 : r
+  const base = Number(data.value?.subtotal) || 0
+  return Math.round((base * t / 100) * 100) / 100
 })
-const tdsValue = computed(() => Math.round((settled.value - (Number(form.value.received_amount) || 0)) * 100) / 100)
+// Full amount this payment settles against the invoice (received + TDS).
+const settled = computed(() =>
+  Math.round(((Number(form.value.received_amount) || 0) + tdsValue.value) * 100) / 100)
 const overpay = computed(() =>
   data.value && settled.value > Number(data.value.remaining_amount) + 0.01)
 const canAdd = computed(() => Number(form.value.received_amount) > 0 && !!form.value.payment_date)

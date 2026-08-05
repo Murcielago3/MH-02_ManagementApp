@@ -228,6 +228,7 @@ async def list_payments(
     return {
         "invoice_id": invoice_id,
         "total": float(inv.total or 0),
+        "subtotal": float(inv.subtotal or 0),  # non-taxed base; TDS % is levied on this
         **_payment_status(inv, settled),
         "payments": [_serialize_payment(p) for p in rows],
     }
@@ -252,7 +253,9 @@ async def add_payment(
 
     # Two ways to state the TDS the client withheld:
     #   • a custom rupee amount (tds_amount) — settled = received + that amount
-    #   • a slab percentage (0/2/10)         — gross up: settled = received/(1-p)
+    #   • a slab percentage (0/2/10)         — TDS is that % of the invoice's
+    #     BASE (pre-GST subtotal), which is how Indian TDS is levied, not a
+    #     gross-up of the received amount. settled = received + that TDS.
     # A custom amount always wins; the stored percent is then derived for display.
     custom = Decimal(str(data.tds_amount)) if data.tds_amount is not None else None
     if custom is not None and custom > 0:
@@ -263,11 +266,9 @@ async def add_payment(
         tds_pct = Decimal(str(data.tds_percent or 0))
         if tds_pct not in (Decimal("0"), Decimal("2"), Decimal("10")):
             raise HTTPException(400, "TDS must be 0, 2 or 10 percent, or enter a custom amount")
-        if tds_pct > 0:
-            settled = (received / (Decimal("1") - tds_pct / Decimal("100"))).quantize(Decimal("0.01"), ROUND_HALF_UP)
-        else:
-            settled = received.quantize(Decimal("0.01"), ROUND_HALF_UP)
-        tds_amount = (settled - received).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        base = Decimal(str(inv.subtotal or 0))  # non-taxed invoice value
+        tds_amount = (base * tds_pct / Decimal("100")).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        settled = (received + tds_amount).quantize(Decimal("0.01"), ROUND_HALF_UP)
 
     p = InvoicePayment(
         invoice_id=invoice_id,
@@ -654,20 +655,38 @@ def render_invoice_html(invoice, settings=None) -> str:
 
     HEADER_H = 32
     DATE_ROW_H = 8
-    BILLSHIP_H = 20
-    SUBJECT_H = 7
+    BILLSHIP_H = 26   # room for a full name + multi-line address + PAN/GSTIN
+    SUBJECT_H = 9
     ITEMS_THEAD_H = 7
     # Base footer fits the single-bracket case unchanged; grows ~4mm per extra
     # breakdown row so multi-bracket invoices still fit one page (the items
     # area below donates the space via its existing spacer-row mechanism).
     FOOTER_H = 36 + extra_tax_rows * 4
     TC_H = 13
-    SIG_H = 36
+    SIG_H = 26
     PRINTABLE_H = 265
     ITEMS_AREA_H = PRINTABLE_H - (HEADER_H + DATE_ROW_H + BILLSHIP_H + SUBJECT_H + FOOTER_H + TC_H + SIG_H)
-    ITEMS_ROW_H = 7
     num_items = len(invoice.items)
-    spacer_height = max(0, ITEMS_AREA_H - ITEMS_THEAD_H - (num_items * ITEMS_ROW_H))
+    # The item rows SHARE the space left under the table head: each row's minimum
+    # height is the area split evenly, so a short list fills the page with roomy
+    # rows (long descriptions wrap freely, no wasted white space) instead of
+    # squeezing into 7mm with a big empty gap below. The height is only a minimum,
+    # so a taller description grows its row. A per-row cap keeps a 1–2 item invoice
+    # from having absurdly tall rows; anything that still overflows is clipped by
+    # the fixed-height items viewport (below), so it can never spill to page two.
+    # The font size NEVER changes.
+    ITEMS_ROWS_AREA_H = ITEMS_AREA_H - ITEMS_THEAD_H
+    MIN_ROW_H = 11.0   # comfortable for one or two lines
+    MAX_ROW_H = 18.0   # a short list gets roomy (not stretched) rows
+    if num_items > 0:
+        ITEMS_ROW_H = max(MIN_ROW_H, min(MAX_ROW_H, ITEMS_ROWS_AREA_H / num_items))
+    else:
+        ITEMS_ROW_H = MAX_ROW_H
+    # Whatever's left after the rows becomes a single ruled filler row at the
+    # bottom (keeps the column dividers running to the footer). A long list
+    # leaves none; a longer-than-expected description just grows its own row and
+    # the fixed-height viewport trims any true overflow.
+    spacer_height = max(0, ITEMS_ROWS_AREA_H - (num_items * ITEMS_ROW_H))
 
     items_rows = ""
     # !important needed: the items table is `.inner`, and `.inner td { border:0 !important }`
@@ -676,7 +695,7 @@ def render_invoice_html(invoice, settings=None) -> str:
     base = 'padding:5px 6px; font-size:11px; border-top:1px solid #000 !important;'
     for i, item in enumerate(invoice.items, 1):
         items_rows += f"""
-        <tr style="height:{ITEMS_ROW_H}mm;">
+        <tr style="height:{ITEMS_ROW_H:.2f}mm;">
             <td style="{base} border-right:1px solid #000 !important; text-align:center;">{i}</td>
             <td style="{base} border-right:1px solid #000 !important;">{item.description}</td>
             <td style="{base} border-right:1px solid #000 !important;">{item.hsn_sac or ''}</td>
@@ -871,7 +890,7 @@ def render_invoice_html(invoice, settings=None) -> str:
   .tc-cell {{ padding: 6px 10px; font-size: 9.5px; line-height: 1.4; }}
   .tc-label {{ font-weight: bold; font-size: 10.5px; margin-bottom: 3px; }}
   .sig-cell {{ padding: 8px 10px; font-size: 10.5px; }}
-  .sig-name {{ font-weight: bold; font-size: 11.5px; margin-top: 22mm; }}
+  .sig-name {{ font-weight: bold; font-size: 11.5px; margin-top: 12mm; }}
   .sig-role {{ color: #444; margin-top: 2px; }}
   .auth-label {{ font-size: 9.5px; color: #555; }}
 </style>
@@ -915,30 +934,41 @@ def render_invoice_html(invoice, settings=None) -> str:
     </tr>
     <tr style=\"height:{BILLSHIP_H}mm;\">
       <td style=\"padding:5px 8px;\">
+        <div style=\"max-height:{BILLSHIP_H - 1}mm; overflow:hidden;\">
         <div class=\"meta-label\">Bill To</div>
         <div class=\"meta-val-bold\">{invoice.bill_to_name or ''}</div>
         <div style=\"font-size:10.5px; line-height:1.4; margin-top:2px;\">
           {(invoice.bill_to_address or '').replace(chr(10), '<br>')}
           {bill_to_tax_id}
         </div>
+        </div>
       </td>
       <td style=\"padding:5px 8px;\">
+        <div style=\"max-height:{BILLSHIP_H - 1}mm; overflow:hidden;\">
         <div class=\"meta-label\">Ship To</div>
         <div class=\"meta-val-bold\">{invoice.ship_to_name or ''}</div>
         <div style=\"font-size:10.5px; line-height:1.4; margin-top:2px;\">
           {(invoice.ship_to_address or '').replace(chr(10), '<br>')}
           {'<br>GSTIN ' + invoice.ship_to_gstin if invoice.ship_to_gstin else ''}
         </div>
+        </div>
       </td>
     </tr>
     <tr style=\"height:{SUBJECT_H}mm;\">
       <td colspan=\"2\" class=\"subject-line\" style=\"padding:5px 8px;\">
-        <span class=\"meta-label\" style=\"font-size:10.5px;\">Subject:</span> {subject_val}
+        <div style=\"max-height:{SUBJECT_H - 2}mm; overflow:hidden;\">
+          <span class=\"meta-label\" style=\"font-size:10.5px;\">Subject:</span> {subject_val}
+        </div>
       </td>
     </tr>
-    <tr>
-      <td colspan=\"2\" style=\"padding:0;\">
-        <table class=\"inner\" style=\"border-collapse:collapse;\">
+    <tr style=\"height:{ITEMS_AREA_H}mm;\">
+      <td colspan=\"2\" style=\"padding:0; height:{ITEMS_AREA_H}mm;\">
+        <!-- Fixed-height viewport: clips any items that don't fit so the sheet
+             stays exactly one A4 page no matter how long the list gets. -->
+        <div style=\"height:{ITEMS_AREA_H}mm; overflow:hidden;\">
+        <!-- height:auto (overriding .inner's height:100%) so slack becomes the
+             explicit filler row below, not a stretched final item row. -->
+        <table class=\"inner\" style=\"border-collapse:collapse; height:auto;\">
           <colgroup><col style=\"width:32px\"><col><col style=\"width:85px\"><col style=\"width:110px\"></colgroup>
           <tr class=\"items-head\" style=\"height:{ITEMS_THEAD_H}mm;\">
             <td class=\"col-num\" style=\"border-right:1px solid #000 !important;\">#</td>
@@ -954,6 +984,7 @@ def render_invoice_html(invoice, settings=None) -> str:
             <td></td>
           </tr>
         </table>
+        </div>
       </td>
     </tr>
     <tr style=\"height:{FOOTER_H}mm;\">
