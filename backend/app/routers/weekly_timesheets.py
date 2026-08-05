@@ -353,9 +353,8 @@ def comp_amount_for_day(day_index: int, hrs) -> "Decimal":
 async def _grant_overtime_credits(db, timesheet, entries):
     """On full approval, turn overtime days into comp-off leave credits.
     Weekdays: 14h+ = 1.0 day, 12h+ = 0.5 day. Saturday: 8h+ = 1.0, any work
-    under 8h = 0.5. Sunday: none. Each credit is valid for 50 days from that
-    work date. Idempotent per (timesheet, day); never touches a credit that's
-    already been consumed."""
+    under 8h = 0.5. Sunday: none. Comp-off credits do NOT expire. Idempotent per
+    (timesheet, day); never touches a credit that's already been consumed."""
     from decimal import Decimal
     from app.models.overtime_leave import OvertimeLeave
 
@@ -383,7 +382,7 @@ async def _grant_overtime_credits(db, timesheet, entries):
                     hours=hrs,
                     amount=amount,
                     consumed=Decimal("0"),
-                    expires_on=wd + timedelta(days=50),
+                    expires_on=wd + timedelta(days=50),  # legacy NOT NULL column; not enforced
                 ))
             elif Decimal(str(cur.consumed or 0)) == 0:
                 cur.hours = hrs

@@ -88,12 +88,13 @@ async def accrue_all(db: AsyncSession) -> int:
 
 
 # ─── Overtime (comp-off) credits ─────────────────────────────────────────────
-async def _available_credits(db: AsyncSession, employee_id: int, as_of: date):
-    """Non-expired, not-fully-consumed overtime credits, soonest-expiry first."""
+async def _available_credits(db: AsyncSession, employee_id: int):
+    """Not-fully-consumed overtime credits, oldest-earned first. Comp-off does
+    not expire, so every credit with a remaining balance stays usable."""
     res = await db.execute(
         select(OvertimeLeave)
-        .where(OvertimeLeave.employee_id == employee_id, OvertimeLeave.expires_on >= as_of)
-        .order_by(OvertimeLeave.expires_on.asc(), OvertimeLeave.id.asc())
+        .where(OvertimeLeave.employee_id == employee_id)
+        .order_by(OvertimeLeave.work_date.asc(), OvertimeLeave.id.asc())
     )
     return [c for c in res.scalars().all()
             if (Decimal(str(c.amount)) - Decimal(str(c.consumed or 0))) > 0]
@@ -115,14 +116,14 @@ def _serialize_credit(c: OvertimeLeave) -> dict:
 
 
 async def consume_for_leave(db: AsyncSession, leave: LeaveRequest, user: User):
-    """Pay a leave's working days from overtime credits (soonest-expiry first),
-    then the monthly paid balance, then unpaid. Credits are eligible if not
-    expired as of the leave's start date. Records what was drawn from each credit
-    on leave.overtime_consumed so approval can be reversed. Mutates `user` +
-    credit rows in the session; returns nothing (caller commits)."""
+    """Pay a leave's working days from overtime credits (oldest-earned first),
+    then the monthly paid balance, then unpaid. Comp-off never expires, so any
+    credit with a remaining balance is eligible. Records what was drawn from each
+    credit on leave.overtime_consumed so approval can be reversed. Mutates `user`
+    + credit rows in the session; returns nothing (caller commits)."""
     pend = probation_end(user.joining_date)
     bal = Decimal(str(user.paid_leave_balance or 0))
-    creds = await _available_credits(db, user.id, leave.start_date)
+    creds = await _available_credits(db, user.id)
     rem = {c.id: _remaining(c) for c in creds}
     credmap = {c.id: c for c in creds}
     ot_total = sum(rem.values(), Decimal(0))
@@ -374,8 +375,8 @@ async def my_overtime(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    """The requesting employee's currently-usable overtime leave."""
-    creds = await _available_credits(db, current_user.id, date.today())
+    """The requesting employee's usable overtime leave (comp-off never expires)."""
+    creds = await _available_credits(db, current_user.id)
     return {
         "available": float(sum((_remaining(c) for c in creds), Decimal(0))),
         "credits": [_serialize_credit(c) for c in creds],
@@ -388,8 +389,8 @@ async def overtime_for_employee(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_manager),
 ):
-    """An employee's currently-usable overtime leave (admin/PM view)."""
-    creds = await _available_credits(db, employee_id, date.today())
+    """An employee's usable overtime leave, admin/PM view (comp-off never expires)."""
+    creds = await _available_credits(db, employee_id)
     return {
         "available": float(sum((_remaining(c) for c in creds), Decimal(0))),
         "credits": [_serialize_credit(c) for c in creds],
