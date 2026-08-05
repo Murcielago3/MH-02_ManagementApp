@@ -355,7 +355,8 @@ async function fetchSlips() {
 
 async function fetchEmployees() {
   try {
-    const res = await usersAPI.getUsers()
+    // include_ended: departed employees still need their final slips shown here.
+    const res = await usersAPI.getUsers({ include_ended: true })
     employees.value = res.data
   } catch (e) { /* ignore */ }
 }
