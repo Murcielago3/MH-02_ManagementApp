@@ -190,7 +190,8 @@ async def get_invoice(
 
 class PaymentCreate(BaseModel):
     received_amount: float
-    tds_percent: float = 0          # 0, 2 or 10
+    tds_percent: float = 0          # quick-pick slab: 0, 2 or 10
+    tds_amount: Optional[float] = None  # custom absolute TDS in ₹; overrides the slab
     payment_date: date
     note: Optional[str] = None
 
@@ -248,16 +249,25 @@ async def add_payment(
     received = Decimal(str(data.received_amount or 0))
     if received <= 0:
         raise HTTPException(400, "Received amount must be greater than 0")
-    tds_pct = Decimal(str(data.tds_percent or 0))
-    if tds_pct not in (Decimal("0"), Decimal("2"), Decimal("10")):
-        raise HTTPException(400, "TDS must be 0, 2 or 10 percent")
 
-    # Received is net of TDS; gross it up so the full invoice value settles.
-    if tds_pct > 0:
-        settled = (received / (Decimal("1") - tds_pct / Decimal("100"))).quantize(Decimal("0.01"), ROUND_HALF_UP)
+    # Two ways to state the TDS the client withheld:
+    #   • a custom rupee amount (tds_amount) — settled = received + that amount
+    #   • a slab percentage (0/2/10)         — gross up: settled = received/(1-p)
+    # A custom amount always wins; the stored percent is then derived for display.
+    custom = Decimal(str(data.tds_amount)) if data.tds_amount is not None else None
+    if custom is not None and custom > 0:
+        tds_amount = custom.quantize(Decimal("0.01"), ROUND_HALF_UP)
+        settled = (received + tds_amount).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        tds_pct = ((tds_amount / settled) * Decimal("100")).quantize(Decimal("0.01"), ROUND_HALF_UP) if settled > 0 else Decimal("0")
     else:
-        settled = received.quantize(Decimal("0.01"), ROUND_HALF_UP)
-    tds_amount = (settled - received).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        tds_pct = Decimal(str(data.tds_percent or 0))
+        if tds_pct not in (Decimal("0"), Decimal("2"), Decimal("10")):
+            raise HTTPException(400, "TDS must be 0, 2 or 10 percent, or enter a custom amount")
+        if tds_pct > 0:
+            settled = (received / (Decimal("1") - tds_pct / Decimal("100"))).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        else:
+            settled = received.quantize(Decimal("0.01"), ROUND_HALF_UP)
+        tds_amount = (settled - received).quantize(Decimal("0.01"), ROUND_HALF_UP)
 
     p = InvoicePayment(
         invoice_id=invoice_id,

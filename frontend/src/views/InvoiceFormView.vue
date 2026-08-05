@@ -76,12 +76,26 @@
             </div>
             <div class="form-group">
               <label>Project *</label>
-              <select v-model="form.project_id" @change="onProjectSelect" required>
+              <select v-model="projectSel" @change="onProjectSelect" required>
                 <option :value="null">Select Project</option>
                 <option v-for="p in projects" :key="p.id" :value="p.id">
                   {{ p.project_number }} - {{ p.name }}
                 </option>
+                <option value="custom">✎ Enter project name manually…</option>
               </select>
+            </div>
+            <div v-if="isCustomProject" class="form-group mt-12">
+              <label>Project name *</label>
+              <input
+                v-model="customProjectName"
+                @input="onCustomNameInput"
+                type="text"
+                placeholder="Type the project name"
+              />
+              <p class="custom-proj-note">
+                <span class="material-symbols-outlined">info</span>
+                A one-off invoice not linked to any project — nothing is calculated from it.
+              </p>
             </div>
             <div v-if="selectedClient" class="client-chip mt-12">
               <span class="material-symbols-outlined chip-icon">{{ selectedClient.customer_type === 'individual' ? 'person' : 'corporate_fare' }}</span>
@@ -579,7 +593,32 @@ function projectDisplayName(proj) {
   return (proj && (proj.display_name || proj.name)) || ''
 }
 
+// Dropdown selection, decoupled from form.project_id so it can also hold the
+// 'custom' sentinel (a manually-typed, project-less invoice).
+const projectSel = ref(null)
+const customProjectName = ref('')
+const isCustomProject = computed(() => projectSel.value === 'custom')
+
+// Keep the dropdown in sync when project_id is set programmatically (editing an
+// existing invoice or restoring a draft), unless the user is in custom mode.
+watch(() => form.project_id, (id) => {
+  if (projectSel.value !== 'custom') projectSel.value = id || null
+}, { immediate: true })
+
+function onCustomNameInput() {
+  if (includeProjectAsSubject.value) form.subject = customProjectName.value
+}
+
 const onProjectSelect = () => {
+  // Manual entry: no linked project, the typed name feeds the subject line.
+  if (projectSel.value === 'custom') {
+    form.project_id = null
+    selectedClient.value = null
+    form.client_id = null
+    if (includeProjectAsSubject.value) form.subject = customProjectName.value
+    return
+  }
+  form.project_id = projectSel.value || null
   if (!form.project_id) {
     selectedClient.value = null
     form.client_id = null
@@ -610,11 +649,16 @@ const onProjectSelect = () => {
   }
 }
 
-// Toggling the switch on snaps the subject to the current project's display name.
+// Toggling the switch on snaps the subject to the current project's display name
+// (or the manually-typed name when in custom mode).
 watch(includeProjectAsSubject, (on) => {
   if (on) {
-    const proj = projects.value.find(p => p.id === form.project_id)
-    form.subject = projectDisplayName(proj)
+    if (isCustomProject.value) {
+      form.subject = customProjectName.value
+    } else {
+      const proj = projects.value.find(p => p.id === form.project_id)
+      form.subject = projectDisplayName(proj)
+    }
   }
 })
 
@@ -693,7 +737,8 @@ const singleBracketRate = computed(() => liveTotals.value.breakdown[0]?.rate ?? 
 
 const isFormValid = computed(() => {
   if (form.invoice_type === 'tax' && taxType.value !== 'IGST' && !form.invoice_number) return false
-  if (!form.project_id) return false
+  // A project is required — either a linked one, or a manually-typed name.
+  if (!form.project_id && !(isCustomProject.value && customProjectName.value.trim())) return false
   if (!form.bill_to_name) return false
   if (form.items.length === 0) return false
   const validItems = form.items.filter(i => i.description.trim() !== '' && i.amount > 0)
@@ -967,6 +1012,16 @@ const submitInvoice = async () => {
 .mt-12 { margin-top: 12px; }
 .mt-16 { margin-top: 16px; }
 .mt-8  { margin-top: 8px; }
+
+.custom-proj-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+.custom-proj-note .material-symbols-outlined { font-size: 15px; }
 
 /* ── Client Chip ── */
 .client-chip {

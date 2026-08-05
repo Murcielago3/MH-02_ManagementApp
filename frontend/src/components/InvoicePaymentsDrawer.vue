@@ -72,24 +72,35 @@
             <div class="add-grid">
               <label class="add-field">
                 <span>TDS cut?</span>
-                <select v-model.number="form.tds_percent">
-                  <option :value="0">No TDS</option>
-                  <option :value="2">Yes — 2% (194C)</option>
-                  <option :value="10">Yes — 10% (194J)</option>
+                <select v-model="form.tds_choice">
+                  <option value="0">No TDS</option>
+                  <option value="2">2%</option>
+                  <option value="10">10%</option>
+                  <option value="custom">Custom amount</option>
                 </select>
               </label>
-              <label class="add-field">
+              <label v-if="form.tds_choice === 'custom'" class="add-field">
+                <span>TDS amount (₹)</span>
+                <CurrencyInput v-model="form.tds_amount" placeholder="₹ 0.00" />
+              </label>
+              <label v-else class="add-field">
                 <span>Note (optional)</span>
                 <input v-model="form.note" type="text" placeholder="UTR / ref" />
               </label>
             </div>
-            <p v-if="form.tds_percent > 0 && form.received_amount > 0" class="tds-preview">
-              Settles <strong>{{ inr(grossUp) }}</strong>
-              (TDS {{ inr(grossUp - Number(form.received_amount)) }} added back)
+            <div v-if="form.tds_choice === 'custom'" class="add-grid">
+              <label class="add-field span-2">
+                <span>Note (optional)</span>
+                <input v-model="form.note" type="text" placeholder="UTR / ref" />
+              </label>
+            </div>
+            <p v-if="tdsValue > 0 && Number(form.received_amount) > 0" class="tds-preview">
+              Settles <strong>{{ inr(settled) }}</strong>
+              (TDS {{ inr(tdsValue) }} added back)
             </p>
             <p v-if="overpay" class="add-warn">
               <span class="material-symbols-outlined">warning</span>
-              This settles {{ inr(grossUp) }}, more than the {{ inr(data.remaining_amount) }} remaining.
+              This settles {{ inr(settled) }}, more than the {{ inr(data.remaining_amount) }} remaining.
             </p>
             <div class="add-actions">
               <button class="btn-primary" :disabled="!canAdd || saving" @click="submit">
@@ -122,15 +133,22 @@ const loading = ref(true)
 const saving = ref(false)
 const data = ref(null)
 const today = toLocalDateStr()
-const form = ref({ received_amount: null, tds_percent: 0, payment_date: today, note: '' })
+// tds_choice: '0' | '2' | '10' | 'custom'. Custom lets you type the exact
+// rupee amount the client withheld instead of a slab percentage.
+const form = ref({ received_amount: null, tds_choice: '0', tds_amount: null, payment_date: today, note: '' })
 
-const grossUp = computed(() => {
+// Full amount this payment settles against the invoice (received + TDS).
+const settled = computed(() => {
   const r = Number(form.value.received_amount) || 0
-  const t = Number(form.value.tds_percent) || 0
+  if (form.value.tds_choice === 'custom') {
+    return Math.round((r + (Number(form.value.tds_amount) || 0)) * 100) / 100
+  }
+  const t = Number(form.value.tds_choice) || 0
   return t > 0 ? Math.round((r / (1 - t / 100)) * 100) / 100 : r
 })
+const tdsValue = computed(() => Math.round((settled.value - (Number(form.value.received_amount) || 0)) * 100) / 100)
 const overpay = computed(() =>
-  data.value && grossUp.value > Number(data.value.remaining_amount) + 0.01)
+  data.value && settled.value > Number(data.value.remaining_amount) + 0.01)
 const canAdd = computed(() => Number(form.value.received_amount) > 0 && !!form.value.payment_date)
 
 const statusLabel = computed(() => ({
@@ -158,13 +176,15 @@ async function submit() {
   if (!canAdd.value) return
   saving.value = true
   try {
+    const isCustom = form.value.tds_choice === 'custom'
     await invoicesAPI.addPayment(props.invoiceId, {
       received_amount: Number(form.value.received_amount),
-      tds_percent: Number(form.value.tds_percent) || 0,
+      tds_percent: isCustom ? 0 : (Number(form.value.tds_choice) || 0),
+      tds_amount: isCustom ? (Number(form.value.tds_amount) || 0) : null,
       payment_date: form.value.payment_date,
       note: form.value.note?.trim() || null,
     })
-    form.value = { received_amount: null, tds_percent: 0, payment_date: today, note: '' }
+    form.value = { received_amount: null, tds_choice: '0', tds_amount: null, payment_date: today, note: '' }
     await load()
     emit('changed')
   } catch (e) {
@@ -245,6 +265,7 @@ onMounted(load)
 .ipd-add { border-top: 1px dashed var(--color-outline); padding-top: 16px; }
 .ipd-add-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--color-on-surface-variant); margin-bottom: 10px; }
 .add-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.add-field.span-2 { grid-column: 1 / -1; }
 .add-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 700; color: var(--color-on-surface-variant); }
 .add-field input, .add-field select {
   padding: 8px 10px; border: 1px solid var(--color-outline); border-radius: var(--radius-md);
