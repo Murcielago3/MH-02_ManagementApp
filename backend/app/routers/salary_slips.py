@@ -51,7 +51,8 @@ PAYROLL_EXCLUDED_IDS = {1, 10, 11}
 # timesheet hours in the month) × their hourly rate, instead of the flat monthly
 # salary. Unworked time is simply unpaid, so no separate leave deduction applies.
 #   14 = Darshit Patel
-HOURS_BASED_IDS = {14}
+#   16 = Rohit Rathod
+HOURS_BASED_IDS = {14, 16}
 
 
 # ─── Month / date helpers ─────────────────────────────────────────────────────
