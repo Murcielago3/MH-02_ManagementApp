@@ -54,6 +54,12 @@ PAYROLL_EXCLUDED_IDS = {1, 10, 11}
 #   16 = Rohit Rathod
 HOURS_BASED_IDS = {14, 16}
 
+# (employee_id, "YYYY-MM") slips that must never be generated or refreshed —
+# used when a short partial month has been folded into an adjacent slip, so the
+# employee can stay active without the month's slip reappearing.
+#   (15, 2026-06) = Kishore's 2 June days were folded into his July slip
+SUPPRESSED_SLIPS = {(15, "2026-06")}
+
 
 # ─── Month / date helpers ─────────────────────────────────────────────────────
 def _parse_month(month_str: str):
@@ -331,6 +337,8 @@ async def ensure_slips(db: AsyncSession, only_month: Optional[str] = None) -> in
     for u in users:
         join = u.joining_date
         for ms in months:
+            if (u.id, ms) in SUPPRESSED_SLIPS:
+                continue
             y, m = _parse_month(ms)
             month_end = (date(*_add_months(y, m, 1), 1) - timedelta(days=1))
             base_sal, hourly = _month_pay(u, y, m)
