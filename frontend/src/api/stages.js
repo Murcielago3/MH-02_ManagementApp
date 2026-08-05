@@ -1,6 +1,9 @@
 import client from './client'
 
 export const stagesAPI = {
+  // Every stage across all projects (studio-wide Stages board)
+  listAll: () => client.get('/stages/all'),
+
   // Stages + derived amounts/hours + remaining bucket for a project
   list: (projectId) => client.get(`/projects/${projectId}/stages`),
   create: (projectId, data) => client.post(`/projects/${projectId}/stages`, data),

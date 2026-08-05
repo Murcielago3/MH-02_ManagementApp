@@ -3,9 +3,18 @@
     <!-- Page Actions -->
     <div class="page-actions">
       <div class="actions-left">
+        <!-- Projects / Stages view switch -->
+        <div class="view-toggle">
+          <button type="button" class="view-toggle-btn" :class="{ active: viewMode === 'projects' }" @click="viewMode = 'projects'">
+            <span class="material-symbols-outlined">grid_view</span> Projects
+          </button>
+          <button type="button" class="view-toggle-btn" :class="{ active: viewMode === 'stages' }" @click="viewMode = 'stages'">
+            <span class="material-symbols-outlined">flag</span> Stages
+          </button>
+        </div>
         <div class="search-box">
           <span class="material-symbols-outlined search-icon">search</span>
-          <input v-model="searchQuery" type="text" placeholder="Search projects..." class="search-input" />
+          <input v-model="searchQuery" type="text" :placeholder="viewMode === 'stages' ? 'Search stages...' : 'Search projects...'" class="search-input" />
         </div>
         <select v-model="filterYear" class="year-select">
           <option value="">All Years</option>
@@ -16,14 +25,14 @@
           <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.name }}</option>
         </select>
       </div>
-      <button class="add-btn" @click="openAddModal">
+      <button v-if="viewMode === 'projects'" class="add-btn" @click="openAddModal">
         <span class="material-symbols-outlined">add</span>
         Add New Project
       </button>
     </div>
 
-    <!-- Card Grid -->
-    <div class="cards-grid">
+    <!-- Card Grid — Projects -->
+    <div v-if="viewMode === 'projects'" class="cards-grid">
       <div v-if="loading" class="cards-empty">
         <div class="loading-text">Loading projects…</div>
       </div>
@@ -88,11 +97,164 @@
       </div>
     </div>
 
+    <!-- Card Grid — Stages -->
+    <div v-if="viewMode === 'stages'" class="cards-grid">
+      <div v-if="stagesAllLoading" class="cards-empty">
+        <div class="loading-text">Loading stages…</div>
+      </div>
+      <div v-else-if="filteredStages.length === 0" class="cards-empty">
+        No stages found.
+      </div>
+      <div v-else class="cards-wrap">
+        <article
+          v-for="s in filteredStages"
+          :key="s.id"
+          class="project-card"
+          @click="openStageDetail(s)"
+        >
+          <div class="project-card-top">
+            <div class="name-cell">
+              <span class="color-dot" :style="{ background: s.project_color || '#B5EAD7' }"></span>
+              <div>
+                <div class="proj-name">{{ s.name }}</div>
+                <div class="proj-sub mono">{{ s.project_number }} · {{ s.project_name }}</div>
+              </div>
+            </div>
+            <span class="stage-badge" :class="s.status === 'completed' ? 'stage-done' : 'stage-active'">
+              {{ s.status === 'completed' ? 'Completed' : 'Active' }}
+            </span>
+          </div>
+
+          <div class="project-card-body">
+            <div class="stat-row">
+              <span class="stat-label">Share of project</span>
+              <span class="stat-val">{{ formatPct(s.percentage) }}%</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Stage Value</span>
+              <span class="stat-val">₹{{ formatAmount(s.amount) }}</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Budgeted Hours</span>
+              <span class="stat-val">{{ formatAmount(s.hours) }}</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Subtasks</span>
+              <span class="stat-val">
+                {{ s.subtask_completed }}/{{ s.subtask_total }}
+                <span v-if="stageOverdue(s)" class="overdue-tag">· {{ stageOverdue(s) }} overdue</span>
+              </span>
+            </div>
+          </div>
+
+          <div class="stage-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: s.completion_percent + '%', background: completionColor(s) }"></div>
+            </div>
+            <div class="progress-labels">
+              <span>{{ formatPct(s.completion_percent) }}% complete</span>
+              <span class="link-look">Open →</span>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+
     <div class="table-footer">
-      <span class="page-info">
+      <span v-if="viewMode === 'projects'" class="page-info">
         {{ filtered.length }} {{ filtered.length === 1 ? 'project' : 'projects' }}
       </span>
+      <span v-else class="page-info">
+        {{ filteredStages.length }} {{ filteredStages.length === 1 ? 'stage' : 'stages' }}
+      </span>
     </div>
+
+    <!-- Stage Detail Modal -->
+    <Teleport to="body">
+      <div v-if="stageDetail" class="modal-backdrop" @click.self="stageDetail = null">
+        <div class="modal modal-wide">
+          <div class="modal-header">
+            <div class="modal-title-wrap">
+              <h3 class="modal-title">{{ stageDetail.name }}</h3>
+              <div class="detail-sub">
+                <span class="color-dot" :style="{ background: stageDetail.project_color || '#B5EAD7' }"></span>
+                <span class="mono">{{ stageDetail.project_number }}</span> · {{ stageDetail.project_name }}
+              </div>
+            </div>
+            <button class="modal-close" @click="stageDetail = null">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+
+          <div class="modal-body">
+            <!-- Stage summary strip -->
+            <div class="detail-stats">
+              <div class="detail-stat">
+                <span class="ds-label">Status</span>
+                <span class="stage-badge" :class="stageDetail.status === 'completed' ? 'stage-done' : 'stage-active'">
+                  {{ stageDetail.status === 'completed' ? 'Completed' : 'Active' }}
+                </span>
+              </div>
+              <div class="detail-stat">
+                <span class="ds-label">Share of project</span>
+                <span class="ds-value">{{ formatPct(stageDetail.percentage) }}%</span>
+              </div>
+              <div class="detail-stat">
+                <span class="ds-label">Stage Value</span>
+                <span class="ds-value">₹{{ formatAmount(stageDetail.amount) }}</span>
+              </div>
+              <div class="detail-stat">
+                <span class="ds-label">Budgeted Hours</span>
+                <span class="ds-value">{{ formatAmount(stageDetail.hours) }}</span>
+              </div>
+              <div class="detail-stat">
+                <span class="ds-label">Completion</span>
+                <span class="ds-value">{{ formatPct(stageDetail.completion_percent) }}%</span>
+              </div>
+            </div>
+
+            <div class="progress-bar detail-progress">
+              <div class="progress-fill" :style="{ width: stageDetail.completion_percent + '%', background: completionColor(stageDetail) }"></div>
+            </div>
+
+            <!-- Subtasks -->
+            <div class="wiz-divider"><span>Subtasks ({{ stageDetail.subtask_completed }}/{{ stageDetail.subtask_total }})</span></div>
+            <div v-if="!stageDetail.subtasks.length" class="empty-state">
+              No subtasks on this stage yet.
+            </div>
+            <ul v-else class="subtask-list">
+              <li v-for="st in stageDetail.subtasks" :key="st.id" class="subtask-row" :class="{ done: st.status === 'completed' }">
+                <span class="material-symbols-outlined st-check" :class="{ on: st.status === 'completed' }">
+                  {{ st.status === 'completed' ? 'check_circle' : 'radio_button_unchecked' }}
+                </span>
+                <div class="st-main">
+                  <div class="st-title">{{ st.title }}</div>
+                  <div v-if="st.description" class="st-desc">{{ st.description }}</div>
+                  <div class="st-meta">
+                    <span v-if="st.due_date" class="st-due" :class="{ overdue: st.is_overdue }">
+                      <span class="material-symbols-outlined">event</span>
+                      {{ st.due_date }}<template v-if="st.is_overdue"> · {{ st.days_overdue }}d overdue</template>
+                    </span>
+                    <span v-if="st.workers && st.workers.length" class="st-workers">
+                      <span class="material-symbols-outlined">group</span>
+                      {{ st.workers.map(w => w.name).join(', ') }}
+                    </span>
+                  </div>
+                </div>
+                <span class="st-status" :class="subtaskStatusClass(st.status)">{{ subtaskStatusLabel(st.status) }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn-cancel" @click="stageDetail = null">Close</button>
+            <button type="button" class="btn-submit" @click="goToSummaryFromStage(stageDetail)">
+              Manage in project
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Add/Edit Modal -->
     <Teleport to="body">
@@ -875,6 +1037,83 @@ function getClientName(clientId) {
 }
 
 
+// ── Stages board (Projects ⇄ Stages view switch) ──
+const viewMode = ref('projects')
+const allStages = ref([])
+const stagesAllLoading = ref(false)
+const stagesAllLoaded = ref(false)
+const stageDetail = ref(null)
+
+async function fetchAllStages(force = false) {
+  if (stagesAllLoaded.value && !force) return
+  stagesAllLoading.value = true
+  try {
+    const { data } = await stagesAPI.listAll()
+    allStages.value = data.stages || []
+    stagesAllLoaded.value = true
+  } catch (e) {
+    console.error('Failed to load stages', e)
+    allStages.value = []
+  } finally {
+    stagesAllLoading.value = false
+  }
+}
+
+// Load the stages board the first time it's opened, then keep it cached.
+watch(viewMode, (mode) => {
+  if (mode === 'stages') fetchAllStages()
+})
+
+const filteredStages = computed(() => {
+  let list = [...allStages.value]
+  if (filterYear.value) list = list.filter(s => s.project_year === Number(filterYear.value))
+  if (filterClient.value) list = list.filter(s => s.client_id === Number(filterClient.value))
+  const q = searchQuery.value.toLowerCase()
+  if (q) list = list.filter(s =>
+    (s.name || '').toLowerCase().includes(q) ||
+    (s.project_name || '').toLowerCase().includes(q) ||
+    (s.project_number || '').toLowerCase().includes(q)
+  )
+  // Group by project name, then stage sequence — keeps a project's stages together.
+  list.sort((a, b) =>
+    (a.project_name || '').localeCompare(b.project_name || '', undefined, { sensitivity: 'base' }) ||
+    (a.sequence - b.sequence)
+  )
+  return list
+})
+
+function openStageDetail(s) { stageDetail.value = s }
+
+function goToSummaryFromStage(s) {
+  stageDetail.value = null
+  router.push(`/admin/projects/summary/${s.project_id}`)
+}
+
+function stageOverdue(s) {
+  return (s.subtasks || []).filter(st => st.is_overdue).length
+}
+
+function formatPct(val) {
+  const n = Number(val) || 0
+  return Number.isInteger(n) ? String(n) : n.toFixed(1)
+}
+
+function completionColor(s) {
+  const c = Number(s.completion_percent) || 0
+  if (c >= 100) return '#22c55e'
+  if (c > 0) return s.project_color || 'var(--color-primary)'
+  return 'var(--color-outline-variant)'
+}
+
+function subtaskStatusLabel(status) {
+  if (status === 'completed') return 'Done'
+  if (status === 'in-progress') return 'In progress'
+  return 'Pending'
+}
+// status ('pending' | 'in-progress' | 'completed') → a css-safe pill class
+function subtaskStatusClass(status) {
+  return 'stst-' + String(status || 'pending').replace('-', '_')
+}
 
 </script>
 
@@ -1568,6 +1807,112 @@ form .modal-footer {
   color: var(--color-on-surface-variant);
 }
 
+/* ─── Projects / Stages view switch ─── */
+.view-toggle {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--color-surface-dim, #f1f5f9);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg);
+  gap: 2px;
+}
+.view-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: none;
+  background: none;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.view-toggle-btn .material-symbols-outlined { font-size: 16px; }
+.view-toggle-btn.active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ─── Stage card extras ─── */
+.overdue-tag { color: #b91c1c; font-weight: 700; }
+.stage-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-outline-variant);
+}
+.stage-progress .progress-labels { font-size: 11px; }
+.link-look { color: var(--color-primary); font-weight: 700; }
+
+/* ─── Stage detail modal ─── */
+.detail-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--color-on-surface-variant);
+}
+.detail-sub .color-dot { width: 9px; height: 9px; margin: 0; }
+.detail-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  padding: 4px 0 18px;
+}
+.detail-stat { display: flex; flex-direction: column; gap: 4px; }
+.ds-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--color-on-surface-variant);
+}
+.ds-value { font-size: 16px; font-weight: 800; color: var(--color-on-surface); font-variant-numeric: tabular-nums; }
+.detail-stat .stage-badge { align-self: flex-start; }
+.detail-progress { margin-bottom: 4px; }
+
+.subtask-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.subtask-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--color-surface-dim, #f8fafc);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg);
+}
+.subtask-row.done { opacity: 0.72; }
+.subtask-row.done .st-title { text-decoration: line-through; }
+.st-check { font-size: 20px; color: var(--color-on-surface-variant); flex-shrink: 0; margin-top: 1px; }
+.st-check.on { color: #22c55e; }
+.st-main { flex: 1; min-width: 0; }
+.st-title { font-size: 13.5px; font-weight: 600; color: var(--color-on-surface); }
+.st-desc { font-size: 12px; color: var(--color-on-surface-variant); margin-top: 2px; }
+.st-meta { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 6px; }
+.st-due, .st-workers {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11.5px; color: var(--color-on-surface-variant);
+}
+.st-due .material-symbols-outlined, .st-workers .material-symbols-outlined { font-size: 14px; }
+.st-due.overdue { color: #b91c1c; font-weight: 700; }
+.st-status {
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.stst-completed { background: #dcfce7; color: #15803d; }
+.stst-in_progress { background: #dbeafe; color: #1d4ed8; }
+.stst-pending { background: var(--color-outline-variant); color: var(--color-on-surface-variant); }
+
 @media (max-width: 768px) {
   .page-actions { flex-direction: column; align-items: stretch; gap: 10px; }
   .actions-left { flex-wrap: wrap; }
@@ -1576,5 +1921,6 @@ form .modal-footer {
   .modal { max-width: 100%; width: 100%; }
   .modal-backdrop { padding: 8px; }
   .info-grid { grid-template-columns: 1fr; }
+  .detail-stats { gap: 16px; }
 }
 </style>

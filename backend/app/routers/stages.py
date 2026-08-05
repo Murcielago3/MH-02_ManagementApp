@@ -220,6 +220,52 @@ async def list_stages(
     }
 
 
+@router.get("/stages/all")
+async def list_all_stages(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Every stage across every project, each enriched with its project's
+    essentials, for the studio-wide Stages board on the projects page."""
+    projects = (await db.execute(select(Project))).scalars().all()
+    proj_by_id = {p.id: p for p in projects}
+
+    stages = (await db.execute(
+        select(ProjectStage)
+        .options(selectinload(ProjectStage.subtasks))
+        .order_by(ProjectStage.project_id, ProjectStage.sequence, ProjectStage.id)
+    )).scalars().all()
+
+    # Who logged hours against each subtask, across all projects in one query.
+    rows = (await db.execute(
+        select(WeeklyTimesheetEntry.subtask_id, User.name, func.sum(WeeklyTimesheetEntry.hours))
+        .join(WeeklyTimesheet, WeeklyTimesheet.id == WeeklyTimesheetEntry.timesheet_id)
+        .join(User, User.id == WeeklyTimesheet.employee_id)
+        .where(WeeklyTimesheetEntry.subtask_id.isnot(None))
+        .group_by(WeeklyTimesheetEntry.subtask_id, User.name)
+    )).all()
+    workers: dict = {}
+    for subtask_id, name, hours in rows:
+        workers.setdefault(subtask_id, []).append({"name": name, "hours": float(hours or 0)})
+    for v in workers.values():
+        v.sort(key=lambda w: -w["hours"])
+
+    out = []
+    for st in stages:
+        project = proj_by_id.get(st.project_id)
+        if not project:
+            continue
+        data = _serialize_stage(st, project, workers)
+        data["project_name"] = project.name
+        data["project_number"] = project.project_number
+        data["project_color"] = project.color
+        data["project_year"] = project.year
+        data["project_current_stage"] = project.current_stage
+        data["client_id"] = project.client_id
+        out.append(data)
+    return {"stages": out}
+
+
 @router.post("/projects/{project_id}/stages", status_code=201)
 async def create_stage(
     project_id: int,
