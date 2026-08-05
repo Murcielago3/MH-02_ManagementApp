@@ -156,9 +156,6 @@
           <span class="material-symbols-outlined">bolt</span>
           <div>
             <strong>{{ overtimeAvailable }}</strong> day{{ overtimeAvailable === 1 ? '' : 's' }} of comp-off leave available
-            <span v-if="overtime.credits && overtime.credits.length" class="ot-sub">
-              · soonest expires {{ formatDate(overtime.credits[0].expires_on) }}
-            </span>
           </div>
         </div>
         <div class="table-card">

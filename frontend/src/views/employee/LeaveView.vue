@@ -209,18 +209,9 @@ const fetchOvertime = async () => {
   }
 }
 
-function fmtDate(s) {
-  return s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : ''
-}
 const overtimeAvailable = computed(() => Number(overtime.value?.available || 0))
-// Backend returns credits soonest-expiry first.
-const overtimeSub = computed(() => {
-  const cs = overtime.value?.credits || []
-  if (overtimeAvailable.value > 0 && cs.length) {
-    return `Soonest expires ${fmtDate(cs[0].expires_on)}`
-  }
-  return 'Weekday 12h+ = ½, 14h+ = 1 · Sat 8h+ = 1, under 8h = ½'
-})
+const overtimeSub = computed(() =>
+  'Weekday 12h+ = ½, 14h+ = 1 · Sat 8h+ = 1, under 8h = ½')
 
 const fetchUserData = async () => {
   try {
